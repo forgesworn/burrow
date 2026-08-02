@@ -1,0 +1,67 @@
+# forgesworn/burrow
+
+> Gopherholes served from Nostr relays. Documents are addressable Nostr
+> events (kind 31436, named for RFC 1436); a stateless bridge daemon
+> serves them over gopher (RFC 1436) and Gemini from the same events.
+> Virtual holes render any npub's kind 0 profile, kind 1 notes and
+> NIP-23 long-form articles as browsable gopherspace with no publishing
+> required. TypeScript on Node >= 24, one runtime dependency
+> (nostr-tools, pinned 2.23.9).
+>
+> Not related to LinkedIn's Burrow (Kafka monitoring) or any package
+> manager. This is a smolweb-over-Nostr bridge and publisher.
+
+## Event format
+
+- kind `31436`, addressable. One event per document.
+- `d` tag: absolute path in the hole, starts with `/`; root menu is `/`.
+- `type` tag: `0` text, `1` menu. Anything else is treated as `0`.
+- `title` tag optional. NIP-40 `expiration` honoured; expired documents
+  are never served.
+- Menu content is a "burrowmap": gophermap lines with host/port columns
+  removed. `<itemtype><display>\t<link>` per line; lines without a tab
+  are info text. Links: same-hole `/path`, `npub1`/`nprofile1`
+  (their hole root), `naddr1` (kind 31436 document, or kind 30023
+  article served at `/articles/<d>`), `gopher://host/T/selector`,
+  or `http(s)://` (served as an `h`/`URL:` item). Optional `nostr:`
+  prefix on entities.
+
+## Selector namespace (gopher and gemini alike)
+
+- empty / `/`: bridge welcome menu
+- `/<npub>`: hole root (authored `d=/`, else virtual root)
+- `/<npub>/<path>`: document at that path
+- gopher search: type 7 with tab-separated query
+- gemini search: `/<npub>/search` (status 10 input, then results)
+- virtual paths when no authored document matches: `/profile.txt`,
+  `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<d>`
+
+## CLI
+
+- `burrow serve [--port 7070] [--gemini-port 1965] [--host 0.0.0.0]
+  [--hostname x] [--public-port n] [--relay wss://...]...
+  [--pin npub1...]... [--cert f --key f] [--state-dir ~/.burrow]
+  [--no-gemini] [--no-virtual]`
+- `burrow publish <dir> [--relay ...] [--expire 30d] [--dry-run]`,
+  signs with `BURROW_NSEC` (nsec or 64-hex). Text files become type 0;
+  `index.map`/`gophermap` become their directory's menu; other `*.map`
+  files become menus at their own path.
+- `burrow unpublish </path>... | --all [--dry-run]`: NIP-09 kind 5
+  deletion request with `e`, `a` and `k` tags.
+
+## Implementation notes
+
+- Bridge is stateless; the only disk state is the self-signed TLS cert
+  for Gemini (generated via openssl on first run).
+- One-shot relay queries only (querySync), never live subscriptions.
+- Per-IP token bucket (20 burst, 1/s refill), TTL+LRU caches (1 to 10
+  minutes by type), NIP-50 search merged with client-side grep.
+- Source layout: `selector.ts` (parse) -> `router.ts` (resolve to
+  protocol-neutral Content) -> `render.ts` (gopher) / `gemtext.ts`
+  (gemini). `virtual.ts` builds virtual holes, `fetch.ts` talks to
+  relays, `publish.ts` is the CLI's write path.
+
+## Links
+
+- README: https://github.com/forgesworn/burrow/blob/main/README.md
+- Protocol spec: https://github.com/forgesworn/burrow/blob/main/SPEC.md

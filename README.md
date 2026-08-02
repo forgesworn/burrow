@@ -2,27 +2,38 @@
 
 Gopherholes served from Nostr relays.
 
-Your gopherhole is a set of signed Nostr events (kind `31436`, after RFC
-1436). Relays mirror it, so there is no server to maintain and no box
-whose death takes your hole with it. Any burrow bridge can serve any
-hole to any gopher client ever written: lynx, Lagrange, VF-1, an Amiga.
+Gopherspace has one endemic disease: holes die. The hobby box behind
+your favourite phlog loses power, the domain lapses, and fifteen years
+of writing are gone. burrow moves the hole off the box. Documents are
+signed Nostr events (kind `31436`, named for RFC 1436), relays mirror
+them, and any bridge can serve them to any gopher client written since
+1991. lynx, VF-1, Lagrange, an Amiga. All fine.
 
-- **Publish once, hosted everywhere.** Documents live on relays;
-  bridges are stateless and interchangeable.
-- **Every npub is already a hole.** Profiles, notes and NIP-23
-  long-form articles are served as *virtual holes*: the whole of Nostr
-  is browsable from gopherspace without anyone publishing a thing.
-- **Gopher and Gemini from one daemon.** Port 70 and port 1965, same
-  events, TLS certs generated on first run.
-- **A hole is an npub, not an address.** Signed content, portable
-  identity, zappable phlogs.
-- **The smolweb keeps its manners.** Plain text, menus, no scripts, no
-  tracking. Per-IP rate limiting and bounded caches keep a public
-  bridge polite in both directions.
+The hole belongs to your npub, not to a hostname. If a bridge
+disappears, point your client at another one and nothing is lost.
+Zaps, follows and web of trust come along for free, because it's all
+just Nostr underneath.
+
+## What you get
+
+Two things in one small repo: a publisher that turns a directory of
+text files into signed events, and a bridge daemon that speaks gopher
+on one side (RFC 1436, default port 7070) and Gemini on the other
+(default 1965, TLS), both fed from the same events. Type 7 search
+works in gopher, the status 10 input flow in Gemini. NIP-40 expiry is
+enforced on read.
+
+The part I like most: every npub is already a hole. If someone has
+never heard of burrow, the bridge builds their hole out of what they
+have anyway. Kind 0 profile becomes `/profile.txt`, top-level notes
+become a phlog at `/notes`, NIP-23 long-form articles land under
+`/articles`. Point lynx at any npub and start reading. Authored
+documents shadow the virtual paths, so taking over your own hole is
+just publishing.
 
 ## Quickstart
 
-Requires Node >= 24.
+Needs Node 24 or newer.
 
 ```sh
 npm install
@@ -30,30 +41,34 @@ npm install
 # Publish the example hole (signs with your key, sends to relays)
 BURROW_NSEC=nsec1... node src/cli.ts publish examples/hole
 
-# Serve gopherspace (gopher on 7070, gemini on 1965)
+# Serve gopherspace. Gopher on 7070, Gemini on 1965.
 node src/cli.ts serve
 
-# Browse your hole -- or anyone's npub, published or not
+# Browse your hole, or anyone else's npub, published or not
 lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 ```
 
-`publish` prints your hole's root selector when it finishes. Useful
-flags: `--dry-run` to inspect the signed events without sending them,
-`--expire 30d` for ephemeral documents (NIP-40; s/m/h/d/w).
+`publish` prints your hole's root selector when it finishes. Add
+`--dry-run` to inspect the signed events without sending anything,
+or `--expire 30d` for documents that should vanish on their own
+(NIP-40; s/m/h/d/w all work).
 
-`unpublish` sends a NIP-09 deletion request: `burrow unpublish
-/about.txt`, or `--all` for the whole hole. Relays may ignore it;
-prefer `--expire` for content that must vanish.
+To take something down, `burrow unpublish /about.txt` (or `--all`)
+sends a NIP-09 deletion request. Honest caveat: relays are free to
+ignore those. If content genuinely must not outlive a date, publish
+it with `--expire` in the first place; the bridge refuses to serve
+expired documents either way.
 
 ## Writing a hole
 
-A hole is a directory. Text files become type `0` documents;
+A hole is a directory. Text files become type `0` documents.
 `index.map` (or classic `gophermap`) becomes the menu for its
-directory; any other `*.map` file becomes a menu at its own path.
+directory, and any other `*.map` file becomes a menu at its own path.
 
-`index.map` is a **burrowmap**: a gophermap without host/port columns,
-because your documents have no host. Plain lines are info text; linked
-lines are `<type><display>` TAB `<link>`:
+`index.map` is a burrowmap, which is a gophermap with the host and
+port columns chopped off, because your documents don't have a host.
+Plain lines are info text. Linked lines are `<type><display>`, a tab,
+then the link:
 
 ```
 Welcome to my burrow
@@ -67,18 +82,11 @@ Welcome to my burrow
 hMy website	https://example.com
 ```
 
-Links may be same-hole paths, `npub`/`nprofile`/`naddr` entities
-(kind 31436 documents, or kind 30023 articles served from the author's
-virtual hole), `gopher://` URLs (served with their real host), or web
-URLs (served as `h` items).
-
-## Virtual holes
-
-Any npub browses as a hole even if it never published a kind 31436
-event: `/profile.txt` from kind 0, `/notes` from recent top-level kind
-1 notes, `/articles` from NIP-23 long-form. Authored documents shadow
-virtual paths, so publishing a real root menu takes over cleanly.
-Disable with `--no-virtual`.
+Links can be same-hole paths, Nostr entities (`npub`, `nprofile`, or
+`naddr` pointing at a kind 31436 document or a kind 30023 article), a
+`gopher://` URL (kept on its real host), or a web URL (served as an
+`h` item). Pasting in an old gophermap mostly just works; the extra
+columns are ignored.
 
 ## Running a public bridge
 
@@ -89,19 +97,42 @@ node src/cli.ts serve --port 70 --gemini-port 1965 \
   --pin npub1somehole...
 ```
 
-`--hostname`/`--public-port` set the address written into gopher menus
-(useful behind NAT or a port redirect). `--pin` lists holes on the
-welcome menu by their profile name. Gemini serves a self-signed cert
-from `--state-dir` (default `~/.burrow`), generated with openssl on
-first run; bring your own with `--cert`/`--key`, or turn the frontend
-off with `--no-gemini`. Search uses NIP-50 where relays support it and
-falls back to grepping fetched events. Responses are cached for a
-minute; per-IP token buckets (20 burst, 1/s refill) blunt abuse.
+Default relays are Damus, nos.lol and Primal; `--relay` (repeatable)
+replaces them. `--hostname` and `--public-port` control the address
+written into gopher menus, which matters behind NAT or a port
+redirect. `--pin` puts holes on the welcome menu under their profile
+names.
+
+Gemini needs TLS, so the bridge generates a self-signed cert with
+openssl into `--state-dir` (default `~/.burrow`) on first run.
+Bring your own with `--cert` and `--key`, or skip the whole frontend
+with `--no-gemini`. `--no-virtual` turns virtual holes off if you
+only want authored content.
+
+Bridges are meant to be boring to operate: no database, no state
+beyond the TLS cert. Relay responses are cached for a few
+minutes (longer for immutable things like note bodies), and each IP
+gets a token bucket (burst of 20, refills 1/s) so a scraper can't
+turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
+falls back to grepping fetched events where it doesn't.
 
 ## Protocol
 
-See [SPEC.md](SPEC.md) for the event format, burrowmap grammar,
-selector mapping, virtual hole paths and the gemini mapping.
+[SPEC.md](SPEC.md) has the event format, the burrowmap grammar, the
+selector namespace, virtual hole paths and the Gemini mapping. The
+short version: one addressable event per document, `d` tag is the
+path, `type` tag is `0` or `1`, menus link by path or naddr instead
+of host and port. [llms.txt](llms.txt) is the condensed version for
+tools and language models.
+
+## Support
+
+burrow is unfunded hobby work under ForgeSworn. If it made you grin:
+
+- Zap: `npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2`
+- Lightning: `profusemeat89@walletofsatoshi.com`
+- Ko-fi: <https://ko-fi.com/brays>
+- Geyser: <https://geyser.fund/project/forgesworn>
 
 ## Licence
 
