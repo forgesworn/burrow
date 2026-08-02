@@ -4,6 +4,20 @@ import type { Event } from 'nostr-tools'
 // the Gopher protocol specification.
 export const BURROW_KIND = 31436
 
+export const PROFILE_KIND = 0
+export const NOTE_KIND = 1
+export const DELETE_KIND = 5
+export const LONG_FORM_KIND = 30023
+
+export function isoDate(ts: number): string {
+  return new Date(ts * 1000).toISOString().slice(0, 10)
+}
+
+export function firstLine(text: string, max = 60): string {
+  const line = (text.split(/\r?\n/).find((l) => l.trim() !== '') ?? '').trim()
+  return line.length > max ? `${line.slice(0, max - 3)}...` : line
+}
+
 export function tagValue(ev: Event, name: string): string | undefined {
   return ev.tags.find((t) => t[0] === name)?.[1]
 }

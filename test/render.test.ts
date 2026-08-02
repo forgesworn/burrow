@@ -27,11 +27,26 @@ test('naddr link resolves to the other hole', () => {
   assert.equal(out, `1Their notes\t/${otherNpub}/notes\tbridge.test\t7070\r\n.\r\n`)
 })
 
-test('naddr of the wrong kind degrades to info', () => {
+test('naddr of an unsupported kind degrades to info', () => {
   const pk = getPublicKey(generateSecretKey())
-  const naddr = nip19.naddrEncode({ pubkey: pk, kind: 30023, identifier: 'post' })
+  const naddr = nip19.naddrEncode({ pubkey: pk, kind: 30018, identifier: 'post' })
   const out = renderMenu(parseBurrowmap(`1Blog\t${naddr}`), owner, bridge)
   assert.match(out, /^iBlog \(unresolvable link\)\t/)
+})
+
+test('naddr of a long-form article resolves to the virtual articles path', () => {
+  const pk = getPublicKey(generateSecretKey())
+  const otherNpub = nip19.npubEncode(pk)
+  const naddr = nip19.naddrEncode({ pubkey: pk, kind: 30023, identifier: 'my-post' })
+  const out = renderMenu(parseBurrowmap(`1Blog\t${naddr}`), owner, bridge)
+  assert.equal(out, `0Blog\t/${otherNpub}/articles/my-post\tbridge.test\t7070\r\n.\r\n`)
+})
+
+test('npub link resolves to the other hole root', () => {
+  const pk = getPublicKey(generateSecretKey())
+  const otherNpub = nip19.npubEncode(pk)
+  const out = renderMenu(parseBurrowmap(`1Friend\tnostr:${otherNpub}`), owner, bridge)
+  assert.equal(out, `1Friend\t/${otherNpub}\tbridge.test\t7070\r\n.\r\n`)
 })
 
 test('external gopher url keeps its own host', () => {

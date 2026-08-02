@@ -1,35 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
-import path from 'node:path'
-import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure'
-import type { Event } from 'nostr-tools'
-import * as nip19 from 'nostr-tools/nip19'
 import { createGopherServer } from '../src/server.ts'
-import { planDirectory, docToTemplate } from '../src/publish.ts'
-import { docPath } from '../src/protocol.ts'
-import type { HoleStore } from '../src/fetch.ts'
-
-const sk = generateSecretKey()
-const pubkey = getPublicKey(sk)
-const npub = nip19.npubEncode(pubkey)
-
-const holeDir = path.join(import.meta.dirname, '..', 'examples', 'hole')
-const events = planDirectory(holeDir).map((d) => finalizeEvent(docToTemplate(d, 1_754_000_000), sk))
-const byPath = new Map(events.map((ev) => [docPath(ev), ev]))
-
-const store = {
-  doc: async (pk: string, p: string): Promise<Event | null> =>
-    pk === pubkey ? (byPath.get(p) ?? null) : null,
-  hole: async (pk: string): Promise<Event[]> => (pk === pubkey ? events : []),
-  close: () => {},
-} as unknown as HoleStore
+import { makeStore, npub, note } from './helpers.ts'
 
 const server = createGopherServer({
   relays: ['wss://stub.invalid'],
   bridge: { host: 'bridge.test', port: 7070 },
   pins: [npub],
-  store,
+  store: makeStore(),
 })
 
 function listen(): Promise<number> {
@@ -56,10 +35,10 @@ test('gopher server end to end', async (t) => {
   const port = await listen()
   t.after(() => server.close())
 
-  await t.test('welcome menu lists pinned holes', async () => {
+  await t.test('welcome menu lists pinned holes by profile name', async () => {
     const out = await request(port, '')
     assert.match(out, /iburrow\t/)
-    assert.ok(out.includes(`\t/${npub}\tbridge.test\t7070\r\n`))
+    assert.ok(out.includes(`1testdonkey\t/${npub}\tbridge.test\t7070\r\n`))
     assert.ok(out.endsWith('.\r\n'))
   })
 
@@ -68,7 +47,9 @@ test('gopher server end to end', async (t) => {
     assert.ok(out.includes(`0About this hole\t/${npub}/about.txt\tbridge.test\t7070\r\n`))
     assert.ok(out.includes(`1Phlog\t/${npub}/phlog\tbridge.test\t7070\r\n`))
     assert.ok(out.includes('1Floodgap (legacy gopherspace)\t/\tgopher.floodgap.com\t70\r\n'))
-    assert.ok(out.includes('hburrow on the web\tURL:https://github.com/forgesworn\tbridge.test\t7070\r\n'))
+    assert.ok(
+      out.includes('hburrow on the web\tURL:https://github.com/forgesworn\tbridge.test\t7070\r\n'),
+    )
   })
 
   await t.test('text document is dot-terminated', async () => {
@@ -77,9 +58,33 @@ test('gopher server end to end', async (t) => {
     assert.ok(out.endsWith('\r\n.\r\n'))
   })
 
-  await t.test('search finds phlog post', async () => {
+  await t.test('search finds authored docs and virtual notes', async () => {
     const out = await request(port, `/${npub}\tgopherspace`)
+    assert.match(out, /^iResults for "gopherspace"/)
     assert.ok(out.includes(`/${npub}/phlog/2026-08-02-hello.txt\tbridge.test\t7070\r\n`))
+    assert.ok(out.includes(`/${npub}/notes/${note.id}\tbridge.test\t7070\r\n`))
+  })
+
+  await t.test('virtual notes menu appears for unauthored paths', async () => {
+    const out = await request(port, `/${npub}/notes`)
+    assert.ok(out.includes(`\t/${npub}/notes/${note.id}\tbridge.test\t7070\r\n`))
+  })
+
+  await t.test('virtual note body is served as text', async () => {
+    const out = await request(port, `/${npub}/notes/${note.id}`)
+    assert.match(out, /braying about gopherspace/)
+  })
+
+  await t.test('virtual articles are served', async () => {
+    const menu = await request(port, `/${npub}/articles`)
+    assert.ok(menu.includes(`\t/${npub}/articles/pallasite-lore\tbridge.test\t7070\r\n`))
+    const body = await request(port, `/${npub}/articles/pallasite-lore`)
+    assert.match(body, /olivine crystals/)
+  })
+
+  await t.test('virtual profile text is served', async () => {
+    const out = await request(port, `/${npub}/profile.txt`)
+    assert.match(out, /Profile: testdonkey/)
   })
 
   await t.test('unknown path is a type 3 error', async () => {

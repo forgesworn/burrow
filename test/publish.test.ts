@@ -3,8 +3,14 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { planDirectory, docToTemplate, decodeSecret } from '../src/publish.ts'
-import { generateSecretKey } from 'nostr-tools/pure'
+import {
+  planDirectory,
+  docToTemplate,
+  decodeSecret,
+  parseDuration,
+  planDeletion,
+} from '../src/publish.ts'
+import { generateSecretKey, finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 
 function fixture(): string {
@@ -47,6 +53,35 @@ test('docToTemplate carries d, type and title tags', () => {
     ['type', '0'],
     ['title', 'x.txt'],
   ])
+})
+
+test('parseDuration understands s/m/h/d/w, rejects junk', () => {
+  assert.equal(parseDuration('45s'), 45)
+  assert.equal(parseDuration('90m'), 5400)
+  assert.equal(parseDuration('12h'), 43_200)
+  assert.equal(parseDuration('30d'), 2_592_000)
+  assert.equal(parseDuration('2w'), 1_209_600)
+  assert.throws(() => parseDuration('5x'))
+  assert.throws(() => parseDuration('soon'))
+})
+
+test('docToTemplate adds an expiration tag when asked', () => {
+  const tpl = docToTemplate({ path: '/x', type: '0', title: 'x', content: 'c' }, 1000, 60)
+  assert.deepEqual(tpl.tags.at(-1), ['expiration', '1060'])
+})
+
+test('planDeletion covers each document with e and a tags', () => {
+  const sk = generateSecretKey()
+  const doc = finalizeEvent(
+    docToTemplate({ path: '/x.txt', type: '0', title: 'x', content: 'c' }, 1000),
+    sk,
+  )
+  const del = planDeletion([doc], 2000)
+  assert.equal(del.kind, 5)
+  assert.equal(del.created_at, 2000)
+  assert.ok(del.tags.some((t) => t[0] === 'k' && t[1] === '31436'))
+  assert.ok(del.tags.some((t) => t[0] === 'e' && t[1] === doc.id))
+  assert.ok(del.tags.some((t) => t[0] === 'a' && t[1] === `31436:${doc.pubkey}:/x.txt`))
 })
 
 test('decodeSecret accepts nsec and hex, rejects junk', () => {

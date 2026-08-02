@@ -1,0 +1,78 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure'
+import * as nip19 from 'nostr-tools/nip19'
+import {
+  parseProfile,
+  displayName,
+  matchVirtualPath,
+  wrap,
+  notesMenuLines,
+  articlesMenuLines,
+  profileText,
+  articleText,
+} from '../src/virtual.ts'
+
+const sk = generateSecretKey()
+const npub = nip19.npubEncode(getPublicKey(sk))
+
+function ev(kind: number, content: string, tags: string[][] = []) {
+  return finalizeEvent({ kind, created_at: 1_754_000_000, tags, content }, sk)
+}
+
+test('parseProfile prefers display_name, tolerates junk', () => {
+  const good = parseProfile(ev(0, '{"name":"don","display_name":"The Donkey","about":"hee haw"}'))
+  assert.equal(good?.name, 'The Donkey')
+  assert.equal(good?.about, 'hee haw')
+  assert.equal(parseProfile(ev(0, 'not json')), null)
+  assert.equal(parseProfile(null), null)
+})
+
+test('displayName falls back to a shortened npub', () => {
+  assert.equal(displayName(null, npub), `${npub.slice(0, 16)}...`)
+  assert.equal(displayName({ name: 'don' }, npub), 'don')
+})
+
+test('matchVirtualPath recognises the reserved paths', () => {
+  assert.deepEqual(matchVirtualPath('/'), { kind: 'root' })
+  assert.deepEqual(matchVirtualPath('/profile.txt'), { kind: 'profile' })
+  assert.deepEqual(matchVirtualPath('/notes'), { kind: 'notes' })
+  assert.deepEqual(matchVirtualPath(`/notes/${'a'.repeat(64)}`), { kind: 'note', id: 'a'.repeat(64) })
+  assert.equal(matchVirtualPath('/notes/nonsense'), null)
+  assert.deepEqual(matchVirtualPath('/articles'), { kind: 'articles' })
+  assert.deepEqual(matchVirtualPath('/articles/my-post'), { kind: 'article', d: 'my-post' })
+  assert.equal(matchVirtualPath('/anything-else'), null)
+})
+
+test('wrap respects width and paragraphs', () => {
+  const lines = wrap('one two three four five', 9)
+  assert.deepEqual(lines, ['one two', 'three', 'four five'])
+  assert.deepEqual(wrap('a\n\nb'), ['a', '', 'b'])
+})
+
+test('notesMenuLines links each note by id', () => {
+  const note = ev(1, 'first line\nsecond line')
+  const [line] = notesMenuLines([note])
+  assert.equal(line?.type, '0')
+  assert.equal(line?.link, `/notes/${note.id}`)
+  assert.match(line?.display ?? '', /first line/)
+  assert.deepEqual(notesMenuLines([]), [{ type: 'i', display: 'No notes found.' }])
+})
+
+test('articlesMenuLines uses title tag and d link', () => {
+  const article = ev(30023, 'body', [['d', 'my-post'], ['title', 'My Post']])
+  const [line] = articlesMenuLines([article])
+  assert.equal(line?.link, '/articles/my-post')
+  assert.match(line?.display ?? '', /My Post/)
+})
+
+test('profileText and articleText carry the useful fields', () => {
+  const text = profileText({ name: 'don', nip05: 'don@example.com', about: 'hee haw' }, npub)
+  assert.match(text, /Profile: don/)
+  assert.match(text, /nip05: {3}don@example\.com/)
+  assert.match(text, /hee haw/)
+  const article = articleText(ev(30023, 'body text', [['d', 'p'], ['title', 'T'], ['summary', 'S']]))
+  assert.match(article, /^T\n/)
+  assert.match(article, /S/)
+  assert.match(article, /body text/)
+})

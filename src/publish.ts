@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
-import type { EventTemplate } from 'nostr-tools'
+import type { Event, EventTemplate } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { SimplePool } from 'nostr-tools/pool'
-import { BURROW_KIND, docPath } from './protocol.ts'
+import { BURROW_KIND, DELETE_KIND, docPath, isExpired } from './protocol.ts'
 
 export interface PlannedDoc {
   path: string
@@ -52,17 +52,25 @@ export function planDirectory(root: string): PlannedDoc[] {
   return docs
 }
 
-export function docToTemplate(doc: PlannedDoc, createdAt: number): EventTemplate {
-  return {
-    kind: BURROW_KIND,
-    created_at: createdAt,
-    tags: [
-      ['d', doc.path],
-      ['type', doc.type],
-      ['title', doc.title],
-    ],
-    content: doc.content,
-  }
+export function docToTemplate(
+  doc: PlannedDoc,
+  createdAt: number,
+  expireSeconds?: number,
+): EventTemplate {
+  const tags = [
+    ['d', doc.path],
+    ['type', doc.type],
+    ['title', doc.title],
+  ]
+  if (expireSeconds !== undefined) tags.push(['expiration', String(createdAt + expireSeconds)])
+  return { kind: BURROW_KIND, created_at: createdAt, tags, content: doc.content }
+}
+
+export function parseDuration(s: string): number {
+  const m = /^(\d+)([smhdw])$/.exec(s)
+  if (!m) throw new Error(`bad duration: ${s} (use e.g. 90m, 12h, 30d, 2w)`)
+  const mult = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[m[2] as 's' | 'm' | 'h' | 'd' | 'w']
+  return Number(m[1]) * mult
 }
 
 export function decodeSecret(secret: string): Uint8Array {
@@ -75,19 +83,24 @@ export function decodeSecret(secret: string): Uint8Array {
   throw new Error('BURROW_NSEC must be nsec1... or 64 hex chars')
 }
 
+export interface PublishOptions {
+  dryRun?: boolean
+  expireSeconds?: number
+}
+
 export async function publishHole(
   dir: string,
   relays: string[],
   secret: Uint8Array,
-  dryRun: boolean,
+  opts: PublishOptions = {},
 ): Promise<void> {
   const docs = planDirectory(dir)
   if (docs.length === 0) throw new Error(`no documents found in ${dir}`)
   const createdAt = Math.floor(Date.now() / 1000)
-  const events = docs.map((d) => finalizeEvent(docToTemplate(d, createdAt), secret))
+  const events = docs.map((d) => finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret))
   const npub = nip19.npubEncode(getPublicKey(secret))
 
-  if (dryRun) {
+  if (opts.dryRun) {
     console.log(JSON.stringify(events, null, 2))
     console.log(`\n${docs.length} document(s), not published (dry run). Hole: /${npub}`)
     return
@@ -105,6 +118,73 @@ export async function publishHole(
   }
   pool.destroy()
   console.log(`\nPublished ${ok}/${docs.length} document(s)${failed ? `, ${failed} failed` : ''}.`)
+  if (opts.expireSeconds !== undefined) {
+    console.log(`Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`)
+  }
   console.log(`Hole root selector: /${npub}`)
   console.log(`Try it: lynx gopher://127.0.0.1:7070/1/${npub}`)
+}
+
+// NIP-09 deletion request covering the given documents.
+export function planDeletion(events: Event[], createdAt: number): EventTemplate {
+  const tags: string[][] = [['k', String(BURROW_KIND)]]
+  for (const ev of events) {
+    tags.push(['e', ev.id])
+    tags.push(['a', `${BURROW_KIND}:${ev.pubkey}:${docPath(ev)}`])
+  }
+  return { kind: DELETE_KIND, created_at: createdAt, tags, content: 'burrow unpublish' }
+}
+
+export async function unpublishHole(
+  paths: string[] | 'all',
+  relays: string[],
+  secret: Uint8Array,
+  dryRun: boolean,
+): Promise<void> {
+  const pubkey = getPublicKey(secret)
+  const pool = new SimplePool()
+  try {
+    const events = await pool.querySync(
+      relays,
+      { kinds: [BURROW_KIND], authors: [pubkey], limit: 500 },
+      { maxWait: 6000 },
+    )
+    const now = Math.floor(Date.now() / 1000)
+    const byPath = new Map<string, Event>()
+    for (const ev of events) {
+      if (isExpired(ev, now)) continue
+      const p = docPath(ev)
+      const prev = byPath.get(p)
+      if (!prev || prev.created_at < ev.created_at) byPath.set(p, ev)
+    }
+    let targets: Event[]
+    if (paths === 'all') {
+      targets = [...byPath.values()]
+    } else {
+      targets = []
+      for (const p of paths) {
+        const ev = byPath.get(p)
+        if (ev) targets.push(ev)
+        else console.error(`no document at ${p}, skipping`)
+      }
+    }
+    if (targets.length === 0) {
+      console.log('Nothing to unpublish.')
+      return
+    }
+    const del = finalizeEvent(planDeletion(targets, now), secret)
+    if (dryRun) {
+      console.log(JSON.stringify(del, null, 2))
+      console.log(`\nWould request deletion of ${targets.length} document(s) (dry run).`)
+      return
+    }
+    const results = await Promise.allSettled(pool.publish(relays, del))
+    const accepted = results.filter((r) => r.status === 'fulfilled').length
+    console.log(
+      `Deletion request for ${targets.length} document(s) accepted by ${accepted}/${relays.length} relays.`,
+    )
+    console.log('Relays are free to ignore NIP-09; deletion is a request, not a guarantee.')
+  } finally {
+    pool.destroy()
+  }
 }
