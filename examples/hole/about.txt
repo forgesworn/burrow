@@ -1,0 +1,4 @@
+This hole is a set of Nostr events, kind 31436.
+No server hosts it; relays mirror it.
+
+Edit examples/hole and republish to change it.

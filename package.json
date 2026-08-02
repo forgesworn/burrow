@@ -1,0 +1,26 @@
+{
+  "name": "burrow",
+  "version": "0.1.0",
+  "description": "Gopherholes served from Nostr relays. Publish once, mirrored everywhere, signed by your npub.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "burrow": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "serve": "node src/cli.ts serve"
+  },
+  "dependencies": {
+    "nostr-tools": "2.23.9"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.2"
+  }
+}

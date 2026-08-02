@@ -1,0 +1,4 @@
+Hello, gopherspace.
+
+This phlog post is a signed Nostr event. Zap it, mirror it,
+read it in lynx. The 1991 web and the 2026 web shake hands.
