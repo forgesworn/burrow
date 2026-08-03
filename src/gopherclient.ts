@@ -20,14 +20,22 @@ export { parseProxyPath, proxyPath, type GopherTarget }
 export function fetchGopher(
   target: GopherTarget,
   query?: string,
+  connectHost?: string,
   timeoutMs = 10_000,
   maxBytes = 512 * 1024,
 ): Promise<string> {
   const request = query === undefined ? target.selector : `${target.selector}\t${query}`
   return new Promise((resolve, reject) => {
+    // A CR, LF or NUL in the request line lets a caller inject additional
+    // commands into newline-delimited services (Redis, memcached, ...): the
+    // classic gopher SSRF payload. Refuse it before opening the socket.
+    if (/[\r\n\0]/.test(request)) {
+      reject(new Error('bad selector'))
+      return
+    }
     const chunks: Buffer[] = []
     let total = 0
-    const socket = net.connect(target.port, target.host, () => {
+    const socket = net.connect(target.port, connectHost ?? target.host, () => {
       socket.write(`${request}\r\n`)
     })
     socket.setTimeout(timeoutMs, () => {
@@ -106,10 +114,14 @@ export function parseGopherMenu(body: string): MenuItem[] {
   return items
 }
 
-export async function browseGopher(target: GopherTarget, query?: string): Promise<Content> {
+export async function browseGopher(
+  target: GopherTarget,
+  query?: string,
+  connectHost?: string,
+): Promise<Content> {
   let body: string
   try {
-    body = await fetchGopher(target, query)
+    body = await fetchGopher(target, query, connectHost)
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : 'gopher fetch failed' }
   }

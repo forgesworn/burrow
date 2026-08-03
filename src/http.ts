@@ -5,6 +5,7 @@ import { parseSelector, SelectorError } from './selector.ts'
 import { resolveRoute } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
 import { parseProxyPath, browseGopher } from './gopherclient.ts'
+import { resolvePublicHost } from './netguard.ts'
 import type { MenuItem } from './resolve.ts'
 import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
@@ -193,9 +194,19 @@ async function handle(
         '<p><input type="text" name="q" size="40"> <input type="submit" value="Search"></p></form>'
       return html(200, page('Search gopherspace', form, signedIn))
     }
-    const content = await browseGopher(
-      q === null ? target : { ...target, selector: `${target.selector}\t${q}` },
-    )
+    // The proxy is internet-exposed and the remote visitor names the host,
+    // so guard against SSRF into internal ranges before connecting, and
+    // connect to the validated IP to close the DNS-rebinding window.
+    let connectHost: string
+    try {
+      connectHost = await resolvePublicHost(target.host)
+    } catch {
+      return html(
+        502,
+        page('Blocked', '<h1>Blocked</h1><p>That address is not reachable through this proxy.</p>', signedIn),
+      )
+    }
+    const content = await browseGopher(target, q === null ? undefined : q, connectHost)
     const rendered = renderContentHtml(content)
     return html(
       content.kind === 'error' ? 502 : 200,
