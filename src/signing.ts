@@ -1,13 +1,10 @@
-import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import type { Event, EventTemplate } from 'nostr-tools'
 import type { PairingStore } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
-import { decodeSecret } from './publish.ts'
 
 // Where a CLI signature comes from, in priority order:
-//   1. GOPHERKIND_NSEC        local key, signs instantly, no approval
-//   2. GOPHERKIND_BUNKER      one-off bunker URI, no stored pairing
-//   3. stored CLI pairing  `gopherkind pair` wrote it to the state dir
+//   1. GOPHERKIND_BUNKER      one-off bunker URI, no stored pairing
+//   2. stored CLI pairing  `gopherkind pair` wrote it to the state dir
 // The CLI pairing reuses PairingStore with a fixed key, so the bridge and
 // the CLI share one file format.
 
@@ -19,17 +16,8 @@ export interface CliSigner {
   sign(template: EventTemplate): Promise<Event>
 }
 
-export function localSigner(secret: string): CliSigner {
-  const sk = decodeSecret(secret)
-  return {
-    describe: 'local key (GOPHERKIND_NSEC)',
-    pubkey: async () => getPublicKey(sk),
-    sign: async (tpl) => finalizeEvent(tpl, sk),
-  }
-}
-
 export async function bunkerSignerFromUri(uri: string): Promise<CliSigner> {
-  const client = new Nip46Client()
+  const client = new Nip46Client({ allowNip05: true, trustLocalRelays: true })
   const result = await client.pair(uri)
   const pairing = {
     fingerprint: CLI_PAIRING_KEY,
@@ -57,19 +45,17 @@ export function storedSigner(store: PairingStore): CliSigner | null {
 }
 
 export async function resolveSigner(store: PairingStore): Promise<CliSigner> {
-  const nsec = process.env['GOPHERKIND_NSEC']
-  if (nsec !== undefined) return localSigner(nsec)
   const bunker = process.env['GOPHERKIND_BUNKER']
   if (bunker !== undefined) return bunkerSignerFromUri(bunker)
   const stored = storedSigner(store)
   if (stored) return stored
   throw new Error(
-    'no signer. Either `gopherkind pair bunker://...` once, or set GOPHERKIND_NSEC / GOPHERKIND_BUNKER.',
+    'no signer. Either `gopherkind pair bunker://...` once, or set GOPHERKIND_BUNKER.',
   )
 }
 
 export async function pairCli(store: PairingStore, uri: string): Promise<string> {
-  const result = await new Nip46Client().pair(uri)
+  const result = await new Nip46Client({ allowNip05: true, trustLocalRelays: true }).pair(uri)
   store.set({
     fingerprint: CLI_PAIRING_KEY,
     userPubkey: result.userPubkey,

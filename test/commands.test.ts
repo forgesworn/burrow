@@ -3,13 +3,11 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import * as nip19 from 'nostr-tools/nip19'
-import { nsecEncode } from 'nostr-tools/nip19'
 import { cmdPost, cmdUnpair } from '../src/commands.ts'
 import { PairingStore } from '../src/identity.ts'
 import { renderForTerminal } from '../src/cliview.ts'
-import { localSigner, resolveSigner, CLI_PAIRING_KEY } from '../src/signing.ts'
-import { sk, npub } from './helpers.ts'
+import { resolveSigner, CLI_PAIRING_KEY } from '../src/signing.ts'
+import { npub, testSigner } from './helpers.ts'
 
 function tmpPairings(t: { after: (fn: () => void) => void }): PairingStore {
   const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-cmd-'))
@@ -34,25 +32,11 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
   }
 }
 
-test('local signer signs with GOPHERKIND_NSEC', async () => {
-  const signer = localSigner(nsecEncode(sk))
-  assert.equal(nip19.npubEncode(await signer.pubkey()), npub)
-  const ev = await signer.sign({ kind: 1, created_at: 1, tags: [], content: 'hi' })
-  assert.equal(ev.content, 'hi')
-  assert.match(ev.sig, /^[0-9a-f]{128}$/)
-})
-
-test('signer resolution prefers nsec, then errors helpfully', async (t) => {
+test('signer resolution ignores local key environment variables and errors helpfully', async (t) => {
   const pairings = tmpPairings(t)
-  const resolved = await withEnv(
-    { GOPHERKIND_NSEC: nsecEncode(sk), GOPHERKIND_BUNKER: undefined },
-    () => resolveSigner(pairings),
-  )
-  assert.match(resolved.describe, /local key/)
-
   await assert.rejects(
     () =>
-      withEnv({ GOPHERKIND_NSEC: undefined, GOPHERKIND_BUNKER: undefined }, () =>
+      withEnv({ GOPHERKIND_NSEC: 'nsec1mustneverload', GOPHERKIND_BUNKER: undefined }, () =>
         resolveSigner(pairings),
       ),
     /gopherkind pair/,
@@ -63,8 +47,12 @@ test('post refuses credential-shaped notes before signing', async (t) => {
   const pairings = tmpPairings(t)
   await assert.rejects(
     () =>
-      withEnv({ GOPHERKIND_NSEC: nsecEncode(sk) }, () =>
-        cmdPost(`bunker://abc?secret=${'f'.repeat(64)}`, ['wss://stub.invalid'], pairings, true),
+      cmdPost(
+        `bunker://abc?secret=${'f'.repeat(64)}`,
+        ['wss://stub.invalid'],
+        pairings,
+        true,
+        testSigner,
       ),
     /refusing to sign/,
   )
@@ -72,9 +60,7 @@ test('post refuses credential-shaped notes before signing', async (t) => {
 
 test('post dry run signs without publishing', async (t) => {
   const pairings = tmpPairings(t)
-  const out = await withEnv({ GOPHERKIND_NSEC: nsecEncode(sk) }, () =>
-    cmdPost('hello gopherspace', ['wss://stub.invalid'], pairings, true),
-  )
+  const out = await cmdPost('hello gopherspace', ['wss://stub.invalid'], pairings, true, testSigner)
   assert.match(out, /not published \(dry run\)/)
   const ev = JSON.parse(out.slice(0, out.lastIndexOf('}') + 1)) as { content: string; kind: number }
   assert.equal(ev.kind, 1)

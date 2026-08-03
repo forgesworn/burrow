@@ -16,7 +16,7 @@ import {
 import { BookmarkStore } from '../src/bookmarks.ts'
 import { PairingStore } from '../src/identity.ts'
 import { renderNumbered, pageLinks } from '../src/cliview.ts'
-import { makeStore, npub, pubkey, sk, note } from './helpers.ts'
+import { makeStore, npub, pubkey, note, testSigner } from './helpers.ts'
 import type { Content } from '../src/router.ts'
 
 function tmpFile(name: string): string {
@@ -132,12 +132,8 @@ test('bookmark store dedupes by ref and survives junk on disk', () => {
   assert.deepEqual(store.list(), [])
 })
 
-test('feed renders as a navigable menu through a local signer', async (t) => {
-  process.env['GOPHERKIND_NSEC'] = Buffer.from(sk).toString('hex')
-  t.after(() => {
-    delete process.env['GOPHERKIND_NSEC']
-  })
-  const deps = makeDeps()
+test('feed renders as a navigable menu through a remote signer', async () => {
+  const deps = makeDeps({ signer: testSigner })
   const content = await feedContent(deps)
   assert.equal(content.kind, 'menu')
   if (content.kind === 'menu') {

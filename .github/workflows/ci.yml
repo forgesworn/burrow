@@ -25,4 +25,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: node --test --experimental-test-coverage
+      - run: npm run coverage
+      - run: npm audit --audit-level=high
+      - run: npm pack --dry-run

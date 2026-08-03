@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
@@ -41,4 +41,43 @@ test('the built dist entry runs the same way', { skip: !existsSync(distCli) }, (
   const none = run(distCli, [])
   assert.notEqual(none.status, 0)
   assert.match(none.out, /usage:/)
+})
+
+test('serve defaults to loopback and exits cleanly on SIGTERM', async () => {
+  const child = spawn(
+    'node',
+    [srcCli, 'serve', '--port', '0', '--http-port', '0', '--no-gemini', '--no-identity'],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  )
+  let output = ''
+  const ready = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`server did not start:\n${output}`)), 10_000)
+    const collect = (chunk: Buffer): void => {
+      output += chunk.toString('utf8')
+      if (output.includes('gopherkind: http on 127.0.0.1:0')) {
+        clearTimeout(timeout)
+        resolve()
+      }
+    }
+    child.stdout.on('data', collect)
+    child.stderr.on('data', collect)
+    child.once('error', reject)
+  })
+  try {
+    await ready
+    child.kill('SIGTERM')
+    const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+      (resolve) => child.once('exit', (code, signal) => resolve({ code, signal })),
+    )
+    assert.deepEqual(result, { code: 0, signal: null })
+    assert.match(output, /SIGTERM, closing listeners/)
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+  }
+})
+
+test('a wildcard bind requires an advertised hostname', () => {
+  const result = run(srcCli, ['serve', '--host', '0.0.0.0', '--no-gemini', '--no-http'])
+  assert.notEqual(result.status, 0)
+  assert.match(result.out, /--hostname is required/)
 })

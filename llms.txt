@@ -5,8 +5,8 @@
 > over gopher (RFC 1436), Gemini and HTTP from the same events.
 > Virtual holes render any npub's kind 0 profile, kind 1 notes and
 > NIP-23 long-form articles as browsable gopherspace with no publishing
-> required. TypeScript on Node >= 24, one runtime dependency
-> (nostr-tools, pinned 2.23.9).
+> required. TypeScript on Node >= 24. Runtime dependencies are nostr-tools
+> (pinned 2.23.9) and ws (pinned 8.21.1).
 >
 > Formerly named burrow; renamed before first release, so no published
 > version ever carried the old name.
@@ -59,14 +59,15 @@
 - http frontend (default port 8070, aimed at lynx: plain HTML, real
   forms, no JavaScript): same hole paths plus `/go`, `/account`,
   `/pair`, `/post`, `/feed`, `/delete`, `/_gopherkind/search/<npub>?q=`. Loopback
-  requests are trusted as the operator and use the CLI's signer, so
-  local browsing needs no login; remote visitors pair via form and get
-  a session cookie. Plain HTTP, so terminate TLS in front of it.
+  requests are trusted as the operator and use the CLI's remote signer, so
+  local browsing needs no login. For remote sessions, bind to loopback behind
+  TLS and pass `--no-local-trust`; identity is disabled on a public bind.
 
 ## CLI
 
 The CLI is a complete client; the Gemini frontend is for visitors who
-have no shell on the bridge host. Install: `npx @forgesworn/gopherkind`
+have no shell on the bridge host. Until the first npm publication, install
+from GitHub with `npm install --global github:forgesworn/gopherkind`
 (Node >= 24).
 
 - interactive browser: `gopherkind` (bare, on a TTY) or
@@ -86,31 +87,37 @@ have no shell on the bridge host. Install: `npx @forgesworn/gopherkind`
 - write: `gopherkind post <text> [--dry-run]`, `gopherkind feed [--limit 20]`,
   `gopherkind delete <id|note1|nevent1> [--wide] [--reason x]` (NIP-09)
 - identity: `gopherkind pair <bunker://...>`, `gopherkind unpair`,
-  `gopherkind whoami`. Signer resolution order: `GOPHERKIND_NSEC` local key,
-  then `GOPHERKIND_BUNKER` one-off URI, then the stored pairing.
+  `gopherkind whoami`. Signing is remote-only: `GOPHERKIND_BUNKER` one-off
+  URI, then the stored NIP-46 pairing. Local secret keys are never accepted.
 - all commands take `[--relay wss://...]...` and `[--state-dir d]`
-- `gopherkind serve [--port 7070] [--gemini-port 1965] [--host 0.0.0.0]
+- `gopherkind serve [--port 7070] [--gemini-port 1965] [--host 127.0.0.1]
   [--hostname x] [--public-port n] [--relay wss://...]...
   [--pin npub1...]... [--cert f --key f] [--state-dir ~/.gopherkind]
   [--no-gemini] [--no-virtual] [--no-identity]`
 - `gopherkind publish <dir> [--relay ...] [--expire 30d] [--dry-run]`,
-  signs with `GOPHERKIND_NSEC` (nsec or 64-hex). Text files become type 0;
+  signs with the remote NIP-46 signer. Text files become type 0;
   `index.map`/`gophermap` become their directory's menu; other `*.map`
-  files become menus at their own path.
+  files become menus at their own path. Publishing uses the union of configured
+  and author NIP-65 write relays, spreads an existing relay list and verifies
+  read-back.
 - `gopherkind unpublish </path>... | --all [--dry-run]`: NIP-09 kind 5
   deletion request with `e`, `a` and `k` tags.
 
 ## Implementation notes
 
-- Disk state is the Gemini TLS cert plus `pairings.json` (cert
-  fingerprint -> bunker binding, mode 600) in the state dir; nothing
-  else. Every NIP-46 call is per-request with a hard timeout.
+- Disk state is the Gemini TLS cert, `pairings.json` (cert fingerprint ->
+  bunker binding, mode 600), and local bookmarks. Every NIP-46 call is
+  per-request with a hard timeout.
 - `src/secretguard.ts` blocks credential-shaped content (bunker://,
   nostrconnect://, nsec, ncryptsec, `secret=`) on both the /post path
   and CLI publish, before anything is signed.
 - One-shot relay queries only (querySync), never live subscriptions.
 - Per-IP token bucket (20 burst, 1/s refill), TTL+LRU caches (1 to 10
   minutes by type), NIP-50 search merged with client-side grep.
+- Relay hints and public bunker relays reject loopback, private and link-local
+  DNS answers at socket connection time. Operator-configured relays may be local.
+- HTTP `GET /healthz` is independent of relay availability. SIGTERM and SIGINT
+  close listeners and the relay pool. A non-root Dockerfile is included.
 - Source layout: `selector.ts` (parse) -> `router.ts` (resolve to
   protocol-neutral Content) -> `render.ts` (gopher) / `gemtext.ts`
   (gemini). `virtual.ts` builds virtual holes, `fetch.ts` talks to
@@ -118,9 +125,9 @@ have no shell on the bridge host. Install: `npx @forgesworn/gopherkind`
   client-side targets (npub/nostr:/gopher://), `gopherclient.ts`
   fetches traditional gopherspace, `browse.ts` is the interactive
   terminal client.
-- Published to npm as `@forgesworn/gopherkind` with a compiled `dist/`
-  (Node refuses type stripping under node_modules); development runs
-  straight from `src/` with no build step.
+- Package name `gopherkind`, not yet published to npm. Git installs run
+  `prepare` to compile `dist/` because Node refuses type stripping under
+  `node_modules`; development runs straight from `src/` with no manual build.
 
 ## Links
 

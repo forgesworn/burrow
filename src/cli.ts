@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util'
 import process from 'node:process'
 import os from 'node:os'
 import path from 'node:path'
+import type { Server as NetServer } from 'node:net'
 import { createGopherServer } from './server.ts'
 import { createGeminiServer } from './gemini.ts'
 import { HoleStore } from './fetch.ts'
@@ -10,7 +11,7 @@ import { RateLimiter } from './ratelimit.ts'
 import { ensureSelfSignedCert } from './certs.ts'
 import { PairingStore } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
-import { publishHole, unpublishHole, decodeSecret, parseDuration } from './publish.ts'
+import { publishHole, unpublishHole, parseDuration } from './publish.ts'
 import {
   cmdRead,
   cmdSearch,
@@ -50,7 +51,7 @@ const USAGE = `usage:
     gopherkind whoami
 
   bridge:
-    gopherkind serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
+    gopherkind serve [--port 7070] [--host 127.0.0.1] [--hostname name] [--public-port n]
                      [--gemini-port 1965] [--no-gemini] [--http-port 8070] [--no-http]
                      [--no-local-trust] [--trust-loopback-anyway]
                      [--cert f --key f] [--state-dir d]
@@ -63,8 +64,8 @@ const USAGE = `usage:
 
   every command takes [--relay wss://...]... and [--state-dir d].
 
-  signer resolution: GOPHERKIND_NSEC (local key), else GOPHERKIND_BUNKER (one-off
-  bunker URI), else whatever \`gopherkind pair\` stored.`
+  signer resolution: GOPHERKIND_BUNKER (one-off bunker URI), else whatever
+  \`gopherkind pair\` stored. User secret keys are never accepted.`
 
 const [command, ...rest] = process.argv.slice(2)
 
@@ -97,7 +98,7 @@ if (command === 'serve') {
     args: rest,
     options: {
       port: { type: 'string', default: '7070' },
-      host: { type: 'string', default: '0.0.0.0' },
+      host: { type: 'string', default: '127.0.0.1' },
       hostname: { type: 'string' },
       'public-port': { type: 'string' },
       'gemini-port': { type: 'string', default: '1965' },
@@ -119,10 +120,23 @@ if (command === 'serve') {
   const relays = values.relay ?? DEFAULT_RELAYS
   const pins = values.pin ?? []
   const virtualEnabled = !values['no-virtual']
-  const advertisedHost = values.hostname ?? (values.host === '0.0.0.0' ? 'localhost' : values.host)
+  const wildcardBind = values.host === '0.0.0.0' || values.host === '::'
+  if (wildcardBind && values.hostname === undefined) {
+    fail('--hostname is required when --host is a wildcard address')
+  }
+  const advertisedHost = values.hostname ?? values.host
+  if (
+    [...advertisedHost].some((char) => {
+      const code = char.codePointAt(0) ?? 0
+      return code <= 0x1f || (code >= 0x7f && code <= 0x9f)
+    })
+  ) {
+    fail('bad --hostname')
+  }
   const advertisedPort = Number(values['public-port'] ?? values.port)
   const store = new HoleStore(relays)
   const limiter = new RateLimiter()
+  const servers: NetServer[] = []
 
   const serveStateDir = values['state-dir'] ?? path.join(os.homedir(), '.gopherkind')
   const servePairings = new PairingStore(path.join(serveStateDir, 'pairings.json'))
@@ -142,6 +156,7 @@ if (command === 'serve') {
     )
   }
   const localTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
+  const httpIdentity = !values['no-identity'] && bindIsLoopback
 
   // Resolve the operator's signer once and reuse it: resolveSigner may pair a
   // GOPHERKIND_BUNKER, and re-pairing on every /me request would fire a fresh
@@ -170,6 +185,7 @@ if (command === 'serve') {
     store,
     limiter,
   })
+  servers.push(gopher)
   gopher.listen(port, values.host, () => {
     console.log(
       `gopherkind: gopher on ${values.host}:${port} (advertised as ${advertisedHost}:${advertisedPort})`,
@@ -194,7 +210,7 @@ if (command === 'serve') {
             signer: new Nip46Client(),
             appName: `gopherkind (${advertisedHost})`,
           }
-      createGeminiServer({
+      const gemini = createGeminiServer({
         relays,
         pins,
         virtual: virtualEnabled,
@@ -203,7 +219,9 @@ if (command === 'serve') {
         keyFile: certs.key,
         store,
         limiter,
-      }).listen(geminiPort, values.host, () => {
+      })
+      servers.push(gemini)
+      gemini.listen(geminiPort, values.host, () => {
         console.log(
           `gopherkind: gemini on ${values.host}:${geminiPort}${identity ? ' (sign-in enabled)' : ''}`,
         )
@@ -215,42 +233,73 @@ if (command === 'serve') {
 
   if (!values['no-http']) {
     const httpPort = Number(values['http-port'])
-    const httpLocalTrust = !values['no-local-trust'] && trustLoopback
-    createHttpServer({
+    const httpLocalTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
+    const http = createHttpServer({
       relays,
       pins,
       virtual: virtualEnabled,
-      identity: !values['no-identity'],
+      identity: httpIdentity,
       pairings: servePairings,
       localTrust: httpLocalTrust,
       store,
       limiter: new RateLimiter(60, 2),
-    }).listen(httpPort, values.host, () => {
+    })
+    servers.push(http)
+    http.listen(httpPort, values.host, () => {
       console.log(
         `gopherkind: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`,
       )
       if (httpLocalTrust) console.log('  loopback requests act as you, using your stored pairing')
-      if (values.host !== '127.0.0.1' && values.host !== 'localhost') {
-        console.log('  note: plain HTTP. Put it behind TLS before exposing it publicly.')
+      if (!bindIsLoopback) {
+        console.log('  HTTP identity is OFF on a public bind; plain HTTP is read-only.')
       }
     })
   }
+
+  let shuttingDown = false
+  const shutdown = (signal: NodeJS.Signals): void => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`gopherkind: ${signal}, closing listeners`)
+    let open = servers.length
+    const finish = (): void => {
+      store.close()
+      process.exit(0)
+    }
+    const forced = setTimeout(finish, 10_000)
+    forced.unref()
+    for (const server of servers) {
+      server.close(() => {
+        open--
+        if (open === 0) {
+          clearTimeout(forced)
+          finish()
+        }
+      })
+    }
+    if (open === 0) finish()
+  }
+  process.once('SIGINT', () => shutdown('SIGINT'))
+  process.once('SIGTERM', () => shutdown('SIGTERM'))
 } else if (command === 'publish') {
   const { values, positionals } = parseArgs({
     args: rest,
     allowPositionals: true,
     options: {
-      relay: { type: 'string', multiple: true },
+      ...COMMON,
       expire: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
     },
   })
   const dir = positionals[0]
   if (dir === undefined) fail(USAGE)
-  publishHole(dir, values.relay ?? DEFAULT_RELAYS, secretFromEnv(), {
-    dryRun: values['dry-run'],
-    expireSeconds: values.expire !== undefined ? parseDuration(values.expire) : undefined,
-  })
+  resolveSigner(pairingsOf(values))
+    .then((signer) =>
+      publishHole(dir, values.relay ?? DEFAULT_RELAYS, signer, {
+        dryRun: values['dry-run'],
+        expireSeconds: values.expire !== undefined ? parseDuration(values.expire) : undefined,
+      }),
+    )
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'unpublish') {
@@ -258,18 +307,21 @@ if (command === 'serve') {
     args: rest,
     allowPositionals: true,
     options: {
-      relay: { type: 'string', multiple: true },
+      ...COMMON,
       all: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
     },
   })
   if (!values.all && positionals.length === 0) fail(USAGE)
-  unpublishHole(
-    values.all ? 'all' : positionals,
-    values.relay ?? DEFAULT_RELAYS,
-    secretFromEnv(),
-    values['dry-run'],
-  )
+  resolveSigner(pairingsOf(values))
+    .then((signer) =>
+      unpublishHole(
+        values.all ? 'all' : positionals,
+        values.relay ?? DEFAULT_RELAYS,
+        signer,
+        values['dry-run'],
+      ),
+    )
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'browse' || (command === undefined && process.stdin.isTTY === true)) {
@@ -389,12 +441,6 @@ if (command === 'serve') {
   run(cmdWhoami(relaysOf(values), pairingsOf(values)))
 } else {
   fail(USAGE)
-}
-
-function secretFromEnv(): Uint8Array {
-  const raw = process.env['GOPHERKIND_NSEC']
-  if (raw === undefined) fail('set GOPHERKIND_NSEC (nsec1... or 64 hex chars) to sign as your hole')
-  return decodeSecret(raw)
 }
 
 function fail(msg: string): never {

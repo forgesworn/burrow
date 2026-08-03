@@ -1,20 +1,24 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
-import type { Event, EventTemplate } from 'nostr-tools'
-import * as nip19 from 'nostr-tools/nip19'
+import type { Event, EventTemplate, Filter } from 'nostr-tools'
 import { SimplePool } from 'nostr-tools/pool'
+import { npubEncode } from 'nostr-tools/nip19'
 import {
   DOC_KIND,
   DELETE_KIND,
+  RELAY_LIST_KIND,
+  currentReplacement,
   docPath,
   hasControlCharacters,
   isExpired,
   isValidDocPath,
   isWellFormedUnicode,
   parseDocument,
+  writeRelays,
 } from './protocol.ts'
 import { findSecret } from './secretguard.ts'
+import type { CliSigner } from './signing.ts'
+import { trustRelayUrls } from './netguard.ts'
 
 export interface PlannedDoc {
   path: string
@@ -87,25 +91,76 @@ export function parseDuration(s: string): number {
   return Number(m[1]) * mult
 }
 
-export function decodeSecret(secret: string): Uint8Array {
-  if (secret.startsWith('nsec1')) {
-    const decoded = nip19.decode(secret)
-    if (decoded.type !== 'nsec') throw new Error('not an nsec')
-    return decoded.data
-  }
-  if (/^[0-9a-f]{64}$/i.test(secret)) return Uint8Array.from(Buffer.from(secret, 'hex'))
-  throw new Error('GOPHERKIND_NSEC must be nsec1... or 64 hex chars')
-}
-
 export interface PublishOptions {
   dryRun?: boolean
   expireSeconds?: number
+  pool?: PublishPool
+  verifyReadback?: boolean
+}
+
+export interface PublishPool {
+  querySync(relays: string[], filter: Filter, opts: { maxWait: number }): Promise<Event[]>
+  publish(relays: string[], event: Event): Promise<string>[]
+  destroy(): void
+}
+
+interface RelayPlan {
+  relays: string[]
+  relayList: Event | null
+}
+
+function union(a: readonly string[], b: readonly string[]): string[] {
+  return [...new Set([...a, ...b])]
+}
+
+async function relayPlan(
+  pubkey: string,
+  configured: string[],
+  pool: PublishPool,
+): Promise<RelayPlan> {
+  trustRelayUrls(configured)
+  const lists = await pool
+    .querySync(
+      configured,
+      { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 10 },
+      { maxWait: 4000 },
+    )
+    .catch(() => [])
+  const relayList = currentReplacement(lists, Math.floor(Date.now() / 1000))
+  const relays = union(configured, relayList === null ? [] : writeRelays(relayList))
+  // The local publisher is acting for this author, so their signed outbox list
+  // is an explicit destination choice rather than attacker-controlled input.
+  trustRelayUrls(relays)
+  return { relays, relayList }
+}
+
+async function publishOne(pool: PublishPool, relays: string[], event: Event): Promise<string[]> {
+  const results = await Promise.allSettled(pool.publish(relays, event))
+  return relays.filter((_, index) => results[index]?.status === 'fulfilled')
+}
+
+async function verifyPublished(
+  pool: PublishPool,
+  relays: string[],
+  events: Event[],
+): Promise<Map<string, Set<string>>> {
+  const ids = events.map((event) => event.id)
+  const out = new Map<string, Set<string>>()
+  await Promise.all(
+    relays.map(async (relay) => {
+      const found = await pool
+        .querySync([relay], { ids, limit: ids.length }, { maxWait: 4000 })
+        .catch(() => [])
+      out.set(relay, new Set(found.map((event) => event.id)))
+    }),
+  )
+  return out
 }
 
 export async function publishHole(
   dir: string,
   relays: string[],
-  secret: Uint8Array,
+  signer: CliSigner,
   opts: PublishOptions = {},
 ): Promise<void> {
   const docs = planDirectory(dir)
@@ -137,10 +192,14 @@ export async function publishHole(
     }
   }
   const createdAt = Math.floor(Date.now() / 1000)
-  const events = docs.map((d) =>
-    finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret),
-  )
-  const npub = nip19.npubEncode(getPublicKey(secret))
+  const pubkey = await signer.pubkey()
+  const events: Event[] = []
+  for (const doc of docs) {
+    const event = await signer.sign(docToTemplate(doc, createdAt, opts.expireSeconds))
+    if (event.pubkey !== pubkey) throw new Error(`signer returned the wrong author for ${doc.path}`)
+    events.push(event)
+  }
+  const npub = npubEncode(pubkey)
 
   if (opts.dryRun) {
     console.log(JSON.stringify(events, null, 2))
@@ -148,18 +207,48 @@ export async function publishHole(
     return
   }
 
-  const pool = new SimplePool()
+  const pool = opts.pool ?? new SimplePool()
+  const plan = await relayPlan(pubkey, relays, pool)
   let ok = 0
   let failed = 0
-  for (const ev of events) {
-    const results = await Promise.allSettled(pool.publish(relays, ev))
-    const accepted = results.filter((r) => r.status === 'fulfilled').length
-    if (accepted > 0) ok++
-    else failed++
-    console.log(`${docPath(ev)}  ->  ${accepted}/${relays.length} relays`)
+  let verified: number | null = null
+  const acceptedByRelay = new Map(plan.relays.map((relay) => [relay, 0]))
+  try {
+    if (plan.relayList !== null) {
+      const accepted = await publishOne(pool, plan.relays, plan.relayList)
+      console.log(`NIP-65 relay list  ->  ${accepted.length}/${plan.relays.length} relays`)
+    }
+    for (const ev of events) {
+      const accepted = await publishOne(pool, plan.relays, ev)
+      for (const relay of accepted) {
+        acceptedByRelay.set(relay, (acceptedByRelay.get(relay) ?? 0) + 1)
+      }
+      if (accepted.length > 0) ok++
+      else failed++
+      console.log(`${docPath(ev)}  ->  ${accepted.length}/${plan.relays.length} relays`)
+    }
+
+    for (const relay of plan.relays) {
+      console.log(
+        `acceptance ${relay}  ->  ${acceptedByRelay.get(relay) ?? 0}/${events.length} documents`,
+      )
+    }
+
+    if (opts.verifyReadback !== false) {
+      const readback = await verifyPublished(pool, plan.relays, events)
+      const verifiedIds = new Set<string>()
+      for (const relay of plan.relays) {
+        const ids = readback.get(relay) ?? new Set<string>()
+        for (const id of ids) verifiedIds.add(id)
+        console.log(`read-back ${relay}  ->  ${ids.size}/${events.length} documents`)
+      }
+      verified = verifiedIds.size
+    }
+  } finally {
+    pool.destroy()
   }
-  pool.destroy()
-  console.log(`\nPublished ${ok}/${docs.length} document(s)${failed ? `, ${failed} failed` : ''}.`)
+  console.log(`\nAccepted ${ok}/${docs.length} document(s) by at least one relay.`)
+  if (verified !== null) console.log(`Read back ${verified}/${docs.length} document(s).`)
   if (opts.expireSeconds !== undefined) {
     console.log(
       `Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`,
@@ -167,6 +256,10 @@ export async function publishHole(
   }
   console.log(`Hole root selector: /${npub}`)
   console.log(`Try it: lynx gopher://127.0.0.1:7070/1/${npub}`)
+  if (failed > 0) throw new Error(`${failed} document(s) were rejected by every relay`)
+  if (verified !== null && verified < events.length) {
+    throw new Error(`${events.length - verified} document(s) were accepted but not readable`)
+  }
 }
 
 // NIP-09 deletion request covering the given documents.
@@ -182,14 +275,16 @@ export function planDeletion(events: Event[], createdAt: number): EventTemplate 
 export async function unpublishHole(
   paths: string[] | 'all',
   relays: string[],
-  secret: Uint8Array,
+  signer: CliSigner,
   dryRun: boolean,
+  injectedPool?: PublishPool,
 ): Promise<void> {
-  const pubkey = getPublicKey(secret)
-  const pool = new SimplePool()
+  const pubkey = await signer.pubkey()
+  const pool = injectedPool ?? new SimplePool()
   try {
+    const plan = await relayPlan(pubkey, relays, pool)
     const events = await pool.querySync(
-      relays,
+      plan.relays,
       { kinds: [DOC_KIND], authors: [pubkey], limit: 500 },
       { maxWait: 6000 },
     )
@@ -223,18 +318,20 @@ export async function unpublishHole(
       console.log('Nothing to unpublish.')
       return
     }
-    const del = finalizeEvent(planDeletion(targets, now), secret)
+    const del = await signer.sign(planDeletion(targets, now))
+    if (del.pubkey !== pubkey) throw new Error('signer returned the wrong author for deletion')
     if (dryRun) {
       console.log(JSON.stringify(del, null, 2))
       console.log(`\nWould request deletion of ${targets.length} document(s) (dry run).`)
       return
     }
-    const results = await Promise.allSettled(pool.publish(relays, del))
-    const accepted = results.filter((r) => r.status === 'fulfilled').length
+    if (plan.relayList !== null) await publishOne(pool, plan.relays, plan.relayList)
+    const accepted = await publishOne(pool, plan.relays, del)
     console.log(
-      `Deletion request for ${targets.length} document(s) accepted by ${accepted}/${relays.length} relays.`,
+      `Deletion request for ${targets.length} document(s) accepted by ${accepted.length}/${plan.relays.length} relays.`,
     )
     console.log('Relays are free to ignore NIP-09; deletion is a request, not a guarantee.')
+    if (accepted.length === 0) throw new Error('deletion request was rejected by every relay')
   } finally {
     pool.destroy()
   }

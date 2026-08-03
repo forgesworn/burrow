@@ -20,7 +20,7 @@ import {
 import { renderNumbered, pageLinks } from './cliview.ts'
 import type { BookmarkStore } from './bookmarks.ts'
 import type { PairingStore } from './identity.ts'
-import { resolveSigner } from './signing.ts'
+import { resolveSigner, type CliSigner } from './signing.ts'
 import { cmdPost, cmdWhoami, cmdPair, cmdUnpair } from './commands.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { firstLine, isoDate } from './protocol.ts'
@@ -44,6 +44,7 @@ export interface BrowseDeps {
   bookmarks: BookmarkStore
   relays: string[]
   virtual: boolean
+  signer?: CliSigner
   gopher?: (t: GopherTarget, query?: string) => Promise<Content>
 }
 
@@ -119,7 +120,7 @@ export function homeContent(bookmarks: BookmarkStore): Content {
 export async function feedContent(deps: BrowseDeps): Promise<Content> {
   let pubkey: string
   try {
-    pubkey = await (await resolveSigner(deps.pairings)).pubkey()
+    pubkey = await (deps.signer ?? (await resolveSigner(deps.pairings))).pubkey()
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : String(err) }
   }
@@ -507,7 +508,9 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
           )
           break
         case 'post':
-          process.stdout.write(await cmdPost(command.text, opts.relays, opts.pairings, false))
+          process.stdout.write(
+            await cmdPost(command.text, opts.relays, opts.pairings, false, deps.signer),
+          )
           break
         case 'whoami':
           process.stdout.write(await cmdWhoami(opts.relays, opts.pairings))

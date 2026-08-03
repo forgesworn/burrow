@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.7.0 (2026-08-03)
+
+### Security
+
+- remove all local secret-key and `GOPHERKIND_NSEC` signing paths; publishing,
+  posting and deletion now use NIP-46 exclusively
+- validate that a remote signer returns the exact event template and author
+  requested
+- guard relay hints and public bunker relays at socket DNS lookup time,
+  rejecting loopback, private, link-local and rebinding answers while retaining
+  an explicit operator path for local relays
+- bind every frontend to `127.0.0.1` by default and disable HTTP identity on a
+  direct public bind
+
+### Publishing
+
+- publish and unpublish across the union of configured relays and the author's
+  current NIP-65 write relays
+- spread the author's existing signed relay list to those destinations and report
+  per-relay document read-back after publication
+- fail truthfully when every relay rejects a document or deletion request, or
+  when an accepted document is not readable anywhere
+
+### Operations and quality
+
+- add `/healthz`, graceful SIGTERM/SIGINT shutdown, a non-root multi-stage
+  Docker image and a deployment, backup and rollback guide
+- enforce source-only line, branch and function coverage floors in CI, audit
+  high-severity dependencies and dry-run the npm package on both supported Node
+  versions
+- support installation directly from GitHub by compiling the package bin in
+  the `prepare` lifecycle while the first npm publication remains pending
+- attach a checksummed package tarball to every GitHub release and keep npm
+  publication explicitly disabled until an owner completes its one-time setup
+
 ## 0.6.0 (2026-08-03)
 
 ### Changed

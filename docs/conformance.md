@@ -1,8 +1,8 @@
 # Gopherkind conformance fixture
 
 `test/fixtures/kind31436-v1.json` is the language-neutral fixture for the
-proposed kind `31436` grammar. It is shipped in the npm package as well as kept
-in the source repository.
+proposed kind `31436` grammar. It is included in the package contents as well
+as kept in the source repository.
 
 The fixture does not contain signed Nostr events. An implementation should do
 its ordinary NIP-01 JSON, id and signature validation first, then use the

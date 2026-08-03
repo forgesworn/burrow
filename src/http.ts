@@ -12,7 +12,7 @@ import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
 import type { PairingStore, Pairing } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
-import { storedSigner, localSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
+import { storedSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
@@ -30,6 +30,9 @@ export interface HttpOptions {
   identity: boolean
   store?: HoleStore
   limiter?: RateLimiter
+  // Injectable for tests and embedders. The CLI itself supplies only the
+  // persisted NIP-46 signer, never local key material.
+  operatorSigner?: CliSigner
   // Trust loopback requests as the operator. On by default.
   localTrust?: boolean
 }
@@ -159,16 +162,8 @@ function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: s
     isLoopback(req.socket.remoteAddress) &&
     isLoopbackHost(req.headers.host)
   ) {
-    const nsec = process.env['GOPHERKIND_NSEC']
-    if (nsec !== undefined) {
-      try {
-        return { signer: localSigner(nsec), label: 'local', csrf: operatorCsrf }
-      } catch {
-        // bad key in env; fall through to the stored pairing
-      }
-    }
-    const stored = storedSigner(opts.pairings)
-    if (stored) return { signer: stored, label: 'local', csrf: operatorCsrf }
+    const signer = opts.operatorSigner ?? storedSigner(opts.pairings)
+    if (signer) return { signer, label: 'local', csrf: operatorCsrf }
   }
   return { signer: null, label: '', csrf: '' }
 }
@@ -212,6 +207,15 @@ export function createHttpServer(opts: HttpOptions): http.Server {
   // cannot read) and required on every state-changing POST.
   const operatorCsrf = randomBytes(24).toString('base64url')
   return http.createServer((req, res) => {
+    if (requestPath(req.url ?? '/') === '/healthz') {
+      res.writeHead(req.method === 'GET' || req.method === 'HEAD' ? 200 : 405, {
+        'content-type': 'text/plain; charset=utf-8',
+        allow: 'GET, HEAD',
+        ...SECURITY_HEADERS,
+      })
+      res.end(req.method === 'HEAD' ? undefined : 'ok\n')
+      return
+    }
     if (!limiter.allow(req.socket.remoteAddress ?? 'unknown')) {
       res.writeHead(429, { 'content-type': 'text/plain', ...SECURITY_HEADERS })
       res.end('slow down\n')

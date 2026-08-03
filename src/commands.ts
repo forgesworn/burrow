@@ -66,6 +66,7 @@ export async function cmdPost(
   relays: string[],
   pairings: PairingStore,
   dryRun: boolean,
+  signerOverride?: CliSigner,
 ): Promise<string> {
   const content = text.trim()
   if (content === '') throw new Error('nothing to post')
@@ -76,7 +77,7 @@ export async function cmdPost(
         'If you meant to pair a signer, use `gopherkind pair`.',
     )
   }
-  const signer = await resolveSigner(pairings)
+  const signer = signerOverride ?? (await resolveSigner(pairings))
   const signed = await signer.sign({
     kind: NOTE_KIND,
     created_at: Math.floor(Date.now() / 1000),
@@ -104,8 +105,9 @@ export async function cmdFeed(
   relays: string[],
   pairings: PairingStore,
   limit: number,
+  signerOverride?: CliSigner,
 ): Promise<string> {
-  const signer = await resolveSigner(pairings)
+  const signer = signerOverride ?? (await resolveSigner(pairings))
   const pubkey = await signer.pubkey()
   const store = new HoleStore(relays)
   try {
@@ -167,9 +169,10 @@ export async function cmdDelete(
   relays: string[],
   pairings: PairingStore,
   opts: { dryRun: boolean; wide: boolean; reason?: string },
+  signerOverride?: CliSigner,
 ): Promise<string> {
   const id = parseEventId(target)
-  const signer = await resolveSigner(pairings)
+  const signer = signerOverride ?? (await resolveSigner(pairings))
   const mine = await signer.pubkey()
   const readStore = new HoleStore(relays)
   let kind = NOTE_KIND
