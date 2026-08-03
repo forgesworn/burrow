@@ -35,7 +35,18 @@ npm publish ./gopherkind-0.8.0.tgz --access public
 
 The npm account must have two-factor authentication enabled. Check the package
 page and install `gopherkind@0.8.0` in a clean temporary directory before
-configuring its trusted publisher with these exact values:
+configuring its trusted publisher. npm 11.11 or later can do that directly:
+
+```sh
+npm trust github gopherkind \
+  --file release.yml \
+  --repo forgesworn/gopherkind \
+  --env npm-publish
+npm trust list gopherkind
+gh variable set NPM_PUBLISH_ENABLED --body true
+```
+
+The equivalent npm website fields are:
 
 - provider: GitHub Actions
 - organisation: `forgesworn`
@@ -44,7 +55,6 @@ configuring its trusted publisher with these exact values:
 - environment: `npm-publish`
 - allowed action: `npm publish`
 
-After that external setup, set the repository variable
-`NPM_PUBLISH_ENABLED=true`. Future releases will run the pinned ForgeSworn
-anvil workflow after the GitHub tarball is safely attached. Do not add a
-long-lived npm token and do not publish subsequent releases from a workstation.
+Future releases will run the pinned ForgeSworn anvil workflow after the GitHub
+tarball is safely attached. Do not add a long-lived npm token and do not publish
+subsequent releases from a workstation.
