@@ -2,6 +2,7 @@ import tls from 'node:tls'
 import { readFileSync } from 'node:fs'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
+import { geminiRobotsTxt } from './robots.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { renderGemtextMenu } from './gemtext.ts'
 import type { MenuItem } from './resolve.ts'
@@ -136,6 +137,7 @@ export async function respondGemini(
   }
   if (url.protocol !== 'gemini:') return '59 unsupported scheme\r\n'
   if (rawPath === '' || rawPath === '/') return welcomePage(ctx, store)
+  if (rawPath === '/robots.txt') return `20 text/plain\r\n${geminiRobotsTxt()}`
 
   const head = rawPath.split('/').filter((s) => s !== '')[0] ?? ''
   if (RESERVED.has(head)) return accountRoutes(rawPath, query, ctx, store, cert)

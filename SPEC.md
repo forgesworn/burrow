@@ -216,6 +216,12 @@ answers status `10` (input); with one it serves the search results menu.
 Authors SHOULD NOT publish a document at `/search`, which the reserved
 endpoint shadows over Gemini.
 
+A bridge on Gemini or HTTP SHOULD serve `/robots.txt` and SHOULD disallow
+its gopherspace proxy and its per-visitor account paths there. A bridge is a
+window onto relays, not an origin: an indexed proxy turns one bridge into a
+crawler's route into all of gopherspace, and the account paths hold nothing
+worth indexing. Hole documents themselves SHOULD stay crawlable.
+
 A Gemini request URL MUST NOT exceed 1024 bytes, so a note submitted through
 the status 10 flow is limited to a few hundred characters once percent-
 encoded, not a full kilobyte of text.

@@ -2,6 +2,7 @@ import http from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
+import { robotsTxt } from './robots.ts'
 import { resolveRoute } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
 import { parseProxyPath, browseGopher } from './gopherclient.ts'
@@ -251,6 +252,9 @@ async function handle(
   const signedIn = viewer.signer !== null
 
   if (path === '/') return html(200, await welcome(opts, store, signedIn))
+  if (path === '/robots.txt') {
+    return html(200, robotsTxt(), { 'content-type': 'text/plain; charset=utf-8' })
+  }
   if (path === '/go') {
     const target = (url.searchParams.get('npub') ?? '').trim().replace(/^nostr:/, '')
     if (target === '') return redirect('/')

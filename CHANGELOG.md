@@ -31,6 +31,8 @@
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents
+- `/robots.txt` on the HTTP and Gemini frontends: the gopherspace proxy and
+  the account paths are closed to crawlers, holes stay indexable
 - biome for linting and formatting, enforced in CI (`npm run lint`)
 - CI (typecheck + tests with coverage), SECURITY.md, CONTRIBUTING.md,
   dependabot, packaging metadata and `prepack`

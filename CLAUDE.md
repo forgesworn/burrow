@@ -19,6 +19,7 @@ src/server.ts     TCP gopher frontend (read-only, always)
 src/gemini.ts     TLS gemini frontend (/search is the input endpoint)
 src/http.ts       HTTP frontend for lynx; loopback = operator, no login
 src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
+src/robots.ts     one crawl policy, served on http and gemini
 src/personal.ts   /me menu: loopback-only read+write over gopher
 src/gopherclient.ts  gopher client for traditional gopherspace; nostr-aware
                   gophermap parsing (npub selectors and nostr: h-links
