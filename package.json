@@ -28,7 +28,7 @@
     "node": ">=24"
   },
   "bin": {
-    "burrow": "./dist/cli.js"
+    "burrow": "dist/cli.js"
   },
   "files": [
     "dist",
