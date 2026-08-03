@@ -156,6 +156,12 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
+Reads follow the author's NIP-65 relay list (kind 10002), so a hole
+published to someone's own relays is found even when your bridge does
+not carry those relays, not silently replaced by their virtual hole.
+The built-in gopher proxy refuses loopback and private-range addresses,
+so it can't be turned into a scanner for your internal network.
+
 ## Navigating: follows, followers, feed
 
 Every hole has these paths, whether or not anyone published anything:
@@ -205,9 +211,18 @@ own notes.
 
 Remote visitors get the same pages, pair a signer through a form, and
 carry a session cookie. That path is plain HTTP, so put it behind TLS
-(or your existing reverse proxy) before exposing it, or pass
-`--no-local-trust` and `--no-identity` to serve reading only. Turn the
-frontend off entirely with `--no-http`.
+before exposing it, or pass `--no-identity` to serve reading only. Turn
+the frontend off entirely with `--no-http`.
+
+Operator trust is decided by connection origin (loopback), so behind a
+reverse proxy every request would look local. burrow therefore disables
+operator trust automatically whenever the bridge is bound to a
+non-loopback address; keep the bind on `127.0.0.1` and let the proxy
+reach it there, or pass `--trust-loopback-anyway` only if you know the
+proxy cannot be reached by anyone but you. State-changing forms carry a
+CSRF token and reject cross-site origins, and the loopback operator is
+recognised only on a loopback `Host`, so a stray browser tab or a
+rebound domain cannot post as you.
 
 ## Gopher as a full client, locally
 
@@ -349,9 +364,11 @@ and relays do not forget. If you ever do leak a bunker URI, rotate the
 secret on the signer; a deletion request is a polite suggestion, not
 a recall.
 
-Notes are single-line and capped around 1200 characters, because a
-Gemini input is one URL line. That constraint is honest to the medium;
-gopherspace was never the place for essays with inline video.
+Notes are single-line and capped at a few hundred characters, because a
+Gemini input is one URL line and a Gemini request URL may not exceed
+1024 bytes once the text is percent-encoded. That constraint is honest
+to the medium; gopherspace was never the place for essays with inline
+video.
 
 One clarification for bark users: bark is a NIP-07 browser extension,
 and Lagrange isn't a browser, so bark can't inject here. But the

@@ -30,7 +30,11 @@ src/browse.ts     interactive terminal client: session, command parsing,
                   feed and home menus, readline loop (kept thin)
 src/bookmarks.ts  bookmark store (JSON in the state dir)
 src/virtual.ts    kind 0/1/30023 -> virtual hole documents
-src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries
+src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries;
+                  NIP-65 outbox reads (author write relays); PoolLike is
+                  injectable for tests
+src/netguard.ts   SSRF guard for the gopher proxy: blocks loopback/private/
+                  link-local ranges, resolves hostnames before connecting
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
 src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
 src/publish.ts    directory -> signed events; NIP-09 unpublish; NIP-40 expire

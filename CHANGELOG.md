@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- the loopback `/me` gopher menu: its links were npub-prefixed and 404d, and
+  the post prompt silently ran a search instead of signing
+- gopher menu and gemtext injection via unsanitised selectors, titles and
+  profile names
+- SSRF and CRLF injection through the `/gopher` HTTP proxy; it now refuses
+  loopback/private/link-local targets and rejects CR/LF in the request
+- HTTP frontend hardening: CSRF tokens and an Origin check on state-changing
+  forms, `Host` validation so a DNS-rebound page cannot act as the operator,
+  operator trust disabled on a non-loopback bind (reverse-proxy footgun),
+  `Secure` cookie over TLS, security headers, fail-closed deletion
+- NIP-40 expired events are now filtered on every read path
+- `javascript:`/`data:` links from a hostile gopher server no longer reach
+  the HTML frontend
+- TLS key and `pairings.json` written mode 600 (atomically); gemini pending
+  connections bounded; rate limiter keyed on the IPv6 /64
+- gopher proxy preserves a selector's leading slash; replaceable events
+  resolve by lowest id on a `created_at` tie
+
+### Added
+
+- NIP-65 outbox reads: a hole is found on the author's own write relays
+- single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
+  `--no-virtual`
+- NIP-31 `alt` tag on published documents
+- CI (typecheck + tests with coverage), SECURITY.md, CONTRIBUTING.md,
+  dependabot, packaging metadata and `prepack`
+- tests for `fetch.ts`, `nip46client.ts`, `netguard.ts`, the CLI, and the
+  SPEC test vectors
+
 ## 0.3.0 (2026-08-03)
 
 ### Features
