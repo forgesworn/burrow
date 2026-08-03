@@ -1,6 +1,7 @@
 import http from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { isIP } from 'node:net'
+import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { robotsTxt } from './robots.ts'
@@ -16,15 +17,27 @@ import { Nip46Client } from './nip46client.ts'
 import { storedSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
+import { NOTE_KIND, DELETE_KIND, firstLine, isoDate, parseDocument } from './protocol.ts'
 import { holeRef } from './gemtext.ts'
 import { resolveClientTarget, type ClientTarget } from './target.ts'
-import { publishDocument, type PlannedDoc, type PublishedDocumentReport } from './publish.ts'
+import {
+  docToTemplate,
+  publishDocument,
+  publishSignedDocument,
+  type PlannedDoc,
+  type PublishedDocumentReport,
+} from './publish.ts'
+import {
+  assertBrowserSignedTemplate,
+  HTTP_BROWSER_SCRIPT,
+  nip98Authorization,
+  parseSignedEvent,
+} from './nip07.ts'
 
-// HTTP frontend, written for lynx: plain HTML, real forms, no JavaScript
-// anywhere. Loopback requests are treated as the operator and use the
-// stored CLI pairing, so browsing from your own machine needs no login
-// at all. Remote visitors pair a signer and get a session cookie.
+// HTTP stays plain HTML and works without JavaScript in lynx. Graphical
+// browsers get history navigation and the standard NIP-07 window.nostr
+// interface as progressive enhancements. Loopback requests still use the
+// stored CLI pairing; remote visitors can use NIP-46 or browser-side NIP-07.
 
 export interface HttpOptions {
   relays: string[]
@@ -49,15 +62,19 @@ export interface HttpOptions {
   // target resolver and the NIP-65/read-back publisher.
   resolveTarget?: (input: string) => Promise<ClientTarget>
   documentPublisher?: (document: PlannedDoc, signer: CliSigner) => Promise<PublishedDocumentReport>
+  signedDocumentPublisher?: (document: PlannedDoc, event: Event) => Promise<PublishedDocumentReport>
 }
 
-interface Session {
-  pairing: Pairing
+interface SessionBase {
   expires: number
   csrf: string
 }
 
+type Session = SessionBase &
+  ({ kind: 'nip46'; pairing: Pairing } | { kind: 'nip07'; pubkey: string })
+
 const sessions = new Map<string, Session>()
+const usedNip98Events = new Map<string, number>()
 const SESSION_MS = 12 * 60 * 60 * 1000
 const SEARCH_PREFIX = '/_gopherkind/search/'
 
@@ -148,12 +165,15 @@ const SECURITY_HEADERS: Record<string, string> = {
   'referrer-policy': 'no-referrer',
   'x-frame-options': 'DENY',
   'content-security-policy':
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'",
   'cache-control': 'no-store',
 }
 
 function sweepSessions(now: number): void {
   for (const [token, s] of sessions) if (s.expires < now) sessions.delete(token)
+  for (const [eventId, expires] of usedNip98Events) {
+    if (expires < now) usedNip98Events.delete(eventId)
+  }
 }
 
 // Mark the session cookie Secure when the request arrived over TLS, whether
@@ -163,6 +183,18 @@ function secureFlag(req: http.IncomingMessage): string {
   const encrypted = (req.socket as { encrypted?: boolean }).encrypted === true
   const forwarded = req.headers['x-forwarded-proto'] === 'https'
   return encrypted || forwarded ? ' Secure;' : ''
+}
+
+function absoluteRequestUrl(req: http.IncomingMessage, opts: HttpOptions): string {
+  const target = req.url ?? '/'
+  if (opts.publicUrl !== undefined) {
+    return new URL(target, `${opts.publicUrl.replace(/\/$/, '')}/`).toString()
+  }
+  const host = req.headers.host
+  if (host === undefined) throw new Error('request has no Host header')
+  const encrypted = (req.socket as { encrypted?: boolean }).encrypted === true
+  const protocol = encrypted || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'
+  return new URL(target, `${protocol}://${host}`).toString()
 }
 
 function rateLimitAddress(req: http.IncomingMessage, trustedProxy: boolean): string {
@@ -190,14 +222,23 @@ function sessionFrom(cookieHeader: string | undefined): Session | null {
 
 interface Viewer {
   signer: CliSigner | null
-  label: string
+  pubkey: string | null
+  kind: 'anonymous' | 'local' | 'nip46' | 'nip07'
   csrf: string
 }
 
 function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: string): Viewer {
-  if (!opts.identity) return { signer: null, label: '', csrf: '' }
+  if (!opts.identity) return { signer: null, pubkey: null, kind: 'anonymous', csrf: '' }
   const session = sessionFrom(req.headers.cookie)
   if (session) {
+    if (session.kind === 'nip07') {
+      return {
+        signer: null,
+        pubkey: session.pubkey,
+        kind: 'nip07',
+        csrf: session.csrf,
+      }
+    }
     const client = new Nip46Client()
     const pairing = session.pairing
     return {
@@ -206,7 +247,8 @@ function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: s
         pubkey: async () => pairing.userPubkey,
         sign: (tpl) => client.sign(pairing, tpl),
       },
-      label: 'session',
+      pubkey: pairing.userPubkey,
+      kind: 'nip46',
       csrf: session.csrf,
     }
   }
@@ -220,9 +262,37 @@ function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: s
     isLoopbackHost(req.headers.host)
   ) {
     const signer = opts.operatorSigner ?? storedSigner(opts.pairings)
-    if (signer) return { signer, label: 'local', csrf: operatorCsrf }
+    if (signer) return { signer, pubkey: null, kind: 'local', csrf: operatorCsrf }
   }
-  return { signer: null, label: '', csrf: '' }
+  return { signer: null, pubkey: null, kind: 'anonymous', csrf: '' }
+}
+
+function isSignedIn(viewer: Viewer): boolean {
+  return viewer.signer !== null || viewer.pubkey !== null
+}
+
+async function viewerPubkey(viewer: Viewer): Promise<string | null> {
+  if (viewer.pubkey !== null) return viewer.pubkey
+  return viewer.signer === null ? null : viewer.signer.pubkey()
+}
+
+function nip07FormAttributes(viewer: Viewer, action: string): string {
+  return viewer.kind === 'nip07'
+    ? ` data-nip07-action="${action}" data-nip07-pubkey="${esc(viewer.pubkey ?? '')}"`
+    : ''
+}
+
+function browserSubmittedEvent(body: Record<string, string>, viewer: Viewer): Event {
+  if (viewer.kind !== 'nip07' || viewer.pubkey === null) {
+    throw new Error('this session does not use a browser signer')
+  }
+  return parseSignedEvent(body['event'] ?? '')
+}
+
+function nip07SigningStatus(viewer: Viewer): string {
+  return viewer.kind === 'nip07'
+    ? '<p aria-live="polite">Your browser extension will ask you to approve the signature.</p>'
+    : ''
 }
 
 function csrfField(viewer: Viewer): string {
@@ -242,7 +312,9 @@ function readBody(req: http.IncomingMessage): Promise<Record<string, string>> {
     let body = ''
     req.on('data', (c: Buffer) => {
       body += c.toString('utf8')
-      if (body.length > 64_000) {
+      // A 60 KB signed document expands under form encoding. Keep the wire
+      // bound explicit while leaving room for that event and its signature.
+      if (body.length > 256_000) {
         reject(new Error('body too large'))
         req.destroy()
       }
@@ -316,6 +388,36 @@ const redirect = (to: string, headers: Record<string, string> = {}): Reply => ({
   body: '',
 })
 
+function nip07ConnectPage(req: http.IncomingMessage, opts: HttpOptions): Reply {
+  if (!opts.identity) return html(404, 'NIP-07 connection is disabled here.\n')
+  if (req.method !== 'POST')
+    return html(405, 'Use POST for NIP-07 connection.\n', { allow: 'POST' })
+  if (!originOk(req)) return html(403, 'Cross-site NIP-07 connection refused.\n')
+  try {
+    const event = nip98Authorization(
+      req.headers.authorization,
+      absoluteRequestUrl(req, opts),
+      'POST',
+    )
+    const now = Date.now()
+    sweepSessions(now)
+    if (usedNip98Events.has(event.id)) return html(401, 'NIP-98 authorization was already used.\n')
+    usedNip98Events.set(event.id, now + 60_000)
+    const token = randomBytes(24).toString('base64url')
+    sessions.set(token, {
+      kind: 'nip07',
+      pubkey: event.pubkey,
+      expires: now + SESSION_MS,
+      csrf: randomBytes(24).toString('base64url'),
+    })
+    return html(204, '', {
+      'set-cookie': `gopherkind=${token}; HttpOnly; SameSite=Strict; Path=/;${secureFlag(req)} Max-Age=${SESSION_MS / 1000}`,
+    })
+  } catch (err) {
+    return html(401, `${err instanceof Error ? err.message : 'NIP-07 connection refused'}\n`)
+  }
+}
+
 async function handle(
   req: http.IncomingMessage,
   opts: HttpOptions,
@@ -330,8 +432,12 @@ async function handle(
   }
   const url = new URL(req.url ?? '/', 'http://localhost')
   const viewer = viewerFor(req, opts, operatorCsrf)
-  const signedIn = viewer.signer !== null
+  const signedIn = isSignedIn(viewer)
 
+  if (path === '/browser.js') {
+    return html(200, HTTP_BROWSER_SCRIPT, { 'content-type': 'text/javascript; charset=utf-8' })
+  }
+  if (path === '/nip07/connect') return nip07ConnectPage(req, opts)
   if (path === '/') return html(200, await welcome(opts, store, signedIn))
   if (path === '/robots.txt') {
     return html(200, robotsTxt(), { 'content-type': 'text/plain; charset=utf-8' })
@@ -472,13 +578,15 @@ async function handle(
   let extra = ''
   // Offer deletion on your own notes.
   const noteId = /^\/notes\/([0-9a-f]{64})$/.exec(route.path)?.[1]
-  if (noteId && viewer.signer) {
-    const mine = await viewer.signer.pubkey()
+  if (noteId && signedIn) {
+    const mine = await viewerPubkey(viewer)
     if (mine === route.pubkey) {
       extra =
-        `\n<hr>\n<form method="post" action="/delete">` +
+        `\n<hr>\n<form method="post" action="/delete"${nip07FormAttributes(viewer, 'delete')}>` +
         csrfField(viewer) +
         `<input type="hidden" name="id" value="${esc(noteId)}">` +
+        `<input type="hidden" name="kind" value="${NOTE_KIND}">` +
+        nip07SigningStatus(viewer) +
         '<p><input type="submit" value="Delete this note"></p></form>'
     }
   }
@@ -537,13 +645,21 @@ async function accountPage(
   if (!opts.identity) {
     return html(200, page('Account', '<h1>Account</h1><p>Sign-in is disabled here.</p>', false))
   }
-  if (!viewer.signer) {
+  if (!isSignedIn(viewer)) {
     return html(
       200,
       page(
         'Sign in',
         [
           '<h1>Sign in</h1>',
+          '<section data-nip07-connect>',
+          '<h2>Browser extension (NIP-07)</h2>',
+          '<p aria-live="polite">Looking for a NIP-07 browser extension...</p>',
+          '<p><button type="button" hidden>Connect browser extension</button></p>',
+          '<noscript><p>NIP-07 needs a graphical browser with JavaScript. The NIP-46 form below still works without it.</p></noscript>',
+          '</section>',
+          '<hr>',
+          '<h2>Remote signer (NIP-46)</h2>',
           '<p>Pair a NIP-46 remote signer (Signet, Heartwood, Amber,',
           'nsecBunker, nsec.app). Your key stays on the signer; this',
           'bridge only asks it to sign.</p>',
@@ -555,22 +671,27 @@ async function accountPage(
       ),
     )
   }
-  const pubkey = await viewer.signer.pubkey()
+  const pubkey = await viewerPubkey(viewer)
+  if (pubkey === null) return redirect('/account')
   const npub = nip19.npubEncode(pubkey)
   const profile = parseProfile(await store.profile(pubkey))
   const body = [
     '<h1>Account</h1>',
     `<p>Signed in as ${esc(displayName(profile, npub))}`,
-    viewer.label === 'local' ? ` (local operator, ${esc(viewer.signer.describe)})` : '',
+    viewer.kind === 'local' && viewer.signer !== null
+      ? ` (local operator, ${esc(viewer.signer.describe)})`
+      : '',
+    viewer.kind === 'nip07' ? ' (NIP-07 browser extension)' : '',
+    viewer.kind === 'nip46' ? ' (NIP-46 remote signer)' : '',
     '</p>',
     `<p><code>${esc(npub)}</code></p>`,
     `<p><a href="/${esc(npub)}">Your hole</a></p>`,
     '<p><a href="/feed">Your feed</a></p>',
     '<p><a href="/post">Write a note</a></p>',
   ]
-  if (viewer.label === 'session') {
+  if (viewer.kind === 'nip46' || viewer.kind === 'nip07') {
     body.push(
-      `<form method="post" action="/unpair">${csrfField(viewer)}<p><input type="submit" value="Sign out"></p></form>`,
+      `<form method="post" action="/unpair">${csrfField(viewer)}<p><input type="submit" value="Disconnect"></p></form>`,
     )
   }
   return html(200, page('Account', body.join('\n'), signedIn))
@@ -597,6 +718,7 @@ async function pairPage(
     const now = Date.now()
     sweepSessions(now)
     sessions.set(token, {
+      kind: 'nip46',
       pairing: {
         fingerprint: `http:${token.slice(0, 8)}`,
         userPubkey: result.userPubkey,
@@ -632,8 +754,8 @@ function unpairPage(req: http.IncomingMessage, signedIn: boolean): Reply {
   return html(
     200,
     page(
-      'Signed out',
-      '<h1>Signed out</h1><p>Revoke the session on your signer too.</p><p><a href="/">Home</a></p>',
+      'Disconnected',
+      '<h1>Disconnected</h1><p>The bridge session has ended. If you used NIP-46, revoke that session on your signer too.</p><p><a href="/">Home</a></p>',
       signedIn && false,
     ),
     { 'set-cookie': 'gopherkind=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' },
@@ -647,13 +769,14 @@ async function postPage(
   viewer: Viewer,
   signedIn: boolean,
 ): Promise<Reply> {
-  if (!viewer.signer) return redirect('/account')
+  if (!isSignedIn(viewer)) return redirect('/account')
   const form = [
     '<h1>Write a note</h1>',
     '<p>Public, signed by your signer, broadcast as a kind 1 event.</p>',
-    '<form method="post" action="/post">',
+    `<form method="post" action="/post"${nip07FormAttributes(viewer, 'post')}>`,
     csrfField(viewer),
     '<p><textarea name="text" rows="6" cols="60"></textarea></p>',
+    nip07SigningStatus(viewer),
     '<p><input type="submit" value="Sign and post"></p></form>',
   ].join('\n')
   if (req.method !== 'POST') return html(200, page('Write a note', form, signedIn))
@@ -661,34 +784,49 @@ async function postPage(
   const body = await readBody(req)
   if (!csrfOk(req, body, viewer))
     return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
-  const text = (body['text'] ?? '').trim()
-  if (text === '') return html(200, page('Write a note', form, signedIn))
-  const leak = findSecret(text)
-  if (leak) {
-    return html(
-      200,
-      page(
-        'Not posting that',
-        [
-          '<h1>Not posting that</h1>',
-          `<p>That note contains what looks like ${esc(leak)}. Nothing was`,
-          'signed and nothing was sent.</p>',
-          '<p>If you meant to pair a signer, use <a href="/account">the account page</a>.</p>',
-          '<p>If you already pasted a bunker secret somewhere public, rotate',
-          'it on the signer.</p>',
-          form,
-        ].join('\n'),
-        signedIn,
-      ),
-    )
-  }
   try {
-    const signed = await viewer.signer.sign({
-      kind: NOTE_KIND,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [],
-      content: text,
-    })
+    let signed: Event
+    let text: string
+    if (viewer.kind === 'nip07') {
+      signed = browserSubmittedEvent(body, viewer)
+      text = signed.content.trim()
+      assertBrowserSignedTemplate(signed, viewer.pubkey ?? '', {
+        kind: NOTE_KIND,
+        created_at: signed.created_at,
+        tags: [],
+        content: text,
+      })
+    } else {
+      text = (body['text'] ?? '').trim()
+      if (text === '') return html(200, page('Write a note', form, signedIn))
+      if (viewer.signer === null) throw new Error('no signer is connected')
+      signed = await viewer.signer.sign({
+        kind: NOTE_KIND,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: text,
+      })
+    }
+    if (text === '') return html(200, page('Write a note', form, signedIn))
+    const leak = findSecret(text)
+    if (leak) {
+      return html(
+        200,
+        page(
+          'Not posting that',
+          [
+            '<h1>Not posting that</h1>',
+            `<p>That note contains what looks like ${esc(leak)}. Nothing was`,
+            'published or sent to a relay.</p>',
+            '<p>If you meant to pair a signer, use <a href="/account">the account page</a>.</p>',
+            '<p>If you already pasted a bunker secret somewhere public, rotate',
+            'it on the signer.</p>',
+            form,
+          ].join('\n'),
+          signedIn,
+        ),
+      )
+    }
     const accepted = await store.publish(signed)
     const npub = nip19.npubEncode(signed.pubkey)
     return html(
@@ -723,7 +861,7 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     '<h1>Publish a document</h1>',
     '<p>Publish one signed Gopherkind document. Paths are exact and publishing',
     'the same path replaces its current revision.</p>',
-    '<form method="post" action="/publish">',
+    `<form method="post" action="/publish"${nip07FormAttributes(viewer, 'publish')}>`,
     csrfField(viewer),
     `<p>Path <input type="text" name="path" size="50" value="${esc(values.path ?? '/')}" required></p>`,
     `<p>Title <input type="text" name="title" size="50" value="${esc(values.title ?? '')}"></p>`,
@@ -734,6 +872,7 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     `<p><textarea name="content" rows="20" cols="72">${esc(values.content ?? '')}</textarea></p>`,
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
     'I understand this replaces any current document at the same exact path.</label></p>',
+    nip07SigningStatus(viewer),
     '<p><input type="submit" value="Sign and publish"></p></form>',
   ].join('\n')
 }
@@ -744,7 +883,7 @@ async function publishPage(
   viewer: Viewer,
   signedIn: boolean,
 ): Promise<Reply> {
-  if (!viewer.signer) return redirect('/account')
+  if (!isSignedIn(viewer)) return redirect('/account')
   if (req.method !== 'POST') {
     return html(200, page('Publish a document', documentForm(viewer), signedIn))
   }
@@ -753,11 +892,37 @@ async function publishPage(
   if (!csrfOk(req, body, viewer)) {
     return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   }
-  const document: PlannedDoc = {
-    path: (body['path'] ?? '').trim(),
-    title: (body['title'] ?? '').trim() || (body['path'] ?? '').trim(),
-    type: body['type'] === '1' ? '1' : '0',
-    content: body['content'] ?? '',
+  let document: PlannedDoc
+  let browserEvent: Event | null = null
+  try {
+    if (viewer.kind === 'nip07') {
+      browserEvent = browserSubmittedEvent(body, viewer)
+      const metadata = parseDocument(browserEvent)
+      if (metadata === null) throw new Error('browser signer returned an invalid document')
+      document = { ...metadata, content: browserEvent.content }
+      assertBrowserSignedTemplate(
+        browserEvent,
+        viewer.pubkey ?? '',
+        docToTemplate(document, browserEvent.created_at),
+      )
+    } else {
+      document = {
+        path: (body['path'] ?? '').trim(),
+        title: (body['title'] ?? '').trim() || (body['path'] ?? '').trim(),
+        type: body['type'] === '1' ? '1' : '0',
+        content: body['content'] ?? '',
+      }
+    }
+  } catch (err) {
+    return html(
+      400,
+      page(
+        'Publishing failed',
+        `<h1>Publishing failed</h1><p>${esc(err instanceof Error ? err.message : 'unknown')}</p>` +
+          documentForm(viewer),
+        signedIn,
+      ),
+    )
   }
   if (body['replace'] !== 'yes') {
     return html(
@@ -777,7 +942,7 @@ async function publishPage(
       page(
         'Not publishing that',
         `<h1>Not publishing that</h1><p>The document contains what looks like ${esc(leak)}. ` +
-          'Nothing was signed or sent, and the content has been removed from this form.</p>' +
+          'Nothing was sent to a relay, and the content has been removed from this form.</p>' +
           documentForm(viewer, { ...document, content: '' }),
         signedIn,
       ),
@@ -785,10 +950,19 @@ async function publishPage(
   }
 
   try {
-    const report = await (
-      opts.documentPublisher ??
-      ((doc: PlannedDoc, signer: CliSigner) => publishDocument(doc, opts.relays, signer))
-    )(document, viewer.signer)
+    let report: PublishedDocumentReport
+    if (browserEvent !== null) {
+      report = await (
+        opts.signedDocumentPublisher ??
+        ((doc: PlannedDoc, event: Event) => publishSignedDocument(doc, event, opts.relays))
+      )(document, browserEvent)
+    } else {
+      if (viewer.signer === null) throw new Error('no signer is connected')
+      report = await (
+        opts.documentPublisher ??
+        ((doc: PlannedDoc, signer: CliSigner) => publishDocument(doc, opts.relays, signer))
+      )(document, viewer.signer)
+    }
     const ref = holeRef(report.npub, report.path)
     return html(
       200,
@@ -824,15 +998,35 @@ async function deletePage(
   viewer: Viewer,
   signedIn: boolean,
 ): Promise<Reply> {
-  if (!viewer.signer) return redirect('/account')
+  if (!isSignedIn(viewer)) return redirect('/account')
   if (req.method !== 'POST') return redirect('/account')
   const body = await readBody(req)
   if (!csrfOk(req, body, viewer))
     return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
-  const id = (body['id'] ?? '').trim()
+  let browserEvent: Event | null = null
+  let id: string
+  try {
+    if (viewer.kind === 'nip07') {
+      browserEvent = browserSubmittedEvent(body, viewer)
+      const eventTags = browserEvent.tags.filter((tag) => tag[0] === 'e')
+      id = eventTags.length === 1 ? (eventTags[0]?.[1] ?? '') : ''
+    } else {
+      id = (body['id'] ?? '').trim()
+    }
+  } catch (err) {
+    return html(
+      400,
+      page(
+        'Bad request',
+        `<h1>Bad request</h1><p>${esc(err instanceof Error ? err.message : 'bad signed event')}</p>`,
+        signedIn,
+      ),
+    )
+  }
   if (!/^[0-9a-f]{64}$/.test(id))
     return html(400, page('Bad request', '<p>bad event id</p>', signedIn))
-  const mine = await viewer.signer.pubkey()
+  const mine = await viewerPubkey(viewer)
+  if (mine === null) return redirect('/account')
   const existing = await store.event(id)
   // Fail closed: only sign a deletion for an event we positively confirm is
   // the operator's. A relay miss (existing === null) must not authorise it.
@@ -852,7 +1046,7 @@ async function deletePage(
       page('Not yours', '<h1>Not yours</h1><p>You can only delete your own events.</p>', signedIn),
     )
   }
-  const signed = await viewer.signer.sign({
+  const template = {
     kind: DELETE_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
@@ -860,7 +1054,26 @@ async function deletePage(
       ['k', String(existing.kind)],
     ],
     content: 'deleted by author',
-  })
+  }
+  let signed: Event
+  if (browserEvent !== null) {
+    template.created_at = browserEvent.created_at
+    try {
+      signed = assertBrowserSignedTemplate(browserEvent, mine, template)
+    } catch (err) {
+      return html(
+        400,
+        page(
+          'Deletion refused',
+          `<h1>Deletion refused</h1><p>${esc(err instanceof Error ? err.message : 'bad signed event')}</p>`,
+          signedIn,
+        ),
+      )
+    }
+  } else {
+    if (viewer.signer === null) return redirect('/account')
+    signed = await viewer.signer.sign(template)
+  }
   const accepted = await store.publish(signed)
   return html(
     200,
@@ -885,8 +1098,9 @@ async function feedPage(
   viewer: Viewer,
   signedIn: boolean,
 ): Promise<Reply> {
-  if (!viewer.signer) return redirect('/account')
-  const pubkey = await viewer.signer.pubkey()
+  if (!isSignedIn(viewer)) return redirect('/account')
+  const pubkey = await viewerPubkey(viewer)
+  if (pubkey === null) return redirect('/account')
   const follows = await store.contacts(pubkey)
   if (follows.length === 0) {
     return html(200, page('Your feed', '<h1>Your feed</h1><p>No follows found.</p>', signedIn))

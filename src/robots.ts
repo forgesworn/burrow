@@ -12,6 +12,7 @@ const DISALLOWED = [
   '/go',
   '/account',
   '/pair',
+  '/nip07',
   '/unpair',
   '/post',
   '/publish',

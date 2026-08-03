@@ -28,16 +28,17 @@ a{color:#8fd}h1,h2{font-weight:normal}
 nav{display:flex;flex-wrap:wrap;gap:.25em 1em}
 pre{white-space:pre;overflow-x:auto;max-width:100%}
 hr{border:0;border-top:1px solid #444}
-textarea,input{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
+textarea,input,button,select{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
 border:1px solid #666;padding:.4em;max-width:100%}
 textarea{width:100%;resize:vertical}
 @media(prefers-color-scheme:light){body{background:#fff;color:#111}a{color:#046}
-textarea,input{background:#fff;color:#111}}`
+textarea,input,button,select{background:#fff;color:#111}}`
 
 export function page(title: string, body: string, signedIn: boolean, meta: PageMeta = {}): string {
+  const back = '<a href="/" data-history-back>back</a>'
   const nav = signedIn
-    ? '<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>'
-    : '<a href="/">home</a><a href="/account">sign in</a>'
+    ? `${back}<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>`
+    : `${back}<a href="/">home</a><a href="/account">sign in</a>`
   const metadata = [
     meta.canonical ? `<link rel="canonical" href="${esc(meta.canonical)}">` : '',
     meta.description ? `<meta name="description" content="${esc(meta.description)}">` : '',
@@ -54,7 +55,7 @@ export function page(title: string, body: string, signedIn: boolean, meta: PageM
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 ${metadata}
-<style>${STYLE}</style></head>
+<style>${STYLE}</style><script src="/browser.js" defer></script></head>
 <body><nav>${nav}</nav><hr>
 ${body}
 </body></html>

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "gopherkind NIP-07 test provider",
+  "version": "1.0.0",
+  "description": "Injects a test-only window.nostr provider for local Chrome verification.",
+  "content_scripts": [
+    {
+      "matches": ["http://127.0.0.1/*"],
+      "js": ["provider.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

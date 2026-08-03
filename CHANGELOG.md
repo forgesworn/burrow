@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.10.0 (2026-08-03)
+
+### Browser identity
+
+- connect a standard NIP-07 `window.nostr` browser extension with a fresh,
+  exact-URL NIP-98 event and an HttpOnly, same-site bridge session
+- keep every post, document publication and deletion signature inside the
+  extension, then verify its signature, session author, freshness and exact
+  event template on the server before publishing
+- retain NIP-65 relay selection and post-acceptance read-back for documents
+  signed in the browser, without allowing a NIP-07 session to borrow the
+  bridge's NIP-46 signer
+
+### Navigation
+
+- add a back link to every HTTP page which uses real browser history when
+  available and remains an ordinary Home link in Lynx or on a direct visit
+- keep approval and signing status visible while the extension is waiting for
+  the user
+
 ## 0.9.2 (2026-08-03)
 
 ### Fixed
