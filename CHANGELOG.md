@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2 (2026-08-03)
+
+### Fixed
+
+- keep the HTTP frontend within narrow mobile viewports by wrapping the
+  signed-in navigation, sizing form controls to their container and wrapping
+  long identifiers without changing preformatted document rendering
+
 ## 0.9.1 (2026-08-03)
 
 ### Fixed
