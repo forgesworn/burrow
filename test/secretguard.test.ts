@@ -19,13 +19,13 @@ test('catches a bare secret token', () => {
 })
 
 test('lets ordinary notes through', () => {
-  assert.equal(findSecret('hello gopherspace, this is my first burrow note'), null)
+  assert.equal(findSecret('hello gopherspace, this is my first gopherkind note'), null)
   assert.equal(findSecret(`my npub is npub1${'q'.repeat(50)}`), null)
   assert.equal(findSecret(`event id ${'a'.repeat(64)}`), null)
   assert.equal(findSecret('reading about bunkers and gopherspace history'), null)
 })
 
-test('catches a short secret token and burrow-sized nostrconnect secret', () => {
+test('catches a short secret token and gopherkind-sized nostrconnect secret', () => {
   assert.match(findSecret(`secret=${'a'.repeat(16)}`) ?? '', /secret token/)
 })
 

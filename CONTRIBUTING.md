@@ -1,12 +1,12 @@
-# Contributing to burrow
+# Contributing to gopherkind
 
-Thanks for looking. burrow is a small, deliberately boring codebase: a gopher
+Thanks for looking. gopherkind is a small, deliberately boring codebase: a gopher
 and Gemini bridge for Nostr, plus a terminal client. SPEC.md is the protocol
 source of truth; CLAUDE.md sketches the architecture in one screen.
 
 ## Development
 
-There is **no build step in development**. burrow runs directly on Node 24's
+There is **no build step in development**. gopherkind runs directly on Node 24's
 type stripping, so:
 
 ```sh

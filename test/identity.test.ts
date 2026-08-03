@@ -16,7 +16,7 @@ function samplePairing(fp: string): Pairing {
 }
 
 test('pairing store round-trips through disk', (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-id-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-id-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const file = path.join(dir, 'pairings.json')
 
@@ -34,7 +34,7 @@ test('pairing store round-trips through disk', (t) => {
 })
 
 test('pairings file is written mode 600', (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-id-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-id-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const file = path.join(dir, 'pairings.json')
   new PairingStore(file).set(samplePairing('CC:DD'))
@@ -43,7 +43,7 @@ test('pairings file is written mode 600', (t) => {
 })
 
 test('corrupt pairings file starts empty instead of crashing', (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-id-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-id-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const file = path.join(dir, 'pairings.json')
   writeFileSync(file, 'not json{{{')

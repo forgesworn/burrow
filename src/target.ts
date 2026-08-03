@@ -1,11 +1,11 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { queryProfile } from 'nostr-tools/nip05'
-import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { DOC_KIND, LONG_FORM_KIND } from './protocol.ts'
 import { safeRelayUrls } from './netguard.ts'
 
 // One parser for everything a client can point at: a Nostr hole (npub,
 // nprofile, naddr, with or without a path) or a traditional gopher server.
-// A gopher:// URL whose selector starts with an npub is another burrow
+// A gopher:// URL whose selector starts with an npub is another gopherkind
 // bridge; the client goes native instead of proxying through it, so the
 // same document is read from your own relays.
 
@@ -92,7 +92,7 @@ function holeFromBech(bech: string, path: string): ClientTarget {
     const { kind, pubkey, identifier } = decoded.data
     const npub = nip19.npubEncode(pubkey)
     const relays = safeRelayUrls(decoded.data.relays)
-    if (kind === BURROW_KIND) {
+    if (kind === DOC_KIND) {
       return { kind: 'hole', pubkey, npub, path: normalisePath(identifier), ...hints(relays) }
     }
     if (kind === LONG_FORM_KIND) {
@@ -103,7 +103,7 @@ function holeFromBech(bech: string, path: string): ClientTarget {
   throw new TargetError(`cannot browse a ${decoded.type}`)
 }
 
-// A selector that leads with an npub is a burrow hole wherever it is
+// A selector that leads with an npub is a gopherkind hole wherever it is
 // found, including inside a traditional gophermap pointing at a bridge.
 export function holeFromSelector(selector: string): ClientTarget | null {
   const trimmed = selector.replace(/^\/+/, '')

@@ -3,7 +3,7 @@ import type { MenuItem } from './resolve.ts'
 import { targetRef } from './gemtext.ts'
 
 // Terminal rendering. Menu links are numbered and shown as the selector
-// you would pass straight back to `burrow read`.
+// you would pass straight back to `gopherkind read`.
 
 export function renderForTerminal(content: Content): string {
   switch (content.kind) {

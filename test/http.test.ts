@@ -21,11 +21,11 @@ async function operatorCsrf(base: string): Promise<string> {
 }
 
 function withNsec<T>(fn: () => Promise<T>): Promise<T> {
-  const saved = process.env['BURROW_NSEC']
-  process.env['BURROW_NSEC'] = nsecEncode(sk)
+  const saved = process.env['GOPHERKIND_NSEC']
+  process.env['GOPHERKIND_NSEC'] = nsecEncode(sk)
   return fn().finally(() => {
-    if (saved === undefined) delete process.env['BURROW_NSEC']
-    else process.env['BURROW_NSEC'] = saved
+    if (saved === undefined) delete process.env['GOPHERKIND_NSEC']
+    else process.env['GOPHERKIND_NSEC'] = saved
   })
 }
 
@@ -34,7 +34,7 @@ async function start(
   overrides: Partial<HttpOptions> = {},
   published: unknown[] = [],
 ): Promise<string> {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-http-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-http-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const server = createHttpServer({
     relays: ['wss://stub.invalid'],
@@ -58,7 +58,7 @@ test('http frontend', async (t) => {
   await t.test('home page lists pins and needs no identity', async (t2) => {
     const base = await start(t2, { identity: false })
     const body = await (await fetch(`${base}/`)).text()
-    assert.match(body, /<h1>burrow<\/h1>/)
+    assert.match(body, /<h1>gopherkind<\/h1>/)
     assert.match(body, new RegExp(`href="/${npub}"`))
     assert.match(body, /sign in/)
   })
@@ -96,7 +96,7 @@ test('http frontend', async (t) => {
     assert.match(results, new RegExp(`href="/${npub}/notes/${note.id}"`))
   })
 
-  await t.test('loopback with BURROW_NSEC is signed in automatically', async (t2) => {
+  await t.test('loopback with GOPHERKIND_NSEC is signed in automatically', async (t2) => {
     const base = await start(t2)
     await withNsec(async () => {
       const body = await (await fetch(`${base}/account`)).text()

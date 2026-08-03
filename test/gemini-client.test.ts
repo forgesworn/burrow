@@ -40,7 +40,7 @@ function makeCtx(dir: string): GeminiContext {
     identity: {
       pairings: new PairingStore(path.join(dir, 'pairings.json')),
       signer: fakeSigner(),
-      appName: 'burrow test',
+      appName: 'gopherkind test',
     },
   }
 }
@@ -48,7 +48,7 @@ function makeCtx(dir: string): GeminiContext {
 const cert = { fingerprint: 'AA:BB:CC' }
 
 test('gemini signed-in client', async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-client-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-client-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const ctx = makeCtx(dir)
   const published: unknown[] = []
@@ -101,7 +101,7 @@ test('gemini signed-in client', async (t) => {
   })
 
   await t.test('pairing failure is a readable page, not a crash', async () => {
-    const dir2 = mkdtempSync(path.join(tmpdir(), 'burrow-client-'))
+    const dir2 = mkdtempSync(path.join(tmpdir(), 'gopherkind-client-'))
     t.after(() => rmSync(dir2, { recursive: true, force: true }))
     const ctx2 = makeCtx(dir2)
     const out = await respondGemini('gemini://localhost/pair?bunker%3A%2F%2Fbad', ctx2, store, cert)
@@ -110,7 +110,7 @@ test('gemini signed-in client', async (t) => {
   })
 
   await t.test('cross-device connect shows a nostrconnect URI', async () => {
-    const dir3 = mkdtempSync(path.join(tmpdir(), 'burrow-client-'))
+    const dir3 = mkdtempSync(path.join(tmpdir(), 'gopherkind-client-'))
     t.after(() => rmSync(dir3, { recursive: true, force: true }))
     const ctx3 = makeCtx(dir3)
     const out = await respondGemini('gemini://localhost/pair/connect', ctx3, store, cert)

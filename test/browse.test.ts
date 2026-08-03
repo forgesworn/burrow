@@ -20,7 +20,7 @@ import { makeStore, npub, pubkey, sk, note } from './helpers.ts'
 import type { Content } from '../src/router.ts'
 
 function tmpFile(name: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'burrow-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gopherkind-test-'))
   return path.join(dir, name)
 }
 
@@ -133,9 +133,9 @@ test('bookmark store dedupes by ref and survives junk on disk', () => {
 })
 
 test('feed renders as a navigable menu through a local signer', async (t) => {
-  process.env['BURROW_NSEC'] = Buffer.from(sk).toString('hex')
+  process.env['GOPHERKIND_NSEC'] = Buffer.from(sk).toString('hex')
   t.after(() => {
-    delete process.env['BURROW_NSEC']
+    delete process.env['GOPHERKIND_NSEC']
   })
   const deps = makeDeps()
   const content = await feedContent(deps)

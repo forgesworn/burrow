@@ -1,9 +1,9 @@
-# Burrow: gopherspace over Nostr
+# Gopherkind: gopherspace over Nostr
 
 `draft` `optional`
 
 Kind `31436` (after RFC 1436, the Gopher protocol specification) defines a
-**burrow document**: one node of a gopherhole, published as an addressable
+**gopherkind document**: one node of a gopherhole, published as an addressable
 Nostr event. A set of these events under one pubkey is a **hole**. Any
 bridge can serve any hole to any RFC 1436 gopher client (and, optionally,
 any Gemini client); holes have no home server and survive as long as any
@@ -79,9 +79,9 @@ mirrors a NIP-40 relay deleting the expired event). Authors who want a
 document to vanish rather than revert MUST publish every revision with the
 `expiration`, or NIP-09-delete the older revisions.
 
-## Burrowmap (menu content)
+## Kindmap (menu content)
 
-Content of a `type 1` document is a **burrowmap**: a gophermap with the
+Content of a `type 1` document is a **kindmap**: a gophermap with the
 host and port columns removed, because documents have no host. One item
 per line:
 
@@ -157,7 +157,7 @@ Gopher+ is not supported; a bridge MUST ignore trailing probe fields
 For each request the bridge fetches the newest matching non-expired event
 and renders:
 
-- `type 1`: each burrowmap line becomes a full gophermap line. Same-hole
+- `type 1`: each kindmap line becomes a full gophermap line. Same-hole
   and naddr links point at the bridge itself (`/<npub><path>` selectors);
   `gopher://` links keep their original host and port; web links become
   `h` items with `URL:` selectors. Info lines get the conventional dummy
@@ -304,14 +304,14 @@ NIP-40 `expiration` instead, which compliant bridges enforce.
 - **Why not nsite?** The nsite family (static websites over Nostr) has the
   same shape - a pubkey-owned tree of addressable events keyed by an
   absolute path - but its events carry Blossom blob hashes and deliver
-  arbitrary binary assets over HTTP. A burrow document carries its UTF-8
+  arbitrary binary assets over HTTP. A gopherkind document carries its UTF-8
   text inline, so a whole hole is relay-resident with no Blossom dependency,
   which is the entire survivability claim; it adds gopher item-type
   semantics and treats menus as first-class documents. The two compose: a
-  burrowmap `h` line can point at an nsite.
+  kindmap `h` line can point at an nsite.
 - **Why not kind 30023 with a tag?** Markdown articles and gophermaps are
   different content grammars, and text or menus at arbitrary paths are not
-  articles. burrow reuses 30023 for what it is (long-form articles under
+  articles. gopherkind reuses 30023 for what it is (long-form articles under
   `/articles`) rather than overloading it.
 
 Binary content (images, downloads) is deliberately out of scope: it is
@@ -329,9 +329,9 @@ Selector to route:
 | `/npub1..` + tab + `hay` | search, query `hay` |
 | `/npub1../..` | error (rejected: `..` segment) |
 
-Burrowmap line to gopher wire (owner npub `N`, bridge `b.test:70`):
+Kindmap line to gopher wire (owner npub `N`, bridge `b.test:70`):
 
-| Burrowmap line | Wire line |
+| Kindmap line | Wire line |
 |---|---|
 | `0About\t/about.txt` | `0About\t/N/about.txt\tb.test\t70` |
 | `1Home\t/` | `1Home\t/N\tb.test\t70` |

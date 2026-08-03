@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import type { Event, Filter } from 'nostr-tools'
 import { HoleStore, type PoolLike } from '../src/fetch.ts'
-import { BURROW_KIND, NOTE_KIND, RELAY_LIST_KIND } from '../src/protocol.ts'
+import { DOC_KIND, NOTE_KIND, RELAY_LIST_KIND } from '../src/protocol.ts'
 
 const sk = generateSecretKey()
 const pk = getPublicKey(sk)
@@ -55,7 +55,7 @@ test('expired events are never served (notes and single event)', async () => {
 
 test('doc resolves the newest event, lowest id on a tie', async () => {
   const older = ev({
-    kind: BURROW_KIND,
+    kind: DOC_KIND,
     created_at: now - 100,
     tags: [
       ['d', '/a'],
@@ -64,7 +64,7 @@ test('doc resolves the newest event, lowest id on a tie', async () => {
     content: 'old',
   })
   const newer = ev({
-    kind: BURROW_KIND,
+    kind: DOC_KIND,
     created_at: now,
     tags: [
       ['d', '/a'],
@@ -89,7 +89,7 @@ test('a hole reads from the author write relays (NIP-65), not just the bridge', 
     ],
   })
   const doc = ev({
-    kind: BURROW_KIND,
+    kind: DOC_KIND,
     tags: [
       ['d', '/'],
       ['type', '1'],
@@ -99,7 +99,7 @@ test('a hole reads from the author write relays (NIP-65), not just the bridge', 
   const pool = fakePool((f) => (f.kinds?.includes(RELAY_LIST_KIND) ? [relayList] : [doc]))
   const store = new HoleStore(['wss://bridge'], pool)
   await store.doc(pk, '/')
-  // the burrow-doc query must have gone to bridge + author write relay, and
+  // the gopherkind-doc query must have gone to bridge + author write relay, and
   // must not include the author's read-only relay
   const docQuery = pool.relaysSeen.find((r) => r.includes('wss://author.example'))
   assert.ok(docQuery, 'author write relay should be queried')

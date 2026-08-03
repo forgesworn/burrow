@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { handlerTemplate, HANDLER_KIND, AnnounceError } from '../src/announce.ts'
-import { BURROW_KIND } from '../src/protocol.ts'
+import { DOC_KIND } from '../src/protocol.ts'
 
 const base = {
   name: 'test bridge',
@@ -10,7 +10,7 @@ const base = {
   gopherPort: 70,
   geminiPort: 1965,
   httpUrl: 'https://bridge.example',
-  identifier: 'burrow-bridge',
+  identifier: 'gopherkind-bridge',
 }
 
 function tagsOf(tmpl: { tags: string[][] }, name: string): string[][] {
@@ -21,8 +21,8 @@ test('a handler announcement claims kind 31436 on every surface', () => {
   const tmpl = handlerTemplate(base, 1700000000)
   assert.equal(tmpl.kind, HANDLER_KIND)
   assert.equal(tmpl.created_at, 1700000000)
-  assert.deepEqual(tagsOf(tmpl, 'd'), [['d', 'burrow-bridge']])
-  assert.deepEqual(tagsOf(tmpl, 'k'), [['k', String(BURROW_KIND)]])
+  assert.deepEqual(tagsOf(tmpl, 'd'), [['d', 'gopherkind-bridge']])
+  assert.deepEqual(tagsOf(tmpl, 'k'), [['k', String(DOC_KIND)]])
   assert.equal(tagsOf(tmpl, 'alt').length, 1)
   // NIP-89's <bech32> placeholder must survive verbatim on every url
   for (const t of [...tagsOf(tmpl, 'web'), ...tagsOf(tmpl, 'gopher'), ...tagsOf(tmpl, 'gemini')]) {

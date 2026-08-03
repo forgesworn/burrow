@@ -14,10 +14,16 @@ and the implementation is what the vectors test.
 - [ ] Run the `nostr-nip-review` skill over `SPEC.md` as a pre-flight.
 - [ ] Confirm `31436` is still unclaimed in the nips repo kind table and in
       recent open PRs (kinds are first-come and collisions are silent).
-- [ ] Decide the title. `SPEC.md` heads "Burrow: gopherspace over Nostr"; a NIP
-      normally names the mechanism, not the implementation. Suggested:
-      **"Gopherholes over Nostr"**, with burrow named once as the reference
-      implementation.
+- [ ] Decide the naming. `SPEC.md` heads "Gopherkind: gopherspace over Nostr"
+      and calls a 31436 event a **gopherkind document**, which shares a name
+      with the reference implementation. NIPs normally name the mechanism, not
+      the software. Two coherent options, and this needs deciding *before*
+      submission because it is the one thing that is expensive to change after:
+      - **Keep it.** "gopherkind" reads as a compound of gopher + Nostr kind,
+        not obviously as a product. Precedent exists (nsite).
+      - **Neutralise it.** Title **"Gopherholes over Nostr"**, call the event a
+        **gopherhole document**, keep `kindmap` for the grammar, and name
+        gopherkind once as the reference implementation.
 - [ ] Have a second implementation, or at least a second reader. The test
       vectors in the appendix exist so someone else can validate against this
       one; that is the strongest thing a kind proposal can show up with.
@@ -28,7 +34,7 @@ The nips repo `README.md` has a kind table. The row to add, in numeric order
 among the addressable (`30000`-`39999`) kinds:
 
 ```
-| `31436`   | Burrow document (gopherhole node) | [XX](XX.md) |
+| `31436`   | Gopherkind document (gopherhole node) | [XX](XX.md) |
 ```
 
 ## The PR
@@ -48,7 +54,7 @@ Body:
 > the spec.
 >
 > Reference implementation, test vectors and four interoperating frontends
-> (gopher, Gemini, HTTP, CLI): https://github.com/forgesworn/burrow
+> (gopher, Gemini, HTTP, CLI): https://github.com/forgesworn/gopherkind
 
 Files: one new `XX.md` (the contents of `SPEC.md`) plus the README row.
 
@@ -61,11 +67,11 @@ comment on it, so open the PR first and let the text settle for a few days.
 
 ## Related, already shipped
 
-`burrow announce` publishes the NIP-89 handler announcement (kind 31990) that
+`gopherkind announce` publishes the NIP-89 handler announcement (kind 31990) that
 tells Nostr clients this bridge opens kind 31436. It is independent of the NIP
 submission and can go out whenever a public bridge is running. It also has a
 `--dry-run` that signs nothing:
 
 ```sh
-burrow announce --hostname bridge.example --http-url https://bridge.example --dry-run
+gopherkind announce --hostname bridge.example --http-url https://bridge.example --dry-run
 ```

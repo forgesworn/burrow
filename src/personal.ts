@@ -80,7 +80,7 @@ export async function resolvePersonal(
         info(''),
         selfLink('Your public hole', '/', npub),
       ]
-      return { kind: 'menu', title: 'burrow: you', items }
+      return { kind: 'menu', title: 'gopherkind: you', items }
     }
 
     case 'feed': {

@@ -399,7 +399,7 @@ function toGemini(content: Content): string {
 
 async function welcomePage(ctx: GeminiContext, store: HoleStore): Promise<string> {
   const lines = [
-    '# burrow',
+    '# gopherkind',
     '',
     'Gopherholes served from Nostr relays. Every hole is a set of signed',
     'Nostr events (kind 31436); relays mirror it, any bridge serves it.',

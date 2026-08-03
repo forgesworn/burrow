@@ -1,5 +1,5 @@
 {
-  "name": "@forgesworn/burrow",
+  "name": "gopherkind",
   "version": "0.5.1",
   "description": "Gopherholes served from Nostr relays, and a gopher client that speaks Nostr. Publish once, mirrored everywhere, signed by your npub.",
   "type": "module",
@@ -12,23 +12,24 @@
     "rfc1436",
     "phlog",
     "gopherhole",
+    "gopherkind",
     "nip-46",
     "bridge",
     "cli"
   ],
-  "homepage": "https://github.com/forgesworn/burrow#readme",
+  "homepage": "https://github.com/forgesworn/gopherkind#readme",
   "bugs": {
-    "url": "https://github.com/forgesworn/burrow/issues"
+    "url": "https://github.com/forgesworn/gopherkind/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/forgesworn/burrow.git"
+    "url": "git+https://github.com/forgesworn/gopherkind.git"
   },
   "engines": {
     "node": ">=24"
   },
   "bin": {
-    "burrow": "dist/cli.js"
+    "gopherkind": "dist/cli.js"
   },
   "files": [
     "dist",

@@ -1,5 +1,5 @@
 import type { EventTemplate } from 'nostr-tools'
-import { BURROW_KIND } from './protocol.ts'
+import { DOC_KIND } from './protocol.ts'
 
 // NIP-89 handler announcement (kind 31990). A Nostr client that meets a
 // kind 31436 event has no idea what to do with it; a handler announcement
@@ -55,9 +55,9 @@ export function handlerTemplate(opts: AnnounceOptions, now: number): EventTempla
   const gopherHost = opts.gopherPort === 70 ? opts.hostname : `${opts.hostname}:${opts.gopherPort}`
   const tags: string[][] = [
     ['d', opts.identifier],
-    ['k', String(BURROW_KIND)],
+    ['k', String(DOC_KIND)],
     // NIP-31: something for a client with no handler support to show.
-    ['alt', `burrow bridge for kind ${BURROW_KIND} gopherholes`],
+    ['alt', `gopherkind bridge for kind ${DOC_KIND} gopherholes`],
   ]
 
   // A bridge resolves any of these entity forms, so announce the ones a

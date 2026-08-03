@@ -16,7 +16,7 @@ const store = makeStore()
 test('welcome page is gemtext with pinned holes', async () => {
   const out = await respondGemini('gemini://localhost/', ctx, store)
   assert.match(out, /^20 text\/gemini/)
-  assert.match(out, /# burrow/)
+  assert.match(out, /# gopherkind/)
   assert.ok(out.includes(`=> /${npub} testdonkey`))
 })
 
@@ -57,10 +57,10 @@ test('errors use gemini status codes', async () => {
 const hasOpenssl = spawnSync('openssl', ['version'], { stdio: 'ignore' }).status === 0
 
 test('tls round trip with a generated certificate', { skip: !hasOpenssl }, async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-cert-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-cert-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const certs = ensureSelfSignedCert(dir, 'localhost')
-  const clientDir = mkdtempSync(path.join(tmpdir(), 'burrow-clientcert-'))
+  const clientDir = mkdtempSync(path.join(tmpdir(), 'gopherkind-clientcert-'))
   t.after(() => rmSync(clientDir, { recursive: true, force: true }))
   const clientCerts = ensureSelfSignedCert(clientDir, 'lagrange-user')
   const { readFileSync } = await import('node:fs')

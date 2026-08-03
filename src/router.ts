@@ -1,11 +1,11 @@
 import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseBurrowmap } from './linemap.ts'
+import { parseKindmap } from './linemap.ts'
 import { resolveMapLines, relayHints, info, type MenuItem } from './resolve.ts'
 import type { HoleStore } from './fetch.ts'
 import type { Route } from './selector.ts'
 import {
-  BURROW_KIND,
+  DOC_KIND,
   NOTE_KIND,
   LONG_FORM_KIND,
   docPath,
@@ -43,7 +43,7 @@ export async function resolveRoute(
   if (ev) return rememberHints(contentFromDoc(ev, route.npub), store)
 
   // Single-item permalinks (a note or an article) resolve even when the
-  // generated virtual hole is disabled, because burrowmap links and the
+  // generated virtual hole is disabled, because kindmap links and the
   // post-success link point straight at them; --no-virtual only turns off
   // the generated index pages (root, profile, notes, follows, followers).
   const m = virtual.matchVirtualPath(route.path)
@@ -76,7 +76,7 @@ function contentFromDoc(ev: Event, npub: string): Content {
     return {
       kind: 'menu',
       title: docTitle(ev),
-      items: resolveMapLines(parseBurrowmap(ev.content), npub),
+      items: resolveMapLines(parseKindmap(ev.content), npub),
     }
   }
   return { kind: 'text', title: docTitle(ev), body: ev.content }
@@ -219,7 +219,7 @@ async function search(
 
   for (const ev of await store.searchRelays(route.pubkey, route.query)) {
     if (ev.pubkey !== route.pubkey) continue
-    if (ev.kind === BURROW_KIND) push(docType(ev), `${docTitle(ev)} (${docPath(ev)})`, docPath(ev))
+    if (ev.kind === DOC_KIND) push(docType(ev), `${docTitle(ev)} (${docPath(ev)})`, docPath(ev))
     else if (ev.kind === NOTE_KIND && !ev.tags.some((t) => t[0] === 'e')) {
       push('0', `${isoDate(ev.created_at)}  ${firstLine(ev.content)}`, `/notes/${ev.id}`)
     } else if (ev.kind === LONG_FORM_KIND) {

@@ -8,7 +8,7 @@ import { resolveClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, BURROW_KIND, firstLine, isoDate } from './protocol.ts'
+import { NOTE_KIND, DELETE_KIND, DOC_KIND, firstLine, isoDate } from './protocol.ts'
 import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
@@ -73,7 +73,7 @@ export async function cmdPost(
   if (leak) {
     throw new Error(
       `that note contains what looks like ${leak}; refusing to sign it. ` +
-        'If you meant to pair a signer, use `burrow pair`.',
+        'If you meant to pair a signer, use `gopherkind pair`.',
     )
   }
   const signer = await resolveSigner(pairings)
@@ -92,7 +92,7 @@ export async function cmdPost(
       `posted via ${signer.describe}`,
       `accepted by ${accepted}/${relays.length} relays`,
       `nevent: ${nip19.neventEncode({ id: signed.id, author: signed.pubkey })}`,
-      `read it: burrow read ${npub}/notes/${signed.id}`,
+      `read it: gopherkind read ${npub}/notes/${signed.id}`,
       '',
     ].join('\n')
   } finally {
@@ -120,7 +120,7 @@ export async function cmdFeed(
       const name = displayName(parseProfile(profiles.get(ev.pubkey) ?? null), authorNpub)
       out.push(`${isoDate(ev.created_at)}  ${name}`)
       out.push(`  ${firstLine(ev.content, 76)}`)
-      out.push(`  burrow read ${authorNpub}/notes/${ev.id}`)
+      out.push(`  gopherkind read ${authorNpub}/notes/${ev.id}`)
       out.push('')
     }
     return out.join('\n')
@@ -245,7 +245,7 @@ export async function cmdAnnounce(
       `naddr: ${naddr}`,
       '',
       'Clients that support NIP-89 can now offer this bridge for kind',
-      `${BURROW_KIND}. Re-run announce whenever the bridge address changes.`,
+      `${DOC_KIND}. Re-run announce whenever the bridge address changes.`,
       '',
     ].join('\n')
   } finally {
@@ -255,7 +255,7 @@ export async function cmdAnnounce(
 
 export async function cmdPair(uri: string, pairings: PairingStore): Promise<string> {
   const pubkey = await pairCli(pairings, uri)
-  return `paired as ${nip19.npubEncode(pubkey)}\nstored for future commands; \`burrow unpair\` to remove\n`
+  return `paired as ${nip19.npubEncode(pubkey)}\nstored for future commands; \`gopherkind unpair\` to remove\n`
 }
 
 export function cmdUnpair(pairings: PairingStore): string {

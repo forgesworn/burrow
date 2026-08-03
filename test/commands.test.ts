@@ -12,7 +12,7 @@ import { localSigner, resolveSigner, CLI_PAIRING_KEY } from '../src/signing.ts'
 import { sk, npub } from './helpers.ts'
 
 function tmpPairings(t: { after: (fn: () => void) => void }): PairingStore {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-cmd-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-cmd-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   return new PairingStore(path.join(dir, 'pairings.json'))
 }
@@ -34,7 +34,7 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
   }
 }
 
-test('local signer signs with BURROW_NSEC', async () => {
+test('local signer signs with GOPHERKIND_NSEC', async () => {
   const signer = localSigner(nsecEncode(sk))
   assert.equal(nip19.npubEncode(await signer.pubkey()), npub)
   const ev = await signer.sign({ kind: 1, created_at: 1, tags: [], content: 'hi' })
@@ -44,15 +44,18 @@ test('local signer signs with BURROW_NSEC', async () => {
 
 test('signer resolution prefers nsec, then errors helpfully', async (t) => {
   const pairings = tmpPairings(t)
-  const resolved = await withEnv({ BURROW_NSEC: nsecEncode(sk), BURROW_BUNKER: undefined }, () =>
-    resolveSigner(pairings),
+  const resolved = await withEnv(
+    { GOPHERKIND_NSEC: nsecEncode(sk), GOPHERKIND_BUNKER: undefined },
+    () => resolveSigner(pairings),
   )
   assert.match(resolved.describe, /local key/)
 
   await assert.rejects(
     () =>
-      withEnv({ BURROW_NSEC: undefined, BURROW_BUNKER: undefined }, () => resolveSigner(pairings)),
-    /burrow pair/,
+      withEnv({ GOPHERKIND_NSEC: undefined, GOPHERKIND_BUNKER: undefined }, () =>
+        resolveSigner(pairings),
+      ),
+    /gopherkind pair/,
   )
 })
 
@@ -60,7 +63,7 @@ test('post refuses credential-shaped notes before signing', async (t) => {
   const pairings = tmpPairings(t)
   await assert.rejects(
     () =>
-      withEnv({ BURROW_NSEC: nsecEncode(sk) }, () =>
+      withEnv({ GOPHERKIND_NSEC: nsecEncode(sk) }, () =>
         cmdPost(`bunker://abc?secret=${'f'.repeat(64)}`, ['wss://stub.invalid'], pairings, true),
       ),
     /refusing to sign/,
@@ -69,7 +72,7 @@ test('post refuses credential-shaped notes before signing', async (t) => {
 
 test('post dry run signs without publishing', async (t) => {
   const pairings = tmpPairings(t)
-  const out = await withEnv({ BURROW_NSEC: nsecEncode(sk) }, () =>
+  const out = await withEnv({ GOPHERKIND_NSEC: nsecEncode(sk) }, () =>
     cmdPost('hello gopherspace', ['wss://stub.invalid'], pairings, true),
   )
   assert.match(out, /not published \(dry run\)/)

@@ -1,6 +1,6 @@
 # Security policy
 
-burrow's whole premise is key hygiene: the bridge never holds a user key,
+gopherkind's whole premise is key hygiene: the bridge never holds a user key,
 signing is always remote over NIP-46, and disk state is limited to the Gemini
 TLS cert and a mode-600 `pairings.json`. Reports that undermine those
 properties are taken seriously.
@@ -9,11 +9,11 @@ properties are taken seriously.
 
 Please report privately, not in a public issue:
 
-- Open a [GitHub security advisory](https://github.com/forgesworn/burrow/security/advisories/new), or
+- Open a [GitHub security advisory](https://github.com/forgesworn/gopherkind/security/advisories/new), or
 - Zap or DM `npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2` on Nostr.
 
 Include a description, affected version or commit, and a proof of concept if
-you have one. burrow is unfunded hobby work, so there is no bounty, but credit
+you have one. gopherkind is unfunded hobby work, so there is no bounty, but credit
 is given in the changelog unless you prefer otherwise.
 
 ## In scope

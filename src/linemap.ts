@@ -1,4 +1,4 @@
-// Burrowmap: the host-agnostic menu source stored in kind 31436 events.
+// Kindmap: the host-agnostic menu source stored in kind 31436 events.
 // One item per line: `<type><display>` or `<type><display>\t<link>`.
 // Lines without a tab are info text; a leading `i` is optional there.
 // Extra tab-separated fields (host/port from a pasted classic gophermap)
@@ -10,7 +10,7 @@ export interface MapLine {
   link?: string
 }
 
-export function parseBurrowmap(content: string): MapLine[] {
+export function parseKindmap(content: string): MapLine[] {
   const lines = content.split(/\r?\n/)
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   return lines.map((raw): MapLine => {

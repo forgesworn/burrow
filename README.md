@@ -1,10 +1,10 @@
-# burrow
+# gopherkind
 
 Gopherholes served from Nostr relays.
 
 Gopherspace has one endemic disease: holes die. The hobby box behind
 your favourite phlog loses power, the domain lapses, and fifteen years
-of writing are gone. burrow moves the hole off the box. Documents are
+of writing are gone. gopherkind moves the hole off the box. Documents are
 signed Nostr events (kind `31436`, named for RFC 1436), relays mirror
 them, and any bridge can serve them to any gopher client written since
 1991. lynx, VF-1, Lagrange, an Amiga. All fine.
@@ -17,7 +17,7 @@ just Nostr underneath.
 ## Why gopher and Nostr belong together
 
 Cameron Kaiser's essay on why gopher still matters (read it:
-`burrow read gopher://gopher.floodgap.com/0/gopher/relevance.txt`)
+`gopherkind read gopher://gopher.floodgap.com/0/gopher/relevance.txt`)
 lands on one idea: gopher divorces interface from information. Every
 hole is menus and text, navigated the same way, rendered by anything
 with a TCP stack. Sites stand on the strength of their content, not
@@ -53,7 +53,7 @@ works in gopher, the status 10 input flow in Gemini. NIP-40 expiry is
 enforced on read.
 
 The part I like most: every npub is already a hole. If someone has
-never heard of burrow, the bridge builds their hole out of what they
+never heard of gopherkind, the bridge builds their hole out of what they
 have anyway. Kind 0 profile becomes `/profile.txt`, top-level notes
 become a phlog at `/notes`, NIP-23 long-form articles land under
 `/articles`. Point lynx at any npub and start reading. Authored
@@ -66,32 +66,32 @@ Needs Node 24 or newer.
 
 ```sh
 # Browse gopherspace and Nostr interactively, no install
-npx @forgesworn/burrow
+npx @forgesworn/gopherkind
 
 # Publish the example hole (signs with your key, sends to relays)
-BURROW_NSEC=nsec1... npx @forgesworn/burrow publish examples/hole
+GOPHERKIND_NSEC=nsec1... npx @forgesworn/gopherkind publish examples/hole
 
 # Serve gopherspace. Gopher on 7070, Gemini on 1965, HTTP on 8070.
-npx @forgesworn/burrow serve
+npx @forgesworn/gopherkind serve
 
 # Browse your hole, or anyone else's npub, published or not
 lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 ```
 
 From a clone, `npm install` once and use `node src/cli.ts` in place
-of `npx @forgesworn/burrow`; there is no build step.
+of `npx @forgesworn/gopherkind`; there is no build step.
 
 Nothing needs to be published for that to work. Point it at any npub
 and a hole is already there, generated from the events that account
 already has:
 
 ```
-$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+$ npx @forgesworn/gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
 TheCryptoDonkey
 ===============
 
   TheCryptoDonkey
-  a virtual burrow generated from Nostr events
+  a virtual hole generated from Nostr events
 
   Bitcoin, freedom, decentralisation, liberty advocate.
 
@@ -114,7 +114,7 @@ TheCryptoDonkey
 Long streams page rather than stopping dead, on every surface:
 
 ```
-$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
+$ npx @forgesworn/gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
 ...
   Older
       /npub1mgvlrnf.../notes/before/1774317715
@@ -128,7 +128,7 @@ top. Same on gopher, Gemini and in lynx.
 or `--expire 30d` for documents that should vanish on their own
 (NIP-40; s/m/h/d/w all work).
 
-To take something down, `burrow unpublish /about.txt` (or `--all`)
+To take something down, `gopherkind unpublish /about.txt` (or `--all`)
 sends a NIP-09 deletion request. Honest caveat: relays are free to
 ignore those. If content genuinely must not outlive a date, publish
 it with `--expire` in the first place; the bridge refuses to serve
@@ -140,13 +140,13 @@ A hole is a directory. Text files become type `0` documents.
 `index.map` (or classic `gophermap`) becomes the menu for its
 directory, and any other `*.map` file becomes a menu at its own path.
 
-`index.map` is a burrowmap, which is a gophermap with the host and
+`index.map` is a kindmap, which is a gophermap with the host and
 port columns chopped off, because your documents don't have a host.
 Plain lines are info text. Linked lines are `<type><display>`, a tab,
 then the link:
 
 ```
-Welcome to my burrow
+Welcome to my gopherkind
 
 0About this hole	/about.txt
 1Phlog	/phlog
@@ -186,7 +186,7 @@ redirect. `--pin` puts holes on the welcome menu under their profile
 names.
 
 Gemini needs TLS, so the bridge generates a self-signed cert with
-openssl into `--state-dir` (default `~/.burrow`) on first run.
+openssl into `--state-dir` (default `~/.gopherkind`) on first run.
 Bring your own with `--cert` and `--key`, or skip the whole frontend
 with `--no-gemini`. `--no-virtual` turns virtual holes off if you
 only want authored content.
@@ -209,7 +209,7 @@ network, and `/robots.txt` keeps crawlers out of it.
 Once the bridge is up, tell Nostr clients it exists:
 
 ```sh
-burrow announce --hostname gopher.example.org \
+gopherkind announce --hostname gopher.example.org \
   --http-url https://gopher.example.org --dry-run
 ```
 
@@ -229,14 +229,14 @@ Every hole has these paths, whether or not anyone published anything:
 | `/follows` | who they follow, each linking to that person's hole |
 | `/followers` | who follows them (a sample of what relays carry) |
 
-So `burrow read npub1.../follows` walks the social graph from the
+So `gopherkind read npub1.../follows` walks the social graph from the
 terminal, and the same paths are links in lynx, Lagrange, or any gopher
 client. Your own feed lives at `/me/feed` over gopher, `/feed` over
-HTTP and Gemini, or `burrow feed` in the terminal.
+HTTP and Gemini, or `gopherkind feed` in the terminal.
 
 ## Traditional gopherspace
 
-burrow is a gopher client as well as a gopher server, so old holes
+gopherkind is a gopher client as well as a gopher server, so old holes
 render through it too:
 
 ```sh
@@ -246,18 +246,18 @@ lynx http://localhost:8070/gopher/gopher.floodgap.com/1/
 Menus, text files and type 7 searches all work, and links inside a
 proxied menu stay inside the proxy, so you can wander Floodgap and the
 rest of gopherspace from a browser that has never heard of gopher.
-Burrowmap `gopher://` links route through it automatically. lynx can
+Kindmap `gopher://` links route through it automatically. lynx can
 of course also just speak gopher directly.
 
 ## The full experience in lynx
 
 lynx is not only a gopher client, it speaks HTTP, so the bridge serves
 a third frontend built for it: plain HTML, real forms, no JavaScript
-anywhere. Start `burrow serve` and point lynx at
+anywhere. Start `gopherkind serve` and point lynx at
 `http://localhost:8070/`.
 
 Requests from loopback are treated as you, the operator, using the
-same signer the CLI uses (`BURROW_NSEC`, or whatever `burrow pair`
+same signer the CLI uses (`GOPHERKIND_NSEC`, or whatever `gopherkind pair`
 stored). No login, no cookies, no certificates: open lynx on your own
 machine and you are already signed in. You get menus and documents,
 search forms, your feed, a note composer, and a delete button on your
@@ -269,7 +269,7 @@ before exposing it, or pass `--no-identity` to serve reading only. Turn
 the frontend off entirely with `--no-http`.
 
 Operator trust is decided by connection origin (loopback), so behind a
-reverse proxy every request would look local. burrow therefore disables
+reverse proxy every request would look local. gopherkind therefore disables
 operator trust automatically whenever the bridge is bound to a
 non-loopback address; keep the bind on `127.0.0.1` and let the proxy
 reach it there, or pass `--trust-loopback-anyway` only if you know the
@@ -306,12 +306,12 @@ off entirely.
 ## The terminal client
 
 You do not need a Gemini client, a browser, or a certificate to use
-burrow. Run it bare and you get an interactive browser in the VF-1
+gopherkind. Run it bare and you get an interactive browser in the VF-1
 tradition that speaks both gopherspace and Nostr:
 
 ```
-$ burrow
-burrow
+$ gopherkind
+gopherkind
 ======
 
     a gopher client that speaks nostr
@@ -337,7 +337,7 @@ Type a number to follow a link, `back`, `up` and `reload` to move,
 `mark` to bookmark the page you are on. Links marked `(?)` prompt for
 a search query: Veronica-2 for gopherspace, NIP-50 for holes. A menu
 from Floodgap and a menu from an npub are the same thing to the
-browser, and when a traditional gophermap links into a burrow bridge
+browser, and when a traditional gophermap links into a gopherkind bridge
 (an npub selector, or a `nostr:` URL), the client follows it natively
 through your own relays instead of someone else's bridge.
 
@@ -349,34 +349,34 @@ One-shot commands cover both worlds too, and reading needs no
 identity at all:
 
 ```sh
-burrow read npub1...              # someone's hole, virtual or authored
-burrow read npub1.../notes        # their phlog
-burrow read someone@example.org   # NIP-05 names work anywhere a target does
-burrow read gopher://gopher.floodgap.com/1/    # traditional gopherspace
-burrow search npub1... gopher     # search a hole
-burrow search gopher://gopher.floodgap.com/7/v2/vs nostr   # Veronica-2
+gopherkind read npub1...              # someone's hole, virtual or authored
+gopherkind read npub1.../notes        # their phlog
+gopherkind read someone@example.org   # NIP-05 names work anywhere a target does
+gopherkind read gopher://gopher.floodgap.com/1/    # traditional gopherspace
+gopherkind search npub1... gopher     # search a hole
+gopherkind search gopher://gopher.floodgap.com/7/v2/vs nostr   # Veronica-2
 ```
 
-Writing needs a signer, resolved in this order: `BURROW_NSEC` (a local
-key), `BURROW_BUNKER` (a one-off bunker URI), or whatever `burrow
+Writing needs a signer, resolved in this order: `GOPHERKIND_NSEC` (a local
+key), `GOPHERKIND_BUNKER` (a one-off bunker URI), or whatever `gopherkind
 pair` stored for you.
 
 ```sh
-burrow pair bunker://...          # once; stored in the state dir
-burrow whoami
-burrow post "hello gopherspace"   # signed by your signer, broadcast
-burrow feed                       # notes from who you follow
-burrow delete <id|note1|nevent1>  # NIP-09 deletion request
-burrow unpair
+gopherkind pair bunker://...          # once; stored in the state dir
+gopherkind whoami
+gopherkind post "hello gopherspace"   # signed by your signer, broadcast
+gopherkind feed                       # notes from who you follow
+gopherkind delete <id|note1|nevent1>  # NIP-09 deletion request
+gopherkind unpair
 ```
 
-`burrow delete --wide` also sends the request to a broader relay set
+`gopherkind delete --wide` also sends the request to a broader relay set
 than you read from, which matters because content spreads further than
 your own relay list. Deletion is a request: relays may ignore it, and
 clients keep local caches. If what you deleted contained a secret,
 rotate the secret too.
 
-`burrow post --dry-run` prints the signed event without sending it.
+`gopherkind post --dry-run` prints the signed event without sending it.
 Every command accepts `--relay` (repeatable) and `--state-dir`.
 
 ## Signing in from a Gemini client
@@ -385,7 +385,7 @@ The terminal and the HTTP frontend cover most needs. The Gemini
 frontend exists for people already living in Geminispace, where client
 certificates are the native identity mechanism.
 
-burrow binds that certificate to a NIP-46 remote signer. Visit
+gopherkind binds that certificate to a NIP-46 remote signer. Visit
 `/account`, pair once, and you're signed in. Lagrange will mint a
 certificate for you, though its identity UI takes some getting used
 to; if that sounds like hard work, use lynx over HTTP or the CLI
@@ -426,7 +426,7 @@ video.
 
 One clarification for bark users: bark is a NIP-07 browser extension,
 and Lagrange isn't a browser, so bark can't inject here. But the
-Heartwood bunker behind bark pairs with burrow directly. Same signer,
+Heartwood bunker behind bark pairs with gopherkind directly. Same signer,
 different front door.
 
 Gopher stays read-only forever. The protocol has no authentication
@@ -435,7 +435,7 @@ and no encryption, so any credential sent over it would be public.
 
 ## Protocol
 
-[SPEC.md](SPEC.md) has the event format, the burrowmap grammar, the
+[SPEC.md](SPEC.md) has the event format, the kindmap grammar, the
 selector namespace, virtual hole paths and the Gemini mapping. The
 short version: one addressable event per document, `d` tag is the
 path, `type` tag is `0` or `1`, menus link by path or naddr instead
@@ -449,7 +449,7 @@ through first. Nothing has been submitted.
 
 ## Support
 
-burrow is unfunded hobby work under ForgeSworn. If it made you grin:
+gopherkind is unfunded hobby work under ForgeSworn. If it made you grin:
 
 - Zap: `npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2`
 - Lightning: `profusemeat89@walletofsatoshi.com`

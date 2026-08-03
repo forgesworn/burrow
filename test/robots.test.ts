@@ -29,7 +29,7 @@ test('the gemini policy repeats itself for each virtual agent', () => {
 })
 
 test('the http frontend serves it as text/plain', async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-robots-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-robots-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const server = createHttpServer({
     relays: ['wss://stub.invalid'],

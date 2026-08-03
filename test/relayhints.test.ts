@@ -4,12 +4,12 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import * as nip19 from 'nostr-tools/nip19'
 import type { Event, Filter } from 'nostr-tools'
 import { safeRelayUrls } from '../src/netguard.ts'
-import { parseBurrowmap } from '../src/linemap.ts'
+import { parseKindmap } from '../src/linemap.ts'
 import { resolveMapLines, relayHints } from '../src/resolve.ts'
 import { parseClientTarget } from '../src/target.ts'
 import { HoleStore, type PoolLike } from '../src/fetch.ts'
 import { resolveRoute } from '../src/router.ts'
-import { BURROW_KIND, LONG_FORM_KIND } from '../src/protocol.ts'
+import { DOC_KIND, LONG_FORM_KIND } from '../src/protocol.ts'
 
 const sk = generateSecretKey()
 const pk = getPublicKey(sk)
@@ -43,14 +43,14 @@ test('safeRelayUrls dedupes, caps and rejects absurd input', () => {
   assert.deepEqual(safeRelayUrls([`wss://${'x'.repeat(300)}.example`]), [])
 })
 
-test('a burrowmap naddr link carries its relay hints', () => {
+test('a kindmap naddr link carries its relay hints', () => {
   const naddr = nip19.naddrEncode({
-    kind: BURROW_KIND,
+    kind: DOC_KIND,
     pubkey: pk,
     identifier: '/notes',
     relays: ['wss://their.example', 'wss://127.0.0.1'],
   })
-  const items = resolveMapLines(parseBurrowmap(`1Their notes\tnostr:${naddr}`), 'npub1owner')
+  const items = resolveMapLines(parseKindmap(`1Their notes\tnostr:${naddr}`), 'npub1owner')
   const target = items[0]?.target
   assert.equal(target?.scheme, 'hole')
   assert.deepEqual(target?.scheme === 'hole' ? target.relays : null, ['wss://their.example'])
@@ -66,18 +66,15 @@ test('an article naddr and an nprofile carry hints too', () => {
     relays: ['wss://blog.example'],
   })
   const nprofile = nip19.nprofileEncode({ pubkey: pk, relays: ['wss://who.example'] })
-  const items = resolveMapLines(
-    parseBurrowmap(`0Post\t${article}\n1Them\t${nprofile}`),
-    'npub1owner',
-  )
+  const items = resolveMapLines(parseKindmap(`0Post\t${article}\n1Them\t${nprofile}`), 'npub1owner')
   const [a, b] = items
   assert.deepEqual(a?.target.scheme === 'hole' ? a.target.relays : null, ['wss://blog.example'])
   assert.deepEqual(b?.target.scheme === 'hole' ? b.target.relays : null, ['wss://who.example'])
 })
 
 test('a link with no usable hint has no relays field at all', () => {
-  const naddr = nip19.naddrEncode({ kind: BURROW_KIND, pubkey: pk, identifier: '/a', relays: [] })
-  const items = resolveMapLines(parseBurrowmap(`1A\t${naddr}`), 'npub1owner')
+  const naddr = nip19.naddrEncode({ kind: DOC_KIND, pubkey: pk, identifier: '/a', relays: [] })
+  const items = resolveMapLines(parseKindmap(`1A\t${naddr}`), 'npub1owner')
   assert.deepEqual(items[0]?.target, { scheme: 'hole', npub, path: '/a' })
   assert.equal(relayHints(items).size, 0)
 })
@@ -149,7 +146,7 @@ test('hints per author are capped', async () => {
 
 test('rendering a menu teaches the store where the linked hole lives', async () => {
   const naddr = nip19.naddrEncode({
-    kind: BURROW_KIND,
+    kind: DOC_KIND,
     pubkey: pk,
     identifier: '/notes',
     relays: ['wss://their.example'],
@@ -158,7 +155,7 @@ test('rendering a menu teaches the store where the linked hole lives', async () 
   const ownerPk = getPublicKey(owner)
   const menu = finalizeEvent(
     {
-      kind: BURROW_KIND,
+      kind: DOC_KIND,
       created_at: now,
       tags: [
         ['d', '/'],

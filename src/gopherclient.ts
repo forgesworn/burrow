@@ -10,9 +10,9 @@ import {
   type GopherTarget,
 } from './target.ts'
 
-// A real gopher client, so burrow can browse traditional gopherspace and
+// A real gopher client, so gopherkind can browse traditional gopherspace and
 // render it through any frontend. Menus from remote holes become the same
-// MenuItem list burrow uses everywhere, with links pointing back through
+// MenuItem list gopherkind uses everywhere, with links pointing back through
 // the proxy so navigation stays inside whichever client you are using.
 
 export { parseProxyPath, proxyPath, type GopherTarget }
@@ -57,7 +57,7 @@ export function fetchGopher(
 }
 
 // A traditional gophermap can still point into Nostr: an h-line with a
-// nostr: URL, or a selector into a burrow bridge (leading npub). Both
+// nostr: URL, or a selector into a gopherkind bridge (leading npub). Both
 // become native hole links, so every surface follows them through your
 // own relays rather than someone else's bridge.
 function nostrAware(item: MenuItem): MenuItem {

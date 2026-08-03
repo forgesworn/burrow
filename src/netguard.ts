@@ -66,7 +66,7 @@ export function urlHostBlocked(url: string): boolean {
 }
 
 // Relay hints arrive from content the bridge did not write (an `nprofile`
-// or `naddr` inside someone else's burrowmap), so they are untrusted input
+// or `naddr` inside someone else's kindmap), so they are untrusted input
 // that would otherwise become an outbound connection. Keep only ws/wss
 // URLs that are not bare internal addresses, and cap how many are taken.
 export function safeRelayUrls(urls: readonly string[] | undefined, max = 4): string[] {

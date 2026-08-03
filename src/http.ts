@@ -97,7 +97,7 @@ function secureFlag(req: http.IncomingMessage): string {
 }
 
 function sessionFrom(cookieHeader: string | undefined): Session | null {
-  const raw = /(?:^|;\s*)burrow=([A-Za-z0-9_-]+)/.exec(cookieHeader ?? '')?.[1]
+  const raw = /(?:^|;\s*)gopherkind=([A-Za-z0-9_-]+)/.exec(cookieHeader ?? '')?.[1]
   if (!raw) return null
   const s = sessions.get(raw)
   if (!s) return null
@@ -133,13 +133,13 @@ function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: s
   // Loopback is the operator: same trust the CLI already gives them, so
   // browsing from your own machine needs no login. Requires a loopback Host
   // too, so a DNS-rebound page cannot borrow the operator's signer.
-  // BURROW_BUNKER is not consulted here because it would re-pair every request.
+  // GOPHERKIND_BUNKER is not consulted here because it would re-pair every request.
   if (
     opts.localTrust !== false &&
     isLoopback(req.socket.remoteAddress) &&
     isLoopbackHost(req.headers.host)
   ) {
-    const nsec = process.env['BURROW_NSEC']
+    const nsec = process.env['GOPHERKIND_NSEC']
     if (nsec !== undefined) {
       try {
         return { signer: localSigner(nsec), label: 'local', csrf: operatorCsrf }
@@ -357,7 +357,7 @@ async function handle(
 
 async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): Promise<string> {
   const body = [
-    '<h1>burrow</h1>',
+    '<h1>gopherkind</h1>',
     '<p>Gopherholes served from Nostr relays. Every hole is a set of',
     'signed Nostr events; relays mirror it, any bridge serves it.</p>',
     '<p>Any npub works, published or not: profiles, notes and long-form',
@@ -366,7 +366,7 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     '<input type="text" name="npub" size="40" placeholder="npub1..."> ',
     '<input type="submit" value="Go"></p></form>',
     '<h2>Traditional gopherspace</h2>',
-    '<p>burrow is also a gopher client, so old-school holes render here too.</p>',
+    '<p>gopherkind is also a gopher client, so old-school holes render here too.</p>',
     '<p><a href="/gopher/gopher.floodgap.com/1/">Floodgap</a> ',
     '<a href="/gopher/gopher.floodgap.com/1/world">Floodgap world map</a></p>',
   ]
@@ -385,7 +385,7 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
       body.push(`<p><a href="/${esc(npub)}">${esc(name)}</a></p>`)
     }
   }
-  return page('burrow', body.join('\n'), signedIn)
+  return page('gopherkind', body.join('\n'), signedIn)
 }
 
 async function accountPage(
@@ -468,7 +468,7 @@ async function pairPage(
       csrf: randomBytes(24).toString('base64url'),
     })
     return redirect('/account', {
-      'set-cookie': `burrow=${token}; HttpOnly; SameSite=Strict; Path=/;${secureFlag(req)} Max-Age=${SESSION_MS / 1000}`,
+      'set-cookie': `gopherkind=${token}; HttpOnly; SameSite=Strict; Path=/;${secureFlag(req)} Max-Age=${SESSION_MS / 1000}`,
     })
   } catch (err) {
     return html(
@@ -487,7 +487,7 @@ function unpairPage(req: http.IncomingMessage, signedIn: boolean): Reply {
   if (req.method !== 'POST') return redirect('/account')
   if (!originOk(req))
     return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
-  const raw = /(?:^|;\s*)burrow=([A-Za-z0-9_-]+)/.exec(req.headers.cookie ?? '')?.[1]
+  const raw = /(?:^|;\s*)gopherkind=([A-Za-z0-9_-]+)/.exec(req.headers.cookie ?? '')?.[1]
   if (raw) sessions.delete(raw)
   return html(
     200,
@@ -496,7 +496,7 @@ function unpairPage(req: http.IncomingMessage, signedIn: boolean): Reply {
       '<h1>Signed out</h1><p>Revoke the session on your signer too.</p><p><a href="/">Home</a></p>',
       signedIn && false,
     ),
-    { 'set-cookie': 'burrow=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' },
+    { 'set-cookie': 'gopherkind=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' },
   )
 }
 

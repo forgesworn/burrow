@@ -1,8 +1,8 @@
 import type { Event } from 'nostr-tools'
 
-// Addressable event kind for burrow documents. 31436 after RFC 1436,
+// Addressable event kind for gopherkind documents. 31436 after RFC 1436,
 // the Gopher protocol specification.
-export const BURROW_KIND = 31436
+export const DOC_KIND = 31436
 
 export const PROFILE_KIND = 0
 export const NOTE_KIND = 1

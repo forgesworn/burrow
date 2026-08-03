@@ -132,7 +132,7 @@ async function welcome(
 ): Promise<string> {
   const { host, port } = opts.bridge
   let out = ''
-  out += infoLine('burrow')
+  out += infoLine('gopherkind')
   out += infoLine('gopherholes served from Nostr relays')
   out += infoLine('')
   if (personalAllowed) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError } from '../src/selector.ts'
-import { parseBurrowmap } from '../src/linemap.ts'
+import { parseKindmap } from '../src/linemap.ts'
 import { renderMenu, renderText } from '../src/render.ts'
 
 // Executable form of the SPEC.md "Test vectors" appendix, so a second
@@ -34,18 +34,15 @@ test('selector to route vectors', () => {
   assert.throws(() => parseSelector(`/${N}/..`), SelectorError)
 })
 
-test('burrowmap line to gopher wire vectors', () => {
+test('kindmap line to gopher wire vectors', () => {
   assert.equal(
-    renderMenu(parseBurrowmap('0About\t/about.txt'), N, bridge),
+    renderMenu(parseKindmap('0About\t/about.txt'), N, bridge),
     `0About\t/${N}/about.txt\tb.test\t70\r\n.\r\n`,
   )
+  assert.equal(renderMenu(parseKindmap('1Home\t/'), N, bridge), `1Home\t/${N}\tb.test\t70\r\n.\r\n`)
+  assert.equal(renderMenu(parseKindmap('hello'), N, bridge), 'ihello\t-\terror.host\t1\r\n.\r\n')
   assert.equal(
-    renderMenu(parseBurrowmap('1Home\t/'), N, bridge),
-    `1Home\t/${N}\tb.test\t70\r\n.\r\n`,
-  )
-  assert.equal(renderMenu(parseBurrowmap('hello'), N, bridge), 'ihello\t-\terror.host\t1\r\n.\r\n')
-  assert.equal(
-    renderMenu(parseBurrowmap('hSite\thttps://example.com'), N, bridge),
+    renderMenu(parseKindmap('hSite\thttps://example.com'), N, bridge),
     'hSite\tURL:https://example.com\tb.test\t70\r\n.\r\n',
   )
 })

@@ -2,7 +2,7 @@ import { SimplePool } from 'nostr-tools/pool'
 import type { Event, Filter } from 'nostr-tools'
 import { TtlLru } from './lru.ts'
 import {
-  BURROW_KIND,
+  DOC_KIND,
   PROFILE_KIND,
   NOTE_KIND,
   CONTACTS_KIND,
@@ -120,7 +120,7 @@ export class HoleStore {
     const hit = this.docsCache.get(key)
     if (hit !== undefined) return hit
     const events = await this.query(
-      { kinds: [BURROW_KIND], authors: [pubkey], '#d': [path] },
+      { kinds: [DOC_KIND], authors: [pubkey], '#d': [path] },
       4000,
       await this.authorRelays(pubkey),
     )
@@ -133,7 +133,7 @@ export class HoleStore {
     const hit = this.holeCache.get(pubkey)
     if (hit !== undefined) return hit
     const events = await this.query(
-      { kinds: [BURROW_KIND], authors: [pubkey], limit: 500 },
+      { kinds: [DOC_KIND], authors: [pubkey], limit: 500 },
       6000,
       await this.authorRelays(pubkey),
     )
@@ -249,7 +249,7 @@ export class HoleStore {
     const hit = this.searchCache.get(key)
     if (hit !== undefined) return hit
     const events = await this.query(
-      { kinds: [BURROW_KIND, NOTE_KIND, LONG_FORM_KIND], authors: [pubkey], search: q, limit: 30 },
+      { kinds: [DOC_KIND, NOTE_KIND, LONG_FORM_KIND], authors: [pubkey], search: q, limit: 30 },
       4000,
       await this.authorRelays(pubkey),
     )

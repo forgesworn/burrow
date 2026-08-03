@@ -14,7 +14,7 @@ import { generateSecretKey, finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 
 function fixture(): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'burrow-test-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-test-'))
   writeFileSync(path.join(dir, 'index.map'), 'iWelcome\n0About\t/about.txt\n')
   writeFileSync(path.join(dir, 'about.txt'), 'hello\n')
   writeFileSync(path.join(dir, '.secret'), 'skip me\n')

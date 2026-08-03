@@ -1,4 +1,4 @@
-# CLAUDE.md -- burrow
+# CLAUDE.md -- gopherkind
 
 ## What this is
 
@@ -12,7 +12,7 @@ without publishing. SPEC.md is the protocol source of truth.
 ```
 src/selector.ts   gopher selector / path -> Route
 src/router.ts     Route -> protocol-neutral Content (authored beats virtual)
-src/resolve.ts    burrowmap lines -> MenuItems with abstract link targets
+src/resolve.ts    kindmap lines -> MenuItems with abstract link targets
 src/render.ts     Content -> RFC 1436 wire (dot-stuffing, CRLF, info tails)
 src/gemtext.ts    Content -> text/gemini
 src/server.ts     TCP gopher frontend (read-only, always)
@@ -40,7 +40,7 @@ src/netguard.ts   SSRF guard for the gopher proxy: blocks loopback/private/
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
 src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
 src/publish.ts    directory -> signed events; NIP-09 unpublish; NIP-40 expire
-src/signing.ts    CLI signer resolution: BURROW_NSEC > BURROW_BUNKER > stored
+src/signing.ts    CLI signer resolution: GOPHERKIND_NSEC > GOPHERKIND_BUNKER > stored
 src/commands.ts   CLI client: read, search, post, feed, pair, whoami
 src/cliview.ts    Content -> terminal text (plain and numbered-link forms)
 src/secretguard.ts blocks credential-shaped content before signing

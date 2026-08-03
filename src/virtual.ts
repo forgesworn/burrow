@@ -140,7 +140,7 @@ export function wrap(text: string, width = 68): string[] {
 export function virtualRootLines(profile: Profile | null, npub: string): MapLine[] {
   const lines: MapLine[] = [
     { type: 'i', display: displayName(profile, npub) },
-    { type: 'i', display: 'a virtual burrow generated from Nostr events' },
+    { type: 'i', display: 'a virtual hole generated from Nostr events' },
     { type: 'i', display: '' },
   ]
   if (profile?.about) {

@@ -1,9 +1,9 @@
 import * as nip19 from 'nostr-tools/nip19'
 import type { MapLine } from './linemap.ts'
-import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { DOC_KIND, LONG_FORM_KIND } from './protocol.ts'
 import { safeRelayUrls } from './netguard.ts'
 
-// Protocol-neutral link resolution: burrowmap lines become MenuItems with
+// Protocol-neutral link resolution: kindmap lines become MenuItems with
 // abstract targets, which the gopher and gemini renderers turn into wire
 // formats.
 
@@ -92,7 +92,7 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
         const { kind, pubkey, identifier } = decoded.data
         const npub = nip19.npubEncode(pubkey)
         const relays = safeRelayUrls(decoded.data.relays)
-        if (kind === BURROW_KIND) {
+        if (kind === DOC_KIND) {
           return {
             type,
             display,

@@ -112,7 +112,7 @@ test('gopher refuses the personal menu to non-loopback clients', async () => {
   assert.match(remote, /^3the personal menu is local-only/)
 
   const local = await respond('/me', opts, store, true)
-  assert.match(local, /iburrow: you/)
+  assert.match(local, /igopherkind: you/)
 })
 
 test('gopher welcome advertises the personal menu only locally', async () => {

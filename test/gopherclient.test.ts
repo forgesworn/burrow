@@ -65,7 +65,7 @@ test('gopher menus parse into menu items', () => {
 test('gophermap links into nostr go native', async () => {
   const { npub } = await import('./helpers.ts')
   const body = [
-    `1A burrow bridge\t/${npub}/notes\tbridge.example\t7070`,
+    `1A gopherkind bridge\t/${npub}/notes\tbridge.example\t7070`,
     `hSomeone on nostr\tURL:nostr:${npub}\tbridge.example\t70`,
     'hPlain web\tURL:https://example.com\tgopher.example\t70',
     '1Plain dir\t/dir\tgopher.example\t70',

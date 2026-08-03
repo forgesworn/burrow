@@ -4,7 +4,7 @@ import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import type { Event, EventTemplate } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { SimplePool } from 'nostr-tools/pool'
-import { BURROW_KIND, DELETE_KIND, docPath, isExpired } from './protocol.ts'
+import { DOC_KIND, DELETE_KIND, docPath, isExpired } from './protocol.ts'
 import { findSecret } from './secretguard.ts'
 
 export interface PlannedDoc {
@@ -67,7 +67,7 @@ export function docToTemplate(
     ['alt', `gopherhole ${doc.type === '1' ? 'menu' : 'document'} at ${doc.path}`],
   ]
   if (expireSeconds !== undefined) tags.push(['expiration', String(createdAt + expireSeconds)])
-  return { kind: BURROW_KIND, created_at: createdAt, tags, content: doc.content }
+  return { kind: DOC_KIND, created_at: createdAt, tags, content: doc.content }
 }
 
 export function parseDuration(s: string): number {
@@ -84,7 +84,7 @@ export function decodeSecret(secret: string): Uint8Array {
     return decoded.data
   }
   if (/^[0-9a-f]{64}$/i.test(secret)) return Uint8Array.from(Buffer.from(secret, 'hex'))
-  throw new Error('BURROW_NSEC must be nsec1... or 64 hex chars')
+  throw new Error('GOPHERKIND_NSEC must be nsec1... or 64 hex chars')
 }
 
 export interface PublishOptions {
@@ -155,12 +155,12 @@ export async function publishHole(
 
 // NIP-09 deletion request covering the given documents.
 export function planDeletion(events: Event[], createdAt: number): EventTemplate {
-  const tags: string[][] = [['k', String(BURROW_KIND)]]
+  const tags: string[][] = [['k', String(DOC_KIND)]]
   for (const ev of events) {
     tags.push(['e', ev.id])
-    tags.push(['a', `${BURROW_KIND}:${ev.pubkey}:${docPath(ev)}`])
+    tags.push(['a', `${DOC_KIND}:${ev.pubkey}:${docPath(ev)}`])
   }
-  return { kind: DELETE_KIND, created_at: createdAt, tags, content: 'burrow unpublish' }
+  return { kind: DELETE_KIND, created_at: createdAt, tags, content: 'gopherkind unpublish' }
 }
 
 export async function unpublishHole(
@@ -174,7 +174,7 @@ export async function unpublishHole(
   try {
     const events = await pool.querySync(
       relays,
-      { kinds: [BURROW_KIND], authors: [pubkey], limit: 500 },
+      { kinds: [DOC_KIND], authors: [pubkey], limit: 500 },
       { maxWait: 6000 },
     )
     const now = Math.floor(Date.now() / 1000)

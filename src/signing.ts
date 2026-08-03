@@ -5,9 +5,9 @@ import { Nip46Client } from './nip46client.ts'
 import { decodeSecret } from './publish.ts'
 
 // Where a CLI signature comes from, in priority order:
-//   1. BURROW_NSEC        local key, signs instantly, no approval
-//   2. BURROW_BUNKER      one-off bunker URI, no stored pairing
-//   3. stored CLI pairing  `burrow pair` wrote it to the state dir
+//   1. GOPHERKIND_NSEC        local key, signs instantly, no approval
+//   2. GOPHERKIND_BUNKER      one-off bunker URI, no stored pairing
+//   3. stored CLI pairing  `gopherkind pair` wrote it to the state dir
 // The CLI pairing reuses PairingStore with a fixed key, so the bridge and
 // the CLI share one file format.
 
@@ -22,7 +22,7 @@ export interface CliSigner {
 export function localSigner(secret: string): CliSigner {
   const sk = decodeSecret(secret)
   return {
-    describe: 'local key (BURROW_NSEC)',
+    describe: 'local key (GOPHERKIND_NSEC)',
     pubkey: async () => getPublicKey(sk),
     sign: async (tpl) => finalizeEvent(tpl, sk),
   }
@@ -39,7 +39,7 @@ export async function bunkerSignerFromUri(uri: string): Promise<CliSigner> {
     pairedAt: Math.floor(Date.now() / 1000),
   }
   return {
-    describe: 'bunker (BURROW_BUNKER)',
+    describe: 'bunker (GOPHERKIND_BUNKER)',
     pubkey: async () => pairing.userPubkey,
     sign: (tpl) => client.sign(pairing, tpl),
   }
@@ -57,14 +57,14 @@ export function storedSigner(store: PairingStore): CliSigner | null {
 }
 
 export async function resolveSigner(store: PairingStore): Promise<CliSigner> {
-  const nsec = process.env['BURROW_NSEC']
+  const nsec = process.env['GOPHERKIND_NSEC']
   if (nsec !== undefined) return localSigner(nsec)
-  const bunker = process.env['BURROW_BUNKER']
+  const bunker = process.env['GOPHERKIND_BUNKER']
   if (bunker !== undefined) return bunkerSignerFromUri(bunker)
   const stored = storedSigner(store)
   if (stored) return stored
   throw new Error(
-    'no signer. Either `burrow pair bunker://...` once, or set BURROW_NSEC / BURROW_BUNKER.',
+    'no signer. Either `gopherkind pair bunker://...` once, or set GOPHERKIND_NSEC / GOPHERKIND_BUNKER.',
   )
 }
 

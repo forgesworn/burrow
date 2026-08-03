@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **renamed from burrow to gopherkind.** The npm package is now the
+  unscoped `gopherkind`, the binary is `gopherkind`, the state directory is
+  `~/.gopherkind` and the signer env vars are `GOPHERKIND_NSEC` and
+  `GOPHERKIND_BUNKER`. No published version ever carried the old name, so
+  there is nothing to migrate and no compatibility alias
+- protocol vocabulary follows: a kind 31436 event is a **gopherkind
+  document** and `type 1` content is a **kindmap** (was `burrowmap`). The
+  wire format is unchanged; only the names in SPEC.md moved
+
 ## 0.5.1 (2026-08-03)
 
 ### Bug Fixes
@@ -43,7 +56,7 @@ CSRF and DNS-rebinding holes in the HTTP frontend.
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents
-- `burrow announce`: a NIP-89 handler announcement (kind 31990) so Nostr
+- `gopherkind announce`: a NIP-89 handler announcement (kind 31990) so Nostr
   clients know this bridge opens kind 31436
 - pagination for the generated streams: `/notes/before/<unix>`,
   `/articles/before/<unix>`, `/follows/from/<n>`, `/followers/from/<n>`. A
@@ -87,19 +100,20 @@ First published release.
 
 ### Features
 
-* interactive terminal browser (`burrow` or `burrow browse`): numbered
+* interactive terminal browser (`gopherkind` or `gopherkind browse`): numbered
   links, back/up/reload, bookmarks, history, `$PAGER` for long text
 * one client for both worlds: npubs, nostr: entities, `gopher://` urls
   and bare hostnames all navigate; type 7 searches prompt for a query
-* nostr-aware gophermap parsing: links into a burrow bridge (npub
+* nostr-aware gophermap parsing: links into a gopherkind bridge (npub
   selectors, `nostr:` urls) are followed natively through your own
   relays, on every surface
-* `burrow read` and `burrow search` accept traditional gopherspace
+* `gopherkind read` and `gopherkind search` accept traditional gopherspace
   targets, including Veronica-2 one-shots
 * `feed` as a navigable menu and `post` through a NIP-46 signer inside
   the interactive browser
-* published to npm as `@forgesworn/burrow`; `npx @forgesworn/burrow`
-  needs nothing but Node 24
+* intended for npm as a scoped package; in the event no release before
+  0.6.0 ever reached the registry, and the name later changed to the
+  unscoped `gopherkind`
 
 ## [0.1.0] - 2026-08-03
 

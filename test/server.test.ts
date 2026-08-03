@@ -37,7 +37,7 @@ test('gopher server end to end', async (t) => {
 
   await t.test('welcome menu lists pinned holes by profile name', async () => {
     const out = await request(port, '')
-    assert.match(out, /iburrow\t/)
+    assert.match(out, /igopherkind\t/)
     assert.ok(out.includes(`1testdonkey\t/${npub}\tbridge.test\t7070\r\n`))
     assert.ok(out.endsWith('.\r\n'))
   })
@@ -48,7 +48,9 @@ test('gopher server end to end', async (t) => {
     assert.ok(out.includes(`1Phlog\t/${npub}/phlog\tbridge.test\t7070\r\n`))
     assert.ok(out.includes('1Floodgap (legacy gopherspace)\t/\tgopher.floodgap.com\t70\r\n'))
     assert.ok(
-      out.includes('hburrow on the web\tURL:https://github.com/forgesworn\tbridge.test\t7070\r\n'),
+      out.includes(
+        'hgopherkind on the web\tURL:https://github.com/forgesworn\tbridge.test\t7070\r\n',
+      ),
     )
   })
 

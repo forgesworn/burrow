@@ -113,7 +113,7 @@ export function homeContent(bookmarks: BookmarkStore): Content {
   }
   items.push(info(''))
   items.push(info('go <npub, name@domain or gopher url> visits anywhere; help lists commands.'))
-  return { kind: 'menu', title: 'burrow', items }
+  return { kind: 'menu', title: 'gopherkind', items }
 }
 
 export async function feedContent(deps: BrowseDeps): Promise<Content> {
@@ -419,7 +419,7 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
   await show(startLoc)
 
   for (;;) {
-    const where = session.current ? describeLocation(session.current.location) : 'burrow'
+    const where = session.current ? describeLocation(session.current.location) : 'gopherkind'
     const line = await ask(`${where}> `)
     if (line === null) break
     const command = parseBrowseCommand(line)

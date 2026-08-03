@@ -1,4 +1,4 @@
-# forgesworn/burrow
+# forgesworn/gopherkind
 
 > Gopherholes served from Nostr relays. Documents are addressable Nostr
 > events (kind 31436, named for RFC 1436); a bridge daemon serves them
@@ -8,8 +8,8 @@
 > required. TypeScript on Node >= 24, one runtime dependency
 > (nostr-tools, pinned 2.23.9).
 >
-> Not related to LinkedIn's Burrow (Kafka monitoring) or any package
-> manager. This is a smolweb-over-Nostr bridge and publisher.
+> Formerly named burrow; renamed before first release, so no published
+> version ever carried the old name.
 
 ## Event format
 
@@ -18,7 +18,7 @@
 - `type` tag: `0` text, `1` menu. Anything else is treated as `0`.
 - `title` tag optional. NIP-40 `expiration` honoured; expired documents
   are never served.
-- Menu content is a "burrowmap": gophermap lines with host/port columns
+- Menu content is a "kindmap": gophermap lines with host/port columns
   removed. `<itemtype><display>\t<link>` per line; lines without a tab
   are info text. Links: same-hole `/path`, `npub1`/`nprofile1`
   (their hole root), `naddr1` (kind 31436 document, or kind 30023
@@ -60,38 +60,38 @@
 ## CLI
 
 The CLI is a complete client; the Gemini frontend is for visitors who
-have no shell on the bridge host. Install: `npx @forgesworn/burrow`
+have no shell on the bridge host. Install: `npx @forgesworn/gopherkind`
 (Node >= 24).
 
-- interactive browser: `burrow` (bare, on a TTY) or
-  `burrow browse [target]`. Numbered links, `back`/`up`/`reload`,
+- interactive browser: `gopherkind` (bare, on a TTY) or
+  `gopherkind browse [target]`. Numbered links, `back`/`up`/`reload`,
   `mark`/`marks`/`unmark <n>` bookmarks (state dir `bookmarks.json`),
   `history`, `go <target>`, `search <query>` (NIP-50 on holes, type 7
   on gopher), `feed` as a navigable menu, `post <text>` via the
   resolved signer, `$PAGER` for long documents. Targets: npub[/path],
   `nostr:` entities (npub/nprofile/naddr), NIP-05 names
   (someone@example.org[/path]), `gopher://` urls, bare hostnames. A `gopher://` url whose selector starts with an npub is
-  recognised as a burrow bridge and browsed natively via relays;
+  recognised as a gopherkind bridge and browsed natively via relays;
   gophermap lines with npub selectors or `nostr:` h-links likewise.
-- read (no identity needed): `burrow read <npub[/path]>`,
-  `burrow read gopher://host/T/selector`,
-  `burrow search <npub> <query>`,
-  `burrow search gopher://host/7/selector <query>` (e.g. Veronica-2)
-- write: `burrow post <text> [--dry-run]`, `burrow feed [--limit 20]`,
-  `burrow delete <id|note1|nevent1> [--wide] [--reason x]` (NIP-09)
-- identity: `burrow pair <bunker://...>`, `burrow unpair`,
-  `burrow whoami`. Signer resolution order: `BURROW_NSEC` local key,
-  then `BURROW_BUNKER` one-off URI, then the stored pairing.
+- read (no identity needed): `gopherkind read <npub[/path]>`,
+  `gopherkind read gopher://host/T/selector`,
+  `gopherkind search <npub> <query>`,
+  `gopherkind search gopher://host/7/selector <query>` (e.g. Veronica-2)
+- write: `gopherkind post <text> [--dry-run]`, `gopherkind feed [--limit 20]`,
+  `gopherkind delete <id|note1|nevent1> [--wide] [--reason x]` (NIP-09)
+- identity: `gopherkind pair <bunker://...>`, `gopherkind unpair`,
+  `gopherkind whoami`. Signer resolution order: `GOPHERKIND_NSEC` local key,
+  then `GOPHERKIND_BUNKER` one-off URI, then the stored pairing.
 - all commands take `[--relay wss://...]...` and `[--state-dir d]`
-- `burrow serve [--port 7070] [--gemini-port 1965] [--host 0.0.0.0]
+- `gopherkind serve [--port 7070] [--gemini-port 1965] [--host 0.0.0.0]
   [--hostname x] [--public-port n] [--relay wss://...]...
-  [--pin npub1...]... [--cert f --key f] [--state-dir ~/.burrow]
+  [--pin npub1...]... [--cert f --key f] [--state-dir ~/.gopherkind]
   [--no-gemini] [--no-virtual] [--no-identity]`
-- `burrow publish <dir> [--relay ...] [--expire 30d] [--dry-run]`,
-  signs with `BURROW_NSEC` (nsec or 64-hex). Text files become type 0;
+- `gopherkind publish <dir> [--relay ...] [--expire 30d] [--dry-run]`,
+  signs with `GOPHERKIND_NSEC` (nsec or 64-hex). Text files become type 0;
   `index.map`/`gophermap` become their directory's menu; other `*.map`
   files become menus at their own path.
-- `burrow unpublish </path>... | --all [--dry-run]`: NIP-09 kind 5
+- `gopherkind unpublish </path>... | --all [--dry-run]`: NIP-09 kind 5
   deletion request with `e`, `a` and `k` tags.
 
 ## Implementation notes
@@ -112,11 +112,11 @@ have no shell on the bridge host. Install: `npx @forgesworn/burrow`
   client-side targets (npub/nostr:/gopher://), `gopherclient.ts`
   fetches traditional gopherspace, `browse.ts` is the interactive
   terminal client.
-- Published to npm as `@forgesworn/burrow` with a compiled `dist/`
+- Published to npm as `@forgesworn/gopherkind` with a compiled `dist/`
   (Node refuses type stripping under node_modules); development runs
   straight from `src/` with no build step.
 
 ## Links
 
-- README: https://github.com/forgesworn/burrow/blob/main/README.md
-- Protocol spec: https://github.com/forgesworn/burrow/blob/main/SPEC.md
+- README: https://github.com/forgesworn/gopherkind/blob/main/README.md
+- Protocol spec: https://github.com/forgesworn/gopherkind/blob/main/SPEC.md

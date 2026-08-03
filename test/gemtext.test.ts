@@ -2,14 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseBurrowmap } from '../src/linemap.ts'
+import { parseKindmap } from '../src/linemap.ts'
 import { resolveMapLines } from '../src/resolve.ts'
 import { renderGemtextMenu } from '../src/gemtext.ts'
 
 const npub = nip19.npubEncode(getPublicKey(generateSecretKey()))
 
 function render(map: string): string {
-  return renderGemtextMenu('Test', resolveMapLines(parseBurrowmap(map), npub))
+  return renderGemtextMenu('Test', resolveMapLines(parseKindmap(map), npub))
 }
 
 test('menu renders heading, info text and links', () => {
