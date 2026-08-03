@@ -31,6 +31,8 @@
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents
+- `burrow announce`: a NIP-89 handler announcement (kind 31990) so Nostr
+  clients know this bridge opens kind 31436
 - pagination for the generated streams: `/notes/before/<unix>`,
   `/articles/before/<unix>`, `/follows/from/<n>`, `/followers/from/<n>`. A
   long follow list is paged rather than silently cut off at 200

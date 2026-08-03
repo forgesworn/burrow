@@ -159,8 +159,20 @@ falls back to grepping fetched events where it doesn't.
 Reads follow the author's NIP-65 relay list (kind 10002), so a hole
 published to someone's own relays is found even when your bridge does
 not carry those relays, not silently replaced by their virtual hole.
-The built-in gopher proxy refuses loopback and private-range addresses,
-so it can't be turned into a scanner for your internal network.
+A relay hint inside an `nprofile` or `naddr` link is honoured the same
+way. The built-in gopher proxy refuses loopback and private-range
+addresses, so it can't be turned into a scanner for your internal
+network, and `/robots.txt` keeps crawlers out of it.
+
+Once the bridge is up, tell Nostr clients it exists:
+
+```sh
+burrow announce --hostname gopher.example.org \
+  --http-url https://gopher.example.org --dry-run
+```
+
+That builds a NIP-89 handler announcement (kind 31990) saying this
+bridge opens kind 31436. Drop `--dry-run` to sign and publish it.
 
 ## Navigating: follows, followers, feed
 
@@ -387,6 +399,11 @@ short version: one addressable event per document, `d` tag is the
 path, `type` tag is `0` or `1`, menus link by path or naddr instead
 of host and port. [llms.txt](llms.txt) is the condensed version for
 tools and language models.
+
+Kind 31436 is not yet a NIP.
+[docs/nip-submission.md](docs/nip-submission.md) is the staged
+submission: the kind-table row, the PR text and the checklist to work
+through first. Nothing has been submitted.
 
 ## Support
 
