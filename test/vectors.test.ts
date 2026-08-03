@@ -16,21 +16,33 @@ const bridge = { host: 'b.test', port: 70 }
 test('selector to route vectors', () => {
   assert.equal(parseSelector('').kind, 'welcome')
   const doc = parseSelector(`/${N}/about.txt`)
-  assert.deepEqual({ kind: doc.kind, path: (doc as { path: string }).path }, {
-    kind: 'doc',
-    path: '/about.txt',
-  })
+  assert.deepEqual(
+    { kind: doc.kind, path: (doc as { path: string }).path },
+    {
+      kind: 'doc',
+      path: '/about.txt',
+    },
+  )
   const search = parseSelector(`/${N}\thay`)
-  assert.deepEqual({ kind: search.kind, query: (search as { query: string }).query }, {
-    kind: 'search',
-    query: 'hay',
-  })
+  assert.deepEqual(
+    { kind: search.kind, query: (search as { query: string }).query },
+    {
+      kind: 'search',
+      query: 'hay',
+    },
+  )
   assert.throws(() => parseSelector(`/${N}/..`), SelectorError)
 })
 
 test('burrowmap line to gopher wire vectors', () => {
-  assert.equal(renderMenu(parseBurrowmap('0About\t/about.txt'), N, bridge), `0About\t/${N}/about.txt\tb.test\t70\r\n.\r\n`)
-  assert.equal(renderMenu(parseBurrowmap('1Home\t/'), N, bridge), `1Home\t/${N}\tb.test\t70\r\n.\r\n`)
+  assert.equal(
+    renderMenu(parseBurrowmap('0About\t/about.txt'), N, bridge),
+    `0About\t/${N}/about.txt\tb.test\t70\r\n.\r\n`,
+  )
+  assert.equal(
+    renderMenu(parseBurrowmap('1Home\t/'), N, bridge),
+    `1Home\t/${N}\tb.test\t70\r\n.\r\n`,
+  )
   assert.equal(renderMenu(parseBurrowmap('hello'), N, bridge), 'ihello\t-\terror.host\t1\r\n.\r\n')
   assert.equal(
     renderMenu(parseBurrowmap('hSite\thttps://example.com'), N, bridge),

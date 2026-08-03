@@ -56,7 +56,7 @@ export function proxyPath(t: GopherTarget): string {
 }
 
 function normalisePath(p: string): string {
-  const cleaned = ('/' + p.replace(/^\/+/, '')).replace(/\/+$/, '')
+  const cleaned = `/${p.replace(/^\/+/, '')}`.replace(/\/+$/, '')
   if (cleaned.split('/').some((s) => s === '..')) throw new TargetError('bad path')
   return cleaned === '' ? '/' : cleaned
 }
@@ -110,7 +110,7 @@ export function holeFromSelector(selector: string): ClientTarget | null {
   const [head, ...rest] = trimmed.split('/')
   if (head === undefined || !NPUB_RE.test(head)) return null
   try {
-    return holeFromBech(head, '/' + rest.join('/'))
+    return holeFromBech(head, `/${rest.join('/')}`)
   } catch {
     return null
   }
@@ -176,7 +176,7 @@ export function parseClientTarget(input: string): ClientTarget {
   if (/^(npub|nprofile|naddr)1/.test(t.replace(/^\/+/, '').split('/')[0] ?? '')) {
     const trimmed = t.replace(/^\/+/, '')
     const [head, ...rest] = trimmed.split('/')
-    return holeFromBech(head as string, '/' + rest.join('/'))
+    return holeFromBech(head as string, `/${rest.join('/')}`)
   }
 
   if (t.startsWith('gopher://')) return gopherFromUrl(t)

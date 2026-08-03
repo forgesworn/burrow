@@ -1,6 +1,6 @@
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import type { Event, EventTemplate } from 'nostr-tools'
-import { PairingStore } from './identity.ts'
+import type { PairingStore } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
 import { decodeSecret } from './publish.ts'
 

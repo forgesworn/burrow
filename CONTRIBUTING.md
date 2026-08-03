@@ -14,7 +14,14 @@ npm install
 node src/cli.ts serve        # or: node src/cli.ts browse
 npm test                     # node:test, no framework
 npm run typecheck            # tsc --noEmit, strict
+npm run lint                 # biome: format check + lint, also runs in CI
+npm run format               # biome: apply the fixes
 ```
+
+Formatting is not a matter of taste here, it is whatever `npm run format`
+produces: two spaces, single quotes, no semicolons, 100 columns. CI fails on
+anything else. Import order is deliberately *not* enforced, so grouping stays
+the author's call.
 
 Because the source runs under type stripping (`erasableSyntaxOnly`), a few
 TypeScript features are off limits: no enums, no parameter properties, and

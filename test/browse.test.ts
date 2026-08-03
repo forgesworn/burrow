@@ -88,12 +88,18 @@ test('session visits, follows numbered links, goes back and up', async () => {
 
 test('a failed fetch leaves the current page in place', async () => {
   const deps = makeDeps({
-    gopher: async () => ({ kind: 'error', message: 'nope' } as Content),
+    gopher: async () => ({ kind: 'error', message: 'nope' }) as Content,
   })
   const session = new BrowseSession(deps)
   await session.visit({ kind: 'home' })
   const before = session.current
-  const errPage = await session.visit({ kind: 'gopher', host: 'x', port: 70, type: '1', selector: '' })
+  const errPage = await session.visit({
+    kind: 'gopher',
+    host: 'x',
+    port: 70,
+    type: '1',
+    selector: '',
+  })
   assert.equal(errPage.content.kind, 'error')
   assert.equal(session.current, before)
   assert.equal(session.back(), null)

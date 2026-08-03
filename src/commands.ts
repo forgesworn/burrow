@@ -1,6 +1,6 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { HoleStore } from './fetch.ts'
-import { PairingStore } from './identity.ts'
+import type { PairingStore } from './identity.ts'
 import { resolveRoute } from './router.ts'
 import { renderForTerminal } from './cliview.ts'
 import { browseGopher } from './gopherclient.ts'
@@ -239,7 +239,12 @@ export async function cmdWhoami(relays: string[], pairings: PairingStore): Promi
   const store = new HoleStore(relays)
   try {
     const profile = parseProfile(await store.profile(pubkey))
-    return [`signer: ${signer.describe}`, `name:   ${displayName(profile, npub)}`, `npub:   ${npub}`, ''].join('\n')
+    return [
+      `signer: ${signer.describe}`,
+      `name:   ${displayName(profile, npub)}`,
+      `npub:   ${npub}`,
+      '',
+    ].join('\n')
   } finally {
     store.close()
   }

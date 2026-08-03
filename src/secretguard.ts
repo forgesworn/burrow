@@ -13,8 +13,14 @@ const PATTERNS: { re: RegExp; what: string }[] = [
   // is not flagged on its own because event ids and pubkeys share that shape
   // and are pasted legitimately, but in a key context it is almost certainly
   // a raw private key (decodeSecret accepts exactly that form).
-  { re: /\b(?:secret|priv(?:ate)?[ _-]?key|nsec)\b[^0-9a-f]{0,12}[0-9a-f]{64}\b/i, what: 'a private key' },
-  { re: /\b[0-9a-f]{64}\b[^0-9a-f]{0,12}(?:secret|priv(?:ate)?[ _-]?key|nsec)\b/i, what: 'a private key' },
+  {
+    re: /\b(?:secret|priv(?:ate)?[ _-]?key|nsec)\b[^0-9a-f]{0,12}[0-9a-f]{64}\b/i,
+    what: 'a private key',
+  },
+  {
+    re: /\b[0-9a-f]{64}\b[^0-9a-f]{0,12}(?:secret|priv(?:ate)?[ _-]?key|nsec)\b/i,
+    what: 'a private key',
+  },
 ]
 
 export function findSecret(content: string): string | null {

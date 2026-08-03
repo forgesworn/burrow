@@ -175,7 +175,7 @@ async function search(
     items.push({ type, display, target: { scheme: 'hole', npub: route.npub, path } })
   }
   const matches = (...texts: (string | undefined)[]): boolean =>
-    texts.some((t) => t !== undefined && t.toLowerCase().includes(q))
+    texts.some((t) => t?.toLowerCase().includes(q))
 
   for (const ev of await store.hole(route.pubkey)) {
     if (matches(ev.content, docTitle(ev))) {

@@ -138,7 +138,10 @@ test('hints for one author do not leak into another author read', async () => {
 test('hints per author are capped', async () => {
   const pool = fakePool(() => [])
   const store = new HoleStore(['wss://bridge'], pool)
-  store.addRelayHints(pk, ['a', 'b', 'c', 'd', 'e', 'f'].map((h) => `wss://${h}.example`))
+  store.addRelayHints(
+    pk,
+    ['a', 'b', 'c', 'd', 'e', 'f'].map((h) => `wss://${h}.example`),
+  )
   await store.doc(pk, '/')
   const widest = pool.relaysSeen.reduce((a, b) => (a.length > b.length ? a : b))
   assert.equal(widest.length, 5, 'one bridge relay plus at most four hints')

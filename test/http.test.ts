@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import net from 'node:net'
+import type net from 'node:net'
 import http from 'node:http'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -122,7 +122,7 @@ test('http frontend', async (t) => {
     await withNsec(async () => {
       const form = await (await fetch(`${base}/post`)).text()
       assert.match(form, /<textarea name="text"/)
-      const csrf = (/name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? '')
+      const csrf = /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
       assert.ok(csrf.length > 0, 'form must carry a csrf token')
       const res = await fetch(`${base}/post`, {
         method: 'POST',
@@ -160,7 +160,7 @@ test('http frontend', async (t) => {
       const view = await (await fetch(`${base}/${npub}/notes/${note.id}`)).text()
       assert.match(view, /Delete this note/)
       assert.match(view, new RegExp(`value="${note.id}"`))
-      const csrf = (/name="csrf" value="([^"]+)"/.exec(view)?.[1] ?? '')
+      const csrf = /name="csrf" value="([^"]+)"/.exec(view)?.[1] ?? ''
       const res = await fetch(`${base}/delete`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },

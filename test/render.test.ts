@@ -83,7 +83,10 @@ test('errors are type 3 menus', () => {
 })
 
 test('a self-scheme item renders as a bare selector, no npub prefix', () => {
-  const out = renderItem({ type: '1', display: 'Your feed', target: { scheme: 'self', path: '/me/feed' } }, bridge)
+  const out = renderItem(
+    { type: '1', display: 'Your feed', target: { scheme: 'self', path: '/me/feed' } },
+    bridge,
+  )
   assert.equal(out, '1Your feed\t/me/feed\tbridge.test\t7070\r\n')
 })
 
@@ -92,7 +95,13 @@ test('tabs and CRLF in a proxied selector cannot forge extra records', () => {
     {
       type: '1',
       display: 'Innocent',
-      target: { scheme: 'gopher', host: 'evil.example', port: 70, itemType: '1', selector: '/a\r\n1FAKE\t/x\thost\t70' },
+      target: {
+        scheme: 'gopher',
+        host: 'evil.example',
+        port: 70,
+        itemType: '1',
+        selector: '/a\r\n1FAKE\t/x\thost\t70',
+      },
     },
     bridge,
   )

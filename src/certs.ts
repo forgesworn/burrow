@@ -10,19 +10,28 @@ export function ensureSelfSignedCert(dir: string, cn: string): { cert: string; k
   const key = path.join(dir, 'key.pem')
   if (existsSync(cert) && existsSync(key)) return { cert, key }
   const base = [
-    'req', '-x509',
-    '-newkey', 'ec',
-    '-pkeyopt', 'ec_paramgen_curve:prime256v1',
-    '-keyout', key,
-    '-out', cert,
-    '-days', '3650',
+    'req',
+    '-x509',
+    '-newkey',
+    'ec',
+    '-pkeyopt',
+    'ec_paramgen_curve:prime256v1',
+    '-keyout',
+    key,
+    '-out',
+    cert,
+    '-days',
+    '3650',
     '-nodes',
-    '-subj', `/CN=${cn}`,
+    '-subj',
+    `/CN=${cn}`,
   ]
   // A subjectAltName is required by newer Gemini clients, but -addext is not
   // in every openssl/LibreSSL build; fall back to a cert without it rather
   // than failing to serve Gemini at all.
-  let res = spawnSync('openssl', [...base, '-addext', `subjectAltName=DNS:${cn}`], { stdio: 'ignore' })
+  let res = spawnSync('openssl', [...base, '-addext', `subjectAltName=DNS:${cn}`], {
+    stdio: 'ignore',
+  })
   if (res.status !== 0) res = spawnSync('openssl', base, { stdio: 'ignore' })
   if (res.status !== 0) {
     throw new Error('could not generate a certificate (is openssl installed?); pass --cert/--key')

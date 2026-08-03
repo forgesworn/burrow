@@ -52,7 +52,7 @@ export class PairingStore {
     // the store and lose every pairing. writeFileSync's mode only applies on
     // creation, so chmod explicitly in case the destination already exists.
     const tmp = `${this.file}.${process.pid}.tmp`
-    writeFileSync(tmp, JSON.stringify([...this.map.values()], null, 2) + '\n', { mode: 0o600 })
+    writeFileSync(tmp, `${JSON.stringify([...this.map.values()], null, 2)}\n`, { mode: 0o600 })
     chmodSync(tmp, 0o600)
     renameSync(tmp, this.file)
     chmodSync(this.file, 0o600)

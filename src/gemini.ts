@@ -1,7 +1,7 @@
 import tls from 'node:tls'
 import { readFileSync } from 'node:fs'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseSelector, SelectorError } from './selector.ts'
+import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { renderGemtextMenu } from './gemtext.ts'
 import type { MenuItem } from './resolve.ts'
@@ -143,7 +143,7 @@ export async function respondGemini(
   const isSearch = rawPath.endsWith('/search')
   const basePath = isSearch ? rawPath.slice(0, -'/search'.length) || '/' : rawPath
 
-  let route
+  let route: Route
   try {
     route = parseSelector(basePath)
   } catch (err) {
@@ -286,7 +286,8 @@ async function accountRoutes(
       if (content === '') return '10 Your note (posted as kind 1)\r\n'
       // A Gemini request URL must not exceed 1024 bytes, and the note travels
       // in it percent-encoded, so the real ceiling is well under 1024 chars.
-      if (encodeURIComponent(content).length > 900) return '59 note too long for a gemini url line\r\n'
+      if (encodeURIComponent(content).length > 900)
+        return '59 note too long for a gemini url line\r\n'
       const leak = findSecret(content)
       if (leak) {
         return page('Not posting that', [

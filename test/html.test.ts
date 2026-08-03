@@ -26,7 +26,10 @@ test('info runs are split by links, not merged across them', () => {
   const out = renderMenuHtml('T', [info('before'), LINK, info('after')])
   const pres = out.match(/<pre>/g) ?? []
   assert.equal(pres.length, 2)
-  assert.match(out, /<pre>before<\/pre>\n<p><a href="\/npub1x\/x">A link<\/a><\/p>\n<pre>after<\/pre>/)
+  assert.match(
+    out,
+    /<pre>before<\/pre>\n<p><a href="\/npub1x\/x">A link<\/a><\/p>\n<pre>after<\/pre>/,
+  )
 })
 
 test('blank padding around an info run is trimmed', () => {

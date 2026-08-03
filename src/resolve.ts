@@ -60,7 +60,7 @@ export function relayHints(items: MenuItem[]): Map<string, string[]> {
 }
 
 function normalisePath(p: string): string {
-  const cleaned = ('/' + p.replace(/^\/+/, '')).replace(/\/+$/, '')
+  const cleaned = `/${p.replace(/^\/+/, '')}`.replace(/\/+$/, '')
   return cleaned === '' ? '/' : cleaned
 }
 
@@ -125,7 +125,11 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
       const port = url.port === '' ? 70 : Number(url.port)
       const itemType = url.pathname.length > 1 ? url.pathname[1]! : '1'
       const selector = url.pathname.length > 2 ? decodeURIComponent(url.pathname.slice(2)) : ''
-      return { type, display, target: { scheme: 'gopher', host: url.hostname, port, itemType, selector } }
+      return {
+        type,
+        display,
+        target: { scheme: 'gopher', host: url.hostname, port, itemType, selector },
+      }
     } catch {
       return { type: 'i', display, target: { scheme: 'invalid', reason: 'bad gopher url' } }
     }

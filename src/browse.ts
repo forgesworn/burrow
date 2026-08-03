@@ -18,8 +18,8 @@ import {
   type GopherTarget,
 } from './target.ts'
 import { renderNumbered, pageLinks } from './cliview.ts'
-import { BookmarkStore } from './bookmarks.ts'
-import { PairingStore } from './identity.ts'
+import type { BookmarkStore } from './bookmarks.ts'
+import type { PairingStore } from './identity.ts'
 import { resolveSigner } from './signing.ts'
 import { cmdPost, cmdWhoami, cmdPair, cmdUnpair } from './commands.ts'
 import { parseProfile, displayName } from './virtual.ts'
@@ -245,7 +245,9 @@ export function parseBrowseCommand(line: string): BrowseCommand {
   switch ((word as string).toLowerCase()) {
     case 'go':
     case 'g':
-      return rest === '' ? { cmd: 'unknown', word: 'go needs a target' } : { cmd: 'go', target: rest }
+      return rest === ''
+        ? { cmd: 'unknown', word: 'go needs a target' }
+        : { cmd: 'go', target: rest }
     case 'search':
     case 's':
       return rest === ''
@@ -497,7 +499,12 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
           break
         }
         case 'history':
-          process.stdout.write(session.history().map((h) => `  ${h}`).join('\n') + '\n')
+          process.stdout.write(
+            `${session
+              .history()
+              .map((h) => `  ${h}`)
+              .join('\n')}\n`,
+          )
           break
         case 'post':
           process.stdout.write(await cmdPost(command.text, opts.relays, opts.pairings, false))

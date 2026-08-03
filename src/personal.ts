@@ -147,7 +147,9 @@ export async function resolvePersonal(
           display: `${isoDate(ev.created_at)}  ${firstLine(ev.content, 60)}`,
           target: { scheme: 'hole', npub, path: `/notes/${ev.id}` },
         })
-        items.push(meItem('      delete this note (type: delete)', `${PERSONAL_ROOT}/delete/${ev.id}`, '7'))
+        items.push(
+          meItem('      delete this note (type: delete)', `${PERSONAL_ROOT}/delete/${ev.id}`, '7'),
+        )
       }
       return { kind: 'menu', title: 'Your notes', items }
     }
@@ -158,10 +160,7 @@ export async function resolvePersonal(
         return {
           kind: 'menu',
           title: 'Post a note',
-          items: [
-            info('Nothing typed, nothing posted.'),
-            selfLink('Back', PERSONAL_ROOT, npub),
-          ],
+          items: [info('Nothing typed, nothing posted.'), selfLink('Back', PERSONAL_ROOT, npub)],
         }
       }
       const leak = findSecret(text)

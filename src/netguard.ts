@@ -32,7 +32,12 @@ function ipv6Blocked(ip: string): boolean {
   const mapped = /(?:::ffff:|::)((?:\d{1,3}\.){3}\d{1,3})$/.exec(lower)
   if (mapped) return ipv4Blocked(mapped[1] as string)
   if (lower === '::1' || lower === '::') return true
-  if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) {
+  if (
+    lower.startsWith('fe8') ||
+    lower.startsWith('fe9') ||
+    lower.startsWith('fea') ||
+    lower.startsWith('feb')
+  ) {
     return true // link-local fe80::/10
   }
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true // unique-local fc00::/7
@@ -101,7 +106,8 @@ export async function resolvePublicHost(host: string): Promise<string> {
   }
   if (addrs.length === 0) throw new BlockedHostError(`could not resolve ${host}`)
   for (const { address } of addrs) {
-    if (isBlockedAddress(address)) throw new BlockedHostError(`refusing to proxy to ${host} (${address})`)
+    if (isBlockedAddress(address))
+      throw new BlockedHostError(`refusing to proxy to ${host} (${address})`)
   }
   return (addrs[0] as { address: string }).address
 }

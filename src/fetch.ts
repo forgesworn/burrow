@@ -263,10 +263,7 @@ export class HoleStore {
   async followers(pubkey: string): Promise<string[]> {
     const hit = this.followersCache.get(pubkey)
     if (hit !== undefined) return hit
-    const events = await this.query(
-      { kinds: [CONTACTS_KIND], '#p': [pubkey], limit: 300 },
-      6000,
-    )
+    const events = await this.query({ kinds: [CONTACTS_KIND], '#p': [pubkey], limit: 300 }, 6000)
     const value = [...new Set(events.map((ev) => ev.pubkey))]
     this.followersCache.set(pubkey, value)
     return value

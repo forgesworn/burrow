@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isBlockedAddress, resolvePublicHost, BlockedHostError, urlHostBlocked } from '../src/netguard.ts'
+import {
+  isBlockedAddress,
+  resolvePublicHost,
+  BlockedHostError,
+  urlHostBlocked,
+} from '../src/netguard.ts'
 import { fetchGopher } from '../src/gopherclient.ts'
 
 test('loopback, private, link-local and metadata addresses are blocked', () => {

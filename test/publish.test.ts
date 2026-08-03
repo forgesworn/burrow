@@ -30,10 +30,13 @@ test('planDirectory maps files to documents', () => {
   try {
     const docs = planDirectory(dir)
     const byPath = new Map(docs.map((d) => [d.path, d]))
-    assert.deepEqual(
-      [...byPath.keys()].sort(),
-      ['/', '/about.txt', '/links', '/phlog', '/phlog/first.txt'],
-    )
+    assert.deepEqual([...byPath.keys()].sort(), [
+      '/',
+      '/about.txt',
+      '/links',
+      '/phlog',
+      '/phlog/first.txt',
+    ])
     assert.equal(byPath.get('/')?.type, '1')
     assert.equal(byPath.get('/phlog')?.type, '1')
     assert.equal(byPath.get('/links')?.type, '1')

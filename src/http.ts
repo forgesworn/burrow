@@ -1,7 +1,7 @@
 import http from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseSelector, SelectorError } from './selector.ts'
+import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { resolveRoute } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
 import { parseProxyPath, browseGopher } from './gopherclient.ts'
@@ -9,7 +9,7 @@ import { resolvePublicHost } from './netguard.ts'
 import type { MenuItem } from './resolve.ts'
 import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
-import { PairingStore, type Pairing } from './identity.ts'
+import type { PairingStore, Pairing } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
 import { storedSigner, localSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
@@ -54,7 +54,10 @@ function isLoopback(addr: string | undefined): boolean {
 // foreign Host, so requiring both closes rebinding to the operator.
 function isLoopbackHost(hostHeader: string | undefined): boolean {
   if (hostHeader === undefined) return true
-  const host = hostHeader.replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase()
+  const host = hostHeader
+    .replace(/:\d+$/, '')
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase()
   return host === 'localhost' || host === '127.0.0.1' || host === '::1' || /^127\./.test(host)
 }
 
@@ -74,7 +77,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'",
+  'content-security-policy':
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'",
   'cache-control': 'no-store',
 }
 
@@ -263,7 +267,11 @@ async function handle(
     if (!target) {
       return html(
         400,
-        page('Bad gopher address', '<h1>Bad gopher address</h1><p>Use /gopher/host/1/selector</p>', signedIn),
+        page(
+          'Bad gopher address',
+          '<h1>Bad gopher address</h1><p>Use /gopher/host/1/selector</p>',
+          signedIn,
+        ),
       )
     }
     const q = url.searchParams.get('q')
@@ -282,21 +290,22 @@ async function handle(
     } catch {
       return html(
         502,
-        page('Blocked', '<h1>Blocked</h1><p>That address is not reachable through this proxy.</p>', signedIn),
+        page(
+          'Blocked',
+          '<h1>Blocked</h1><p>That address is not reachable through this proxy.</p>',
+          signedIn,
+        ),
       )
     }
     const content = await browseGopher(target, q === null ? undefined : q, connectHost)
     const rendered = renderContentHtml(content)
-    return html(
-      content.kind === 'error' ? 502 : 200,
-      page(rendered.title, rendered.body, signedIn),
-    )
+    return html(content.kind === 'error' ? 502 : 200, page(rendered.title, rendered.body, signedIn))
   }
 
   // Everything else is hole content: /<npub>[/path], plus /<npub>/search
   const isSearch = path.endsWith('/search')
   const basePath = isSearch ? path.slice(0, -'/search'.length) || '/' : path
-  let route
+  let route: Route
   try {
     route = parseSelector(basePath)
   } catch (err) {
@@ -318,7 +327,7 @@ async function handle(
       { virtual: opts.virtual },
     )
     const rendered = renderContentHtml(content)
-    return html(200, page(rendered.title, form + '\n<hr>\n' + rendered.body, signedIn))
+    return html(200, page(rendered.title, `${form}\n<hr>\n${rendered.body}`, signedIn))
   }
 
   const content = await resolveRoute(route, store, { virtual: opts.virtual })
@@ -433,7 +442,8 @@ async function pairPage(
   // Anonymous visitors have no per-viewer token yet, so the Origin check is
   // the CSRF defence here: it stops a cross-site page pairing you to an
   // attacker's signer.
-  if (!originOk(req)) return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
+  if (!originOk(req))
+    return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
   const body = await readBody(req)
   const uri = (body['uri'] ?? '').trim()
   if (uri === '') return redirect('/account')
@@ -471,7 +481,8 @@ async function pairPage(
 
 function unpairPage(req: http.IncomingMessage, signedIn: boolean): Reply {
   if (req.method !== 'POST') return redirect('/account')
-  if (!originOk(req)) return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
+  if (!originOk(req))
+    return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
   const raw = /(?:^|;\s*)burrow=([A-Za-z0-9_-]+)/.exec(req.headers.cookie ?? '')?.[1]
   if (raw) sessions.delete(raw)
   return html(
@@ -504,7 +515,8 @@ async function postPage(
   if (req.method !== 'POST') return html(200, page('Write a note', form, signedIn))
 
   const body = await readBody(req)
-  if (!csrfOk(req, body, viewer)) return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
+  if (!csrfOk(req, body, viewer))
+    return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   const text = (body['text'] ?? '').trim()
   if (text === '') return html(200, page('Write a note', form, signedIn))
   const leak = findSecret(text)
@@ -553,7 +565,8 @@ async function postPage(
       200,
       page(
         'Posting failed',
-        `<h1>Posting failed</h1><p>${esc(err instanceof Error ? err.message : 'unknown')}</p>` + form,
+        `<h1>Posting failed</h1><p>${esc(err instanceof Error ? err.message : 'unknown')}</p>` +
+          form,
         signedIn,
       ),
     )
@@ -570,18 +583,30 @@ async function deletePage(
   if (!viewer.signer) return redirect('/account')
   if (req.method !== 'POST') return redirect('/account')
   const body = await readBody(req)
-  if (!csrfOk(req, body, viewer)) return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
+  if (!csrfOk(req, body, viewer))
+    return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   const id = (body['id'] ?? '').trim()
-  if (!/^[0-9a-f]{64}$/.test(id)) return html(400, page('Bad request', '<p>bad event id</p>', signedIn))
+  if (!/^[0-9a-f]{64}$/.test(id))
+    return html(400, page('Bad request', '<p>bad event id</p>', signedIn))
   const mine = await viewer.signer.pubkey()
   const existing = await store.event(id)
   // Fail closed: only sign a deletion for an event we positively confirm is
   // the operator's. A relay miss (existing === null) must not authorise it.
   if (!existing) {
-    return html(404, page('Not found', '<h1>Not found</h1><p>That event was not found on these relays, so nothing was deleted.</p>', signedIn))
+    return html(
+      404,
+      page(
+        'Not found',
+        '<h1>Not found</h1><p>That event was not found on these relays, so nothing was deleted.</p>',
+        signedIn,
+      ),
+    )
   }
   if (existing.pubkey !== mine) {
-    return html(403, page('Not yours', '<h1>Not yours</h1><p>You can only delete your own events.</p>', signedIn))
+    return html(
+      403,
+      page('Not yours', '<h1>Not yours</h1><p>You can only delete your own events.</p>', signedIn),
+    )
   }
   const signed = await viewer.signer.sign({
     kind: DELETE_KIND,
@@ -611,7 +636,7 @@ async function deletePage(
 }
 
 async function feedPage(
-  opts: HttpOptions,
+  _opts: HttpOptions,
   store: HoleStore,
   viewer: Viewer,
   signedIn: boolean,

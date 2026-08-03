@@ -31,6 +31,7 @@
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents
+- biome for linting and formatting, enforced in CI (`npm run lint`)
 - CI (typecheck + tests with coverage), SECURITY.md, CONTRIBUTING.md,
   dependabot, packaging metadata and `prepack`
 - tests for `fetch.ts`, `nip46client.ts`, `netguard.ts`, the CLI, and the

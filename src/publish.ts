@@ -121,7 +121,9 @@ export async function publishHole(
     }
   }
   const createdAt = Math.floor(Date.now() / 1000)
-  const events = docs.map((d) => finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret))
+  const events = docs.map((d) =>
+    finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret),
+  )
   const npub = nip19.npubEncode(getPublicKey(secret))
 
   if (opts.dryRun) {
@@ -143,7 +145,9 @@ export async function publishHole(
   pool.destroy()
   console.log(`\nPublished ${ok}/${docs.length} document(s)${failed ? `, ${failed} failed` : ''}.`)
   if (opts.expireSeconds !== undefined) {
-    console.log(`Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`)
+    console.log(
+      `Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`,
+    )
   }
   console.log(`Hole root selector: /${npub}`)
   console.log(`Try it: lynx gopher://127.0.0.1:7070/1/${npub}`)

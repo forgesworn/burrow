@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import net from 'node:net'
+import type net from 'node:net'
 import tls from 'node:tls'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'

@@ -124,7 +124,7 @@ export function profileText(profile: Profile | null, npub: string): string {
   if (profile?.website) rows.push(`web:     ${profile.website}`)
   if (profile?.lud16) rows.push(`zap:     ${profile.lud16}`)
   if (profile?.about) rows.push('', ...wrap(profile.about))
-  return rows.join('\n') + '\n'
+  return `${rows.join('\n')}\n`
 }
 
 export function notesMenuLines(notes: Event[]): MapLine[] {
@@ -137,7 +137,7 @@ export function notesMenuLines(notes: Event[]): MapLine[] {
 }
 
 export function noteText(ev: Event): string {
-  return [`date: ${isoDate(ev.created_at)}`, `id:   ${ev.id}`, '', ev.content].join('\n') + '\n'
+  return `${[`date: ${isoDate(ev.created_at)}`, `id:   ${ev.id}`, '', ev.content].join('\n')}\n`
 }
 
 function articleTitle(ev: Event): string {
@@ -158,5 +158,5 @@ export function articleText(ev: Event): string {
   const summary = tagValue(ev, 'summary')
   if (summary) rows.push('', ...wrap(summary))
   rows.push('', ev.content)
-  return rows.join('\n') + '\n'
+  return `${rows.join('\n')}\n`
 }

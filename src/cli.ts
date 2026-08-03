@@ -221,7 +221,9 @@ if (command === 'serve') {
       store,
       limiter: new RateLimiter(60, 2),
     }).listen(httpPort, values.host, () => {
-      console.log(`burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`)
+      console.log(
+        `burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`,
+      )
       if (httpLocalTrust) console.log('  loopback requests act as you, using your stored pairing')
       if (values.host !== '127.0.0.1' && values.host !== 'localhost') {
         console.log('  note: plain HTTP. Put it behind TLS before exposing it publicly.')
@@ -257,7 +259,12 @@ if (command === 'serve') {
     },
   })
   if (!values.all && positionals.length === 0) fail(USAGE)
-  unpublishHole(values.all ? 'all' : positionals, values.relay ?? DEFAULT_RELAYS, secretFromEnv(), values['dry-run'])
+  unpublishHole(
+    values.all ? 'all' : positionals,
+    values.relay ?? DEFAULT_RELAYS,
+    secretFromEnv(),
+    values['dry-run'],
+  )
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'browse' || (command === undefined && process.stdin.isTTY === true)) {

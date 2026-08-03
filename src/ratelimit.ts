@@ -19,7 +19,7 @@ export function limitKey(ip: string): string {
     const tailGroups = tail === '' ? [] : tail.split(':')
     const fill = ip.includes('::') ? Array(8 - headGroups.length - tailGroups.length).fill('0') : []
     const groups = [...headGroups, ...fill, ...tailGroups]
-    return groups.slice(0, 4).join(':') + '::/64'
+    return `${groups.slice(0, 4).join(':')}::/64`
   }
   return ip
 }

@@ -37,7 +37,10 @@ test('matchVirtualPath recognises the reserved paths', () => {
   assert.deepEqual(matchVirtualPath('/'), { kind: 'root' })
   assert.deepEqual(matchVirtualPath('/profile.txt'), { kind: 'profile' })
   assert.deepEqual(matchVirtualPath('/notes'), { kind: 'notes' })
-  assert.deepEqual(matchVirtualPath(`/notes/${'a'.repeat(64)}`), { kind: 'note', id: 'a'.repeat(64) })
+  assert.deepEqual(matchVirtualPath(`/notes/${'a'.repeat(64)}`), {
+    kind: 'note',
+    id: 'a'.repeat(64),
+  })
   assert.equal(matchVirtualPath('/notes/nonsense'), null)
   assert.deepEqual(matchVirtualPath('/articles'), { kind: 'articles' })
   assert.deepEqual(matchVirtualPath('/articles/my-post'), { kind: 'article', d: 'my-post' })
@@ -60,7 +63,10 @@ test('notesMenuLines links each note by id', () => {
 })
 
 test('articlesMenuLines uses title tag and d link', () => {
-  const article = ev(30023, 'body', [['d', 'my-post'], ['title', 'My Post']])
+  const article = ev(30023, 'body', [
+    ['d', 'my-post'],
+    ['title', 'My Post'],
+  ])
   const [line] = articlesMenuLines([article])
   assert.equal(line?.link, '/articles/my-post')
   assert.match(line?.display ?? '', /My Post/)
@@ -71,7 +77,13 @@ test('profileText and articleText carry the useful fields', () => {
   assert.match(text, /Profile: don/)
   assert.match(text, /nip05: {3}don@example\.com/)
   assert.match(text, /hee haw/)
-  const article = articleText(ev(30023, 'body text', [['d', 'p'], ['title', 'T'], ['summary', 'S']]))
+  const article = articleText(
+    ev(30023, 'body text', [
+      ['d', 'p'],
+      ['title', 'T'],
+      ['summary', 'S'],
+    ]),
+  )
   assert.match(article, /^T\n/)
   assert.match(article, /S/)
   assert.match(article, /body text/)

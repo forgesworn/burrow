@@ -25,7 +25,10 @@ test('proxy paths round-trip', () => {
   assert.equal(parseProxyPath('/notgopher/x'), null)
   assert.equal(parseProxyPath('/gopher/example.org:99999/1/'), null)
 
-  assert.equal(proxyPath({ host: 'a.org', port: 70, type: '1', selector: '/x' }), '/gopher/a.org/1/x')
+  assert.equal(
+    proxyPath({ host: 'a.org', port: 70, type: '1', selector: '/x' }),
+    '/gopher/a.org/1/x',
+  )
   assert.equal(
     proxyPath({ host: 'a.org', port: 7070, type: '0', selector: '' }),
     '/gopher/a.org:7070/0',

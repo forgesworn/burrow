@@ -67,9 +67,7 @@ export function renderMenuHtml(title: string, items: MenuItem[]): string {
     const link = href(item)
     if (link === null) {
       run.push(
-        item.target.scheme === 'invalid'
-          ? `${item.display} (${item.target.reason})`
-          : item.display,
+        item.target.scheme === 'invalid' ? `${item.display} (${item.target.reason})` : item.display,
       )
     } else {
       flush()

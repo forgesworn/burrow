@@ -1,6 +1,6 @@
 import net from 'node:net'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseSelector, SelectorError } from './selector.ts'
+import { parseSelector, SelectorError, type Route } from './selector.ts'
 import {
   renderMenuItems,
   renderText,
@@ -100,7 +100,7 @@ export async function respond(
     }
   }
 
-  let route
+  let route: Route
   try {
     route = parseSelector(line)
   } catch (err) {
@@ -163,5 +163,5 @@ async function welcome(
       out += gopherLine('1', name, `/${npub}`, host, port)
     }
   }
-  return out + '.\r\n'
+  return `${out}.\r\n`
 }

@@ -42,7 +42,10 @@ function fakePool(byKind: (filter: Filter) => Event[]): PoolLike & { relaysSeen:
 test('expired events are never served (notes and single event)', async () => {
   const fresh = ev({ kind: NOTE_KIND, content: 'alive' })
   const stale = ev({ kind: NOTE_KIND, content: 'gone', tags: [['expiration', String(now - 10)]] })
-  const store = new HoleStore(['wss://bridge'], fakePool((f) => (f.ids ? [stale] : [fresh, stale])))
+  const store = new HoleStore(
+    ['wss://bridge'],
+    fakePool((f) => (f.ids ? [stale] : [fresh, stale])),
+  )
   const notes = await store.notes(pk)
   assert.equal(notes.length, 1)
   assert.equal(notes[0]?.content, 'alive')
@@ -51,9 +54,28 @@ test('expired events are never served (notes and single event)', async () => {
 })
 
 test('doc resolves the newest event, lowest id on a tie', async () => {
-  const older = ev({ kind: BURROW_KIND, created_at: now - 100, tags: [['d', '/a'], ['type', '0']], content: 'old' })
-  const newer = ev({ kind: BURROW_KIND, created_at: now, tags: [['d', '/a'], ['type', '0']], content: 'new' })
-  const store = new HoleStore(['wss://bridge'], fakePool(() => [older, newer]))
+  const older = ev({
+    kind: BURROW_KIND,
+    created_at: now - 100,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'old',
+  })
+  const newer = ev({
+    kind: BURROW_KIND,
+    created_at: now,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'new',
+  })
+  const store = new HoleStore(
+    ['wss://bridge'],
+    fakePool(() => [older, newer]),
+  )
   const got = await store.doc(pk, '/a')
   assert.equal(got?.content, 'new')
 })
@@ -66,7 +88,14 @@ test('a hole reads from the author write relays (NIP-65), not just the bridge', 
       ['r', 'wss://read.only.example', 'read'],
     ],
   })
-  const doc = ev({ kind: BURROW_KIND, tags: [['d', '/'], ['type', '1']], content: 'iHi' })
+  const doc = ev({
+    kind: BURROW_KIND,
+    tags: [
+      ['d', '/'],
+      ['type', '1'],
+    ],
+    content: 'iHi',
+  })
   const pool = fakePool((f) => (f.kinds?.includes(RELAY_LIST_KIND) ? [relayList] : [doc]))
   const store = new HoleStore(['wss://bridge'], pool)
   await store.doc(pk, '/')

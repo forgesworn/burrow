@@ -130,9 +130,10 @@ export async function browseGopher(
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : 'gopher fetch failed' }
   }
-  const sel = target.selector === '' || target.selector.startsWith('/')
-    ? target.selector
-    : `/${target.selector}`
+  const sel =
+    target.selector === '' || target.selector.startsWith('/')
+      ? target.selector
+      : `/${target.selector}`
   const title = `gopher://${target.host}${target.port === 70 ? '' : `:${target.port}`}/${target.type}${sel}`
   if (target.type === '1' || target.type === '7') {
     return { kind: 'menu', title, items: parseGopherMenu(body) }
