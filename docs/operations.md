@@ -3,6 +3,21 @@
 The safe default is local-only: `gopherkind serve` binds all three listeners
 to `127.0.0.1`. Exposing a bridge is an explicit operator decision.
 
+## Public reference bridge
+
+The reference deployment runs release `v0.8.0` at commit
+`3d267c751989ffaf0951e028c73af8804b3b1cc6`:
+
+- `gopher://144.126.230.165/`
+- `gemini://144.126.230.165/`
+- `http://144.126.230.165:8070/`
+
+It runs the repository image as an unprivileged user with a read-only root
+filesystem, a persistent state mount, automatic restart and explicit CPU,
+memory and process limits. TCP ports 70, 1965 and 8070 are the only additional
+public firewall openings. HTTP identity is disabled because the direct public
+endpoint is plaintext.
+
 ## Native service
 
 Run the compiled package as an unprivileged service user. Keep the state
