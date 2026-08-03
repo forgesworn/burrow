@@ -16,6 +16,11 @@ export function esc(s: string): string {
     .replaceAll('"', '&quot;')
 }
 
+export interface PageMeta {
+  canonical?: string
+  description?: string
+}
+
 const STYLE = `body{max-width:52em;margin:2em auto;padding:0 1em;font-family:monospace;
 font-size:1rem;line-height:1.5;background:#111;color:#eae6dc}
 a{color:#8fd}h1,h2{font-weight:normal}nav a{margin-right:1em}
@@ -26,14 +31,27 @@ border:1px solid #666;padding:.4em}
 @media(prefers-color-scheme:light){body{background:#fff;color:#111}a{color:#046}
 textarea,input{background:#fff;color:#111}}`
 
-export function page(title: string, body: string, signedIn: boolean): string {
+export function page(title: string, body: string, signedIn: boolean, meta: PageMeta = {}): string {
   const nav = signedIn
-    ? '<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/account">account</a>'
+    ? '<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>'
     : '<a href="/">home</a><a href="/account">sign in</a>'
+  const metadata = [
+    meta.canonical ? `<link rel="canonical" href="${esc(meta.canonical)}">` : '',
+    meta.description ? `<meta name="description" content="${esc(meta.description)}">` : '',
+    `<meta property="og:title" content="${esc(title)}">`,
+    meta.description ? `<meta property="og:description" content="${esc(meta.description)}">` : '',
+    meta.canonical ? `<meta property="og:url" content="${esc(meta.canonical)}">` : '',
+    '<meta property="og:type" content="website">',
+    '<meta name="twitter:card" content="summary">',
+  ]
+    .filter((line) => line !== '')
+    .join('\n')
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><style>${STYLE}</style></head>
+<title>${esc(title)}</title>
+${metadata}
+<style>${STYLE}</style></head>
 <body><nav>${nav}</nav><hr>
 ${body}
 </body></html>

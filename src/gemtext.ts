@@ -8,11 +8,15 @@ import { replaceControlCharacters } from './protocol.ts'
 // Percent-encode a hole path for a gemtext link ref: a space (or any
 // control character) would otherwise split the `=> ref display` line and
 // break the link, or forge a fake one.
-function encodePath(path: string): string {
+export function encodePath(path: string): string {
   return path
     .split('/')
     .map((seg) => encodeURIComponent(seg))
     .join('/')
+}
+
+export function holeRef(npub: string, path: string): string {
+  return `/${npub}${path === '/' ? '' : encodePath(path)}`
 }
 
 export function targetRef(item: MenuItem): string | null {
@@ -23,7 +27,7 @@ export function targetRef(item: MenuItem): string | null {
       return null
     case 'hole': {
       if (item.type === '7') return `/_gopherkind/search/${t.npub}`
-      return `/${t.npub}${t.path === '/' ? '' : encodePath(t.path)}`
+      return holeRef(t.npub, t.path)
     }
     case 'self':
       return encodePath(t.path)

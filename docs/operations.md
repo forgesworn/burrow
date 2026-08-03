@@ -35,7 +35,9 @@ gopherkind serve \
 Put the HTTP listener behind a same-host TLS reverse proxy and proxy only to
 `127.0.0.1:8070`. `--no-local-trust` is essential in that layout: otherwise
 every proxied request arrives from loopback and would be treated as the local
-operator. Remote HTTP visitors can still pair their own NIP-46 signer.
+operator. Set `--http-url https://gopher.example.org` so public pages carry
+canonical metadata. Remote HTTP visitors can still pair their own NIP-46
+signer.
 
 Expose TCP 70 or 7070 for gopher and TCP 1965 for Gemini as required. The
 bridge's default high gopher port avoids needing root; use a firewall redirect
@@ -59,19 +61,22 @@ docker build -t gopherkind:local .
 docker run --name gopherkind --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=16m \
   -v gopherkind-state:/var/lib/gopherkind \
-  -p 7070:7070 -p 1965:1965 -p 8070:8070 \
+  -p 7070:7070 -p 1965:1965 \
   gopherkind:local serve \
   --host 0.0.0.0 --hostname gopher.example.org \
-  --state-dir /var/lib/gopherkind
+  --state-dir /var/lib/gopherkind \
+  --no-local-trust --http-behind-proxy \
+  --http-url https://gopher.example.org
 ```
 
 The container runs as the unprivileged `node` user and includes a health
 check. Replace `gopher.example.org` with the address clients actually use;
-this is written into gopher menus. Its public bind deliberately makes HTTP
-read-only: session identity is disabled rather than accepting credentials over
-plaintext. To offer remote HTTP sign-in, run the process and TLS proxy in the
-same network namespace, bind gopherkind to loopback, and use
-`--no-local-trust` as in the native example.
+this is written into gopher menus. The example expects a TLS proxy on the same
+private container network. Port 8070 is deliberately not published on the
+host. The proxy must preserve `Host` and set `X-Forwarded-Proto: https`.
+`--http-behind-proxy` refuses to start without an HTTPS `--http-url` and
+`--no-local-trust`. Omit that option and add `--no-identity` for a direct,
+read-only plaintext HTTP deployment.
 
 ## State, backup and recovery
 
@@ -93,11 +98,13 @@ actually retrievable. Re-run the read check later with:
 
 ```sh
 gopherkind inspect npub1...
+gopherkind inspect npub1... --json > inspection.json
 ```
 
 The inspection discovers the author's current NIP-65 write relays and reports
-current, stale and missing documents per relay. It proves what can be read at
-that moment, not future retention.
+current, stale and missing documents per relay. JSON output carries a stable
+format name, version, check time, summary and per-document copy count. Either
+form proves what can be read at that moment, not future retention.
 
 Keep an editable recovery snapshot outside the bridge state directory:
 

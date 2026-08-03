@@ -136,6 +136,9 @@ export interface RelayInspection {
 }
 
 export interface HoleInspection {
+  format: 'gopherkind-hole-inspection'
+  version: 1
+  checkedAt: string
   npub: string
   documents: Array<{ path: string; eventId: string }>
   suppressed: string[]
@@ -241,6 +244,9 @@ export async function inspectHole(
       }),
     )
     return {
+      format: 'gopherkind-hole-inspection',
+      version: 1,
+      checkedAt: new Date(now * 1000).toISOString(),
       npub: npubEncode(pubkey),
       documents: [...expected].map(([docPath, event]) => ({ path: docPath, eventId: event.id })),
       suppressed: expectedState.suppressed,
@@ -249,6 +255,29 @@ export async function inspectHole(
   } finally {
     pool.destroy()
   }
+}
+
+export function formatHoleInspectionJson(inspection: HoleInspection): string {
+  const copies = inspection.documents.map((document) => ({
+    path: document.path,
+    eventId: document.eventId,
+    currentCopies: inspection.relays.filter((relay) => relay.present.includes(document.path))
+      .length,
+  }))
+  return `${JSON.stringify(
+    {
+      ...inspection,
+      summary: {
+        currentDocuments: inspection.documents.length,
+        reachableRelays: inspection.relays.filter((relay) => relay.reachable).length,
+        minimumCurrentCopies:
+          copies.length === 0 ? 0 : Math.min(...copies.map((document) => document.currentCopies)),
+      },
+      copies,
+    },
+    null,
+    2,
+  )}\n`
 }
 
 export function formatHoleInspection(inspection: HoleInspection): string {

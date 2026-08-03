@@ -11,7 +11,12 @@ import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signi
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, DELETE_KIND, DOC_KIND, firstLine, isoDate } from './protocol.ts'
 import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
-import { formatHoleInspection, inspectHole, writeHoleExport } from './recovery.ts'
+import {
+  formatHoleInspection,
+  formatHoleInspectionJson,
+  inspectHole,
+  writeHoleExport,
+} from './recovery.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
@@ -89,11 +94,12 @@ export async function cmdExport(
   }
 }
 
-export async function cmdInspect(target: string, relays: string[]): Promise<string> {
+export async function cmdInspect(target: string, relays: string[], json = false): Promise<string> {
   const parsed = await resolveClientTarget(target)
   if (parsed.kind === 'gopher') throw new Error('inspect needs an npub, nprofile or NIP-05 name')
   if (parsed.path !== '/') throw new Error('inspect takes a hole root, not an individual path')
-  return formatHoleInspection(await inspectHole(parsed.pubkey, relays, parsed.relays ?? []))
+  const inspection = await inspectHole(parsed.pubkey, relays, parsed.relays ?? [])
+  return json ? formatHoleInspectionJson(inspection) : formatHoleInspection(inspection)
 }
 
 export async function cmdPost(

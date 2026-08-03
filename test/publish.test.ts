@@ -8,6 +8,7 @@ import {
   docToTemplate,
   parseDuration,
   planDeletion,
+  publishDocument,
   publishHole,
   unpublishHole,
   type PublishPool,
@@ -181,6 +182,72 @@ test('publish follows the author NIP-65 write set, spreads it and verifies read-
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('single-document publishing keeps NIP-65 destinations and read-back truth', async () => {
+  const secret = generateSecretKey()
+  const relayList = finalizeEvent(
+    {
+      kind: RELAY_LIST_KIND,
+      created_at: 1000,
+      tags: [['r', 'wss://author.example', 'write']],
+      content: '',
+    },
+    secret,
+  )
+  const pool = new FakePool(relayList)
+  const report = await publishDocument(
+    { path: '/from-web.txt', type: '0', title: 'From the web', content: 'hello\n' },
+    ['wss://configured.example'],
+    signerFor(secret),
+    { pool, now: 2000 },
+  )
+  assert.equal(report.path, '/from-web.txt')
+  assert.deepEqual(report.relays, ['wss://configured.example', 'wss://author.example'])
+  assert.deepEqual(report.acceptedBy, report.relays)
+  assert.deepEqual(report.readableFrom, report.relays)
+  assert.ok(
+    report.relays.every((relay) =>
+      (pool.published.get(relay) ?? []).some((event) => event.id === relayList.id),
+    ),
+  )
+  assert.equal(pool.destroyed, true)
+})
+
+test('single-document publishing refuses secrets and false relay acceptance', async () => {
+  const secret = generateSecretKey()
+  await assert.rejects(
+    publishDocument(
+      {
+        path: '/leak.txt',
+        type: '0',
+        title: 'leak',
+        content: `nsec1${'q'.repeat(58)}`,
+      },
+      ['wss://configured.example'],
+      signerFor(secret),
+      { pool: new FakePool(null) },
+    ),
+    /looks like an nsec/,
+  )
+  await assert.rejects(
+    publishDocument(
+      { path: '/rejected.txt', type: '0', title: 'rejected', content: 'hello' },
+      ['wss://configured.example'],
+      signerFor(secret),
+      { pool: new FakePool(null, true), now: 2000 },
+    ),
+    /rejected by every relay/,
+  )
+  await assert.rejects(
+    publishDocument(
+      { path: '/hidden.txt', type: '0', title: 'hidden', content: 'hello' },
+      ['wss://configured.example'],
+      signerFor(secret),
+      { pool: new FakePool(null, false, [], true), now: 2000 },
+    ),
+    /accepted but is not readable/,
+  )
 })
 
 test('publish fails truthfully when every relay rejects a document', async () => {

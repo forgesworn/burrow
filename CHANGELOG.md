@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.0 (2026-08-03)
+
+### Public launch surface
+
+- accept NIP-05 names in the HTTP opener and direct routes, then redirect to
+  the bridge-portable canonical npub path
+- add canonical, description and social-preview metadata to public HTTP pages
+- add a JavaScript-free document publisher for signed-in HTTP sessions, with
+  explicit exact-path replacement consent, credential scanning, NIP-65 relay
+  discovery and post-publication read-back
+- add an explicit TLS reverse-proxy mode which enables remote HTTP identity
+  only with a canonical HTTPS origin and local operator trust disabled
+- add `gopherkind inspect --json` for stable machine-readable relay and
+  recovery checks
+
+### Protocol status
+
+- link the submitted kind `31436` proposal to nostr-protocol/nips PR 2429 and
+  keep its unmerged status explicit
+
 ## 0.8.0 (2026-08-03)
 
 ### Recovery and relay truth

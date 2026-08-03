@@ -10,7 +10,7 @@ import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure'
 import { createHttpServer, type HttpOptions } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
 import { esc } from '../src/html.ts'
-import { makeStore, npub, note, testSigner } from './helpers.ts'
+import { makeStore, npub, note, pubkey, testSigner } from './helpers.ts'
 
 // The loopback operator's forms carry a server-lifetime CSRF token; grab it
 // from the /post form to drive the write endpoints the way lynx would.
@@ -76,6 +76,32 @@ test('http frontend', async (t) => {
     assert.equal(res.headers.get('location'), `/${npub}`)
   })
 
+  await t.test('NIP-05 input and direct paths resolve to canonical npub URLs', async (t2) => {
+    const resolveTarget = async (input: string) => {
+      if (input === 'donkey@example.org' || input === 'donkey@example.org/notes') {
+        return {
+          kind: 'hole' as const,
+          pubkey,
+          npub,
+          path: input.endsWith('/notes') ? '/notes' : '/',
+        }
+      }
+      throw new Error(`could not resolve ${input}`)
+    }
+    const base = await start(t2, { resolveTarget })
+    const form = await fetch(`${base}/go?npub=donkey%40example.org%2Fnotes`, {
+      redirect: 'manual',
+    })
+    assert.equal(form.status, 303)
+    assert.equal(form.headers.get('location'), `/${npub}/notes`)
+    const direct = await fetch(`${base}/donkey@example.org`, { redirect: 'manual' })
+    assert.equal(direct.status, 303)
+    assert.equal(direct.headers.get('location'), `/${npub}`)
+    const missing = await fetch(`${base}/go?npub=nobody%40example.org`)
+    assert.equal(missing.status, 400)
+    assert.match(await missing.text(), /could not resolve/)
+  })
+
   await t.test('hole content renders with working links', async (t2) => {
     const base = await start(t2)
     const body = await (await fetch(`${base}/${npub}`)).text()
@@ -85,6 +111,15 @@ test('http frontend', async (t) => {
     assert.match(body, /href="\/gopher\/gopher\.floodgap\.com\/1"/)
     const text = await (await fetch(`${base}/${npub}/about.txt`)).text()
     assert.match(text, /<pre>[\s\S]*kind 31436/)
+  })
+
+  await t.test('public HTTP pages carry canonical and share metadata', async (t2) => {
+    const base = await start(t2, { publicUrl: 'https://bridge.example' })
+    const body = await (await fetch(`${base}/${npub}`)).text()
+    assert.match(body, new RegExp(`<link rel="canonical" href="https://bridge\\.example/${npub}">`))
+    assert.match(body, /<meta property="og:title"/)
+    assert.match(body, /<meta property="og:description"/)
+    assert.match(body, /<meta name="twitter:card" content="summary">/)
   })
 
   await t.test('unknown hole path is a 404 page', async (t2) => {
@@ -201,6 +236,100 @@ test('http frontend', async (t) => {
       assert.equal(published.length, 0)
     })
   })
+
+  await t.test(
+    'document publishing requires replacement consent and reports read-back',
+    async (t2) => {
+      const planned: Array<{ path: string; type: string; title: string; content: string }> = []
+      const base = await start(t2, {
+        documentPublisher: async (document) => {
+          planned.push(document)
+          return {
+            npub,
+            path: document.path,
+            eventId: 'f'.repeat(64),
+            relays: ['wss://one.example', 'wss://two.example'],
+            acceptedBy: ['wss://one.example', 'wss://two.example'],
+            readableFrom: ['wss://one.example'],
+          }
+        },
+      })
+      const csrf = await operatorCsrf(base)
+      const unconfirmed = await fetch(`${base}/publish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          path: '/web.txt',
+          title: 'Web document',
+          type: '0',
+          content: 'hello from the web',
+          csrf,
+        }),
+      })
+      assert.equal(unconfirmed.status, 400)
+      assert.match(await unconfirmed.text(), /Nothing was signed/)
+      assert.equal(planned.length, 0)
+
+      const published = await fetch(`${base}/publish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          path: '/web.txt',
+          title: 'Web document',
+          type: '0',
+          content: 'hello from the web',
+          replace: 'yes',
+          csrf,
+        }),
+      })
+      assert.equal(published.status, 200)
+      const body = await published.text()
+      assert.match(body, /accepted by 2\/2 relays/)
+      assert.match(body, /read back from 1\/2/)
+      assert.match(body, new RegExp(`href="/${npub}/web\\.txt"`))
+      assert.deepEqual(planned, [
+        {
+          path: '/web.txt',
+          title: 'Web document',
+          type: '0',
+          content: 'hello from the web',
+        },
+      ])
+    },
+  )
+
+  await t.test(
+    'document publishing strips credential-shaped content before redisplay',
+    async (t2) => {
+      let calls = 0
+      const base = await start(t2, {
+        documentPublisher: async () => {
+          calls += 1
+          throw new Error('publisher should not run')
+        },
+      })
+      const csrf = await operatorCsrf(base)
+      const secret = `bunker://signer.example?secret=${'f'.repeat(64)}`
+      const response = await fetch(`${base}/publish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          path: '/private.txt',
+          title: 'Private',
+          type: '0',
+          content: secret,
+          replace: 'yes',
+          csrf,
+        }),
+      })
+      assert.equal(response.status, 400)
+      const body = await response.text()
+      assert.match(body, /Nothing was signed or sent/)
+      assert.doesNotMatch(body, /signer\.example/)
+      assert.match(body, /<textarea name="content"[^>]*><\/textarea>/)
+      assert.equal(calls, 0)
+    },
+  )
 
   await t.test('own note offers a delete button and deletion signs kind 5', async (t2) => {
     const published: unknown[] = []
