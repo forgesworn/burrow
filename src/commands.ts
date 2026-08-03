@@ -1,6 +1,6 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { HoleStore } from './fetch.ts'
-import { PairingStore } from './identity.ts'
+import type { PairingStore } from './identity.ts'
 import { resolveRoute } from './router.ts'
 import { renderForTerminal } from './cliview.ts'
 import { browseGopher } from './gopherclient.ts'
@@ -8,7 +8,8 @@ import { resolveClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
+import { NOTE_KIND, DELETE_KIND, BURROW_KIND, firstLine, isoDate } from './protocol.ts'
+import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
@@ -18,6 +19,7 @@ export async function cmdRead(target: string, relays: string[], virtual: boolean
   const parsed = await resolveClientTarget(target)
   if (parsed.kind === 'gopher') return renderForTerminal(await browseGopher(parsed))
   const store = new HoleStore(relays)
+  if (parsed.relays) store.addRelayHints(parsed.pubkey, parsed.relays)
   try {
     const content = await resolveRoute(
       { kind: 'doc', pubkey: parsed.pubkey, npub: parsed.npub, path: parsed.path },
@@ -46,6 +48,7 @@ export async function cmdSearch(
     return renderForTerminal(await browseGopher(parsed, query))
   }
   const store = new HoleStore(relays)
+  if (parsed.relays) store.addRelayHints(parsed.pubkey, parsed.relays)
   try {
     const content = await resolveRoute(
       { kind: 'search', pubkey: parsed.pubkey, npub: parsed.npub, path: '/', query },
@@ -214,6 +217,42 @@ export async function cmdDelete(
   }
 }
 
+// Tell Nostr clients that this bridge opens kind 31436 (NIP-89). Publishing
+// is opt-in the same way `post` is: `--dry-run` prints the event and stops.
+export async function cmdAnnounce(
+  opts: AnnounceOptions,
+  relays: string[],
+  pairings: PairingStore,
+  dryRun: boolean,
+): Promise<string> {
+  const template = handlerTemplate(opts, Math.floor(Date.now() / 1000))
+  if (dryRun) {
+    return `${JSON.stringify(template, null, 2)}\nnot signed or published (dry run)\n`
+  }
+  const signer = await resolveSigner(pairings)
+  const signed = await signer.sign(template)
+  const store = new HoleStore(relays)
+  try {
+    const accepted = await store.publish(signed)
+    const naddr = nip19.naddrEncode({
+      kind: HANDLER_KIND,
+      pubkey: signed.pubkey,
+      identifier: opts.identifier,
+    })
+    return [
+      `announced this bridge via ${signer.describe}`,
+      `accepted by ${accepted}/${relays.length} relays`,
+      `naddr: ${naddr}`,
+      '',
+      'Clients that support NIP-89 can now offer this bridge for kind',
+      `${BURROW_KIND}. Re-run announce whenever the bridge address changes.`,
+      '',
+    ].join('\n')
+  } finally {
+    store.close()
+  }
+}
+
 export async function cmdPair(uri: string, pairings: PairingStore): Promise<string> {
   const pubkey = await pairCli(pairings, uri)
   return `paired as ${nip19.npubEncode(pubkey)}\nstored for future commands; \`burrow unpair\` to remove\n`
@@ -237,7 +276,12 @@ export async function cmdWhoami(relays: string[], pairings: PairingStore): Promi
   const store = new HoleStore(relays)
   try {
     const profile = parseProfile(await store.profile(pubkey))
-    return [`signer: ${signer.describe}`, `name:   ${displayName(profile, npub)}`, `npub:   ${npub}`, ''].join('\n')
+    return [
+      `signer: ${signer.describe}`,
+      `name:   ${displayName(profile, npub)}`,
+      `npub:   ${npub}`,
+      '',
+    ].join('\n')
   } finally {
     store.close()
   }

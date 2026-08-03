@@ -32,7 +32,7 @@ export function parseSelector(raw: string): Route {
 
   const rest = segments.slice(1)
   if (rest.some((s) => s === '..')) throw new SelectorError('bad path')
-  const path = ('/' + rest.join('/')).replace(/\/+$/, '') || '/'
+  const path = `/${rest.join('/')}`.replace(/\/+$/, '') || '/'
 
   if (query !== '') return { kind: 'search', pubkey, npub: bech, path, query }
   return { kind: 'doc', pubkey, npub: bech, path }

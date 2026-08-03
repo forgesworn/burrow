@@ -1,7 +1,7 @@
 import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseBurrowmap } from './linemap.ts'
-import { resolveMapLines, info, type MenuItem } from './resolve.ts'
+import { resolveMapLines, relayHints, info, type MenuItem } from './resolve.ts'
 import type { HoleStore } from './fetch.ts'
 import type { Route } from './selector.ts'
 import {
@@ -40,13 +40,35 @@ export async function resolveRoute(
   if (route.kind === 'search') return search(route, store, opts)
 
   const ev = await store.doc(route.pubkey, route.path)
-  if (ev) return contentFromDoc(ev, route.npub)
+  if (ev) return rememberHints(contentFromDoc(ev, route.npub), store)
 
-  if (opts.virtual) {
+  // Single-item permalinks (a note or an article) resolve even when the
+  // generated virtual hole is disabled, because burrowmap links and the
+  // post-success link point straight at them; --no-virtual only turns off
+  // the generated index pages (root, profile, notes, follows, followers).
+  const m = virtual.matchVirtualPath(route.path)
+  const isItem = m !== null && (m.kind === 'note' || m.kind === 'article')
+  if (opts.virtual || isItem) {
     const v = await resolveVirtual(route, store)
     if (v) return v
   }
   return { kind: 'error', message: `no document at ${route.path} in ${short(route.npub)}` }
+}
+
+// A rendered link's relay hints cannot survive into the next gopher
+// selector, so the store keeps them: following the link then reads the
+// linked author from the relays their document named.
+function rememberHints(content: Content, store: HoleStore): Content {
+  if (content.kind !== 'menu') return content
+  for (const [npub, relays] of relayHints(content.items)) {
+    try {
+      const decoded = nip19.decode(npub)
+      if (decoded.type === 'npub') store.addRelayHints(decoded.data, relays)
+    } catch {
+      // an unresolvable npub simply carries no hint
+    }
+  }
+  return content
 }
 
 function contentFromDoc(ev: Event, npub: string): Content {
@@ -80,11 +102,18 @@ async function resolveVirtual(
       return { kind: 'text', title: 'Profile', body: virtual.profileText(profile, route.npub) }
     }
     case 'notes': {
-      const notes = await store.notes(route.pubkey)
+      const notes = await store.notes(route.pubkey, m.before)
+      const oldest = notes.length === virtual.PAGE ? (notes.at(-1)?.created_at ?? null) : null
       return {
         kind: 'menu',
-        title: 'Notes',
-        items: resolveMapLines(virtual.notesMenuLines(notes), route.npub),
+        title: m.before === undefined ? 'Notes' : 'Notes (older)',
+        items: resolveMapLines(
+          [
+            ...virtual.notesMenuLines(notes),
+            ...virtual.pageLines('/notes', oldest, m.before !== undefined),
+          ],
+          route.npub,
+        ),
       }
     }
     case 'note': {
@@ -98,9 +127,12 @@ async function resolveVirtual(
         m.kind === 'follows'
           ? await store.contacts(route.pubkey)
           : await store.followers(route.pubkey)
-      const capped = pubkeys.slice(0, 200)
-      const profiles = await store.profilesBatch(capped)
-      const people = capped.map((pk) => {
+      // A big follow list is paged by offset rather than truncated, so the
+      // tail is reachable instead of silently dropped.
+      const from = Math.min(m.from ?? 0, Math.max(pubkeys.length - 1, 0))
+      const page = pubkeys.slice(from, from + virtual.PEOPLE_PAGE)
+      const profiles = await store.profilesBatch(page)
+      const people = page.map((pk) => {
         const npub = nip19.npubEncode(pk)
         const profile = virtual.parseProfile(profiles.get(pk) ?? null)
         return { npub, name: virtual.displayName(profile, npub), about: profile?.about }
@@ -111,24 +143,31 @@ async function resolveVirtual(
         m.kind === 'follows'
           ? 'No follows found (kind 3 empty or unreachable).'
           : 'No followers found on these relays.'
+      const base = m.kind === 'follows' ? '/follows' : '/followers'
       const lines = virtual.peopleMenuLines(people, empty)
-      const note =
-        pubkeys.length > capped.length
-          ? [{ type: 'i' as const, display: `(showing ${capped.length} of ${pubkeys.length})` }]
-          : []
       return {
         kind: 'menu',
         title,
-        items: resolveMapLines([...note, ...lines], route.npub),
+        items: resolveMapLines(
+          [...lines, ...virtual.offsetLines(base, pubkeys.length, from, page.length)],
+          route.npub,
+        ),
       }
     }
 
     case 'articles': {
-      const articles = await store.articles(route.pubkey)
+      const articles = await store.articles(route.pubkey, m.before)
+      const oldest = articles.length === virtual.PAGE ? (articles.at(-1)?.created_at ?? null) : null
       return {
         kind: 'menu',
-        title: 'Articles',
-        items: resolveMapLines(virtual.articlesMenuLines(articles), route.npub),
+        title: m.before === undefined ? 'Articles' : 'Articles (older)',
+        items: resolveMapLines(
+          [
+            ...virtual.articlesMenuLines(articles),
+            ...virtual.pageLines('/articles', oldest, m.before !== undefined),
+          ],
+          route.npub,
+        ),
       }
     }
     case 'article': {
@@ -153,7 +192,7 @@ async function search(
     items.push({ type, display, target: { scheme: 'hole', npub: route.npub, path } })
   }
   const matches = (...texts: (string | undefined)[]): boolean =>
-    texts.some((t) => t !== undefined && t.toLowerCase().includes(q))
+    texts.some((t) => t?.toLowerCase().includes(q))
 
   for (const ev of await store.hole(route.pubkey)) {
     if (matches(ev.content, docTitle(ev))) {

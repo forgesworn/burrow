@@ -18,8 +18,8 @@ import {
   type GopherTarget,
 } from './target.ts'
 import { renderNumbered, pageLinks } from './cliview.ts'
-import { BookmarkStore } from './bookmarks.ts'
-import { PairingStore } from './identity.ts'
+import type { BookmarkStore } from './bookmarks.ts'
+import type { PairingStore } from './identity.ts'
 import { resolveSigner } from './signing.ts'
 import { cmdPost, cmdWhoami, cmdPair, cmdUnpair } from './commands.ts'
 import { parseProfile, displayName } from './virtual.ts'
@@ -154,6 +154,10 @@ export async function fetchLocation(
     const fetcher = deps.gopher ?? browseGopher
     return fetcher(loc, query)
   }
+  // NIP-19 relay hints on the address the user gave us widen the read set
+  // for that author, so `nostr:nprofile1...` finds a hole on relays this
+  // client does not otherwise carry.
+  if (loc.relays) deps.store.addRelayHints(loc.pubkey, loc.relays)
   const route =
     query === undefined
       ? ({ kind: 'doc', pubkey: loc.pubkey, npub: loc.npub, path: loc.path } as const)
@@ -241,7 +245,9 @@ export function parseBrowseCommand(line: string): BrowseCommand {
   switch ((word as string).toLowerCase()) {
     case 'go':
     case 'g':
-      return rest === '' ? { cmd: 'unknown', word: 'go needs a target' } : { cmd: 'go', target: rest }
+      return rest === ''
+        ? { cmd: 'unknown', word: 'go needs a target' }
+        : { cmd: 'go', target: rest }
     case 'search':
     case 's':
       return rest === ''
@@ -320,8 +326,10 @@ function pageOut(text: string): void {
     process.stdout.write(text)
     return
   }
-  const pager = process.env['PAGER'] ?? 'less'
-  const result = spawnSync(pager, { input: text, stdio: ['pipe', 'inherit', 'inherit'], shell: true })
+  // Split PAGER into command + args rather than running it through a shell,
+  // so an odd PAGER value cannot become shell code.
+  const [pager = 'less', ...pagerArgs] = (process.env['PAGER'] ?? 'less').split(/\s+/)
+  const result = spawnSync(pager, pagerArgs, { input: text, stdio: ['pipe', 'inherit', 'inherit'] })
   if (result.error) process.stdout.write(text)
 }
 
@@ -491,7 +499,12 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
           break
         }
         case 'history':
-          process.stdout.write(session.history().map((h) => `  ${h}`).join('\n') + '\n')
+          process.stdout.write(
+            `${session
+              .history()
+              .map((h) => `  ${h}`)
+              .join('\n')}\n`,
+          )
           break
         case 'post':
           process.stdout.write(await cmdPost(command.text, opts.relays, opts.pairings, false))

@@ -21,7 +21,10 @@ export function gopherLine(
   host: string,
   port: number,
 ): string {
-  return `${type}${clean(display)}\t${selector}\t${host}\t${port}\r\n`
+  // clean() every interpolated field, not just the display: a tab or CRLF
+  // in a selector or host (e.g. from a percent-decoded proxied gophermap,
+  // or a hostile event) would otherwise forge extra menu records.
+  return `${type}${clean(display)}\t${clean(selector)}\t${clean(host)}\t${Number(port) || 70}\r\n`
 }
 
 export function infoLine(display: string): string {
@@ -40,7 +43,15 @@ export function renderItem(item: MenuItem, bridge: BridgeAddr): string {
     case 'invalid':
       return infoLine(`${item.display} (${t.reason})`)
     case 'hole':
-      return gopherLine(item.type, item.display, holeSelector(t.npub, t.path), bridge.host, bridge.port)
+      return gopherLine(
+        item.type,
+        item.display,
+        holeSelector(t.npub, t.path),
+        bridge.host,
+        bridge.port,
+      )
+    case 'self':
+      return gopherLine(item.type, item.display, t.path, bridge.host, bridge.port)
     case 'gopher':
       return gopherLine(t.itemType, item.display, t.selector, t.host, t.port)
     case 'web':
@@ -49,7 +60,7 @@ export function renderItem(item: MenuItem, bridge: BridgeAddr): string {
 }
 
 export function renderMenuItems(items: MenuItem[], bridge: BridgeAddr): string {
-  return items.map((i) => renderItem(i, bridge)).join('') + '.\r\n'
+  return `${items.map((i) => renderItem(i, bridge)).join('')}.\r\n`
 }
 
 export function renderMenu(lines: MapLine[], ownerNpub: string, bridge: BridgeAddr): string {
@@ -60,7 +71,7 @@ export function renderText(content: string): string {
   const lines = content.split(/\r?\n/)
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   const stuffed = lines.map((l) => (l.startsWith('.') ? `.${l}` : l))
-  return stuffed.join('\r\n') + '\r\n.\r\n'
+  return `${stuffed.join('\r\n')}\r\n.\r\n`
 }
 
 export function renderError(message: string): string {

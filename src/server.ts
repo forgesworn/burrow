@@ -1,6 +1,6 @@
 import net from 'node:net'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseSelector, SelectorError } from './selector.ts'
+import { parseSelector, SelectorError, type Route } from './selector.ts'
 import {
   renderMenuItems,
   renderText,
@@ -34,7 +34,9 @@ export interface ServeOptions {
 }
 
 function isLoopback(addr: string | undefined): boolean {
-  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+  if (addr === undefined) return false
+  const bare = addr.replace(/^::ffff:/, '')
+  return bare === '::1' || bare === '127.0.0.1' || /^127\./.test(bare)
 }
 
 export function createGopherServer(opts: ServeOptions): net.Server {
@@ -47,6 +49,10 @@ export function createGopherServer(opts: ServeOptions): net.Server {
     }
     const local = isLoopback(socket.remoteAddress)
     socket.setTimeout(10_000, () => socket.destroy())
+    // Absolute deadline so a slow drip of bytes cannot hold a connection open
+    // indefinitely past the idle timeout.
+    const deadline = setTimeout(() => socket.destroy(), 15_000)
+    socket.on('close', () => clearTimeout(deadline))
     socket.on('error', () => socket.destroy())
     let buf = ''
     let handled = false
@@ -94,7 +100,7 @@ export async function respond(
     }
   }
 
-  let route
+  let route: Route
   try {
     route = parseSelector(line)
   } catch (err) {
@@ -157,5 +163,5 @@ async function welcome(
       out += gopherLine('1', name, `/${npub}`, host, port)
     }
   }
-  return out + '.\r\n'
+  return `${out}.\r\n`
 }

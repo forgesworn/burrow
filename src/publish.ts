@@ -62,6 +62,9 @@ export function docToTemplate(
     ['d', doc.path],
     ['type', doc.type],
     ['title', doc.title],
+    // NIP-31: a human-readable fallback so generic Nostr clients that do not
+    // understand kind 31436 can still render something meaningful.
+    ['alt', `gopherhole ${doc.type === '1' ? 'menu' : 'document'} at ${doc.path}`],
   ]
   if (expireSeconds !== undefined) tags.push(['expiration', String(createdAt + expireSeconds)])
   return { kind: BURROW_KIND, created_at: createdAt, tags, content: doc.content }
@@ -106,8 +109,21 @@ export async function publishHole(
       )
     }
   }
+  // Most relays cap event size (commonly 64-256 KB) and will silently reject
+  // an oversized document. Warn rather than fail, so a big page still tries.
+  const SIZE_WARN = 60 * 1024
+  for (const doc of docs) {
+    if (Buffer.byteLength(doc.content, 'utf8') > SIZE_WARN) {
+      console.error(
+        `warning: ${doc.path} is ${Math.round(Buffer.byteLength(doc.content, 'utf8') / 1024)} KB; ` +
+          'some relays may reject it.',
+      )
+    }
+  }
   const createdAt = Math.floor(Date.now() / 1000)
-  const events = docs.map((d) => finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret))
+  const events = docs.map((d) =>
+    finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret),
+  )
   const npub = nip19.npubEncode(getPublicKey(secret))
 
   if (opts.dryRun) {
@@ -129,7 +145,9 @@ export async function publishHole(
   pool.destroy()
   console.log(`\nPublished ${ok}/${docs.length} document(s)${failed ? `, ${failed} failed` : ''}.`)
   if (opts.expireSeconds !== undefined) {
-    console.log(`Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`)
+    console.log(
+      `Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`,
+    )
   }
   console.log(`Hole root selector: /${npub}`)
   console.log(`Try it: lynx gopher://127.0.0.1:7070/1/${npub}`)

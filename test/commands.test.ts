@@ -61,7 +61,7 @@ test('post refuses credential-shaped notes before signing', async (t) => {
   await assert.rejects(
     () =>
       withEnv({ BURROW_NSEC: nsecEncode(sk) }, () =>
-        cmdPost('bunker://abc?secret=' + 'f'.repeat(64), ['wss://stub.invalid'], pairings, true),
+        cmdPost(`bunker://abc?secret=${'f'.repeat(64)}`, ['wss://stub.invalid'], pairings, true),
       ),
     /refusing to sign/,
   )
@@ -106,7 +106,7 @@ test('terminal rendering shows menus, text and errors', () => {
     ],
   })
   assert.match(menu, /^Notes\n=====\n/)
-  assert.match(menu, /  A post\n {6}\/[a-z0-9]+\/notes\/x/)
+  assert.match(menu, / {2}A post\n {6}\/[a-z0-9]+\/notes\/x/)
   assert.equal(renderForTerminal({ kind: 'text', title: 't', body: 'body\n\n' }), 'body\n')
   assert.equal(renderForTerminal({ kind: 'error', message: 'nope' }), 'error: nope\n')
 })

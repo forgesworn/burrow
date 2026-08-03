@@ -128,6 +128,53 @@ test('gopher welcome advertises the personal menu only locally', async () => {
   assert.doesNotMatch(await respond('', opts, store, false), /You: feed/)
 })
 
+test('the personal menu links resolve when followed over the wire', async () => {
+  const store = makeStore()
+  const opts: ServeOptions = {
+    relays: ['wss://stub.invalid'],
+    bridge: { host: 'b.test', port: 70 },
+    pins: [],
+    signerFactory: async () => signer,
+    store,
+  }
+  const root = await respond('/me', opts, store, true)
+  // Every sublink must be a bare /me selector, never npub-prefixed, or the
+  // gopher client 404s when it follows it back.
+  const selectors = root
+    .split('\r\n')
+    .filter((l) => /^[17]/.test(l))
+    .map((l) => l.split('\t')[1] ?? '')
+  const meSelectors = selectors.filter((s) => s.includes('/me/'))
+  assert.ok(meSelectors.length > 0, 'menu should advertise /me sublinks')
+  for (const sel of meSelectors) {
+    assert.ok(sel.startsWith('/me/'), `selector ${sel} must be a bare /me path`)
+  }
+  // Following the feed selector renders the feed, not a "no document" error.
+  const feedSel = selectors.find((s) => s.endsWith('/me/feed'))
+  assert.ok(feedSel)
+  const feed = await respond(feedSel as string, opts, store, true)
+  assert.doesNotMatch(feed, /no document/)
+  assert.match(feed, /Your feed/)
+})
+
+test('the personal post prompt signs, it does not fall through to search', async () => {
+  const published: unknown[] = []
+  const store = makeStore(published)
+  const opts: ServeOptions = {
+    relays: ['wss://stub.invalid'],
+    bridge: { host: 'b.test', port: 70 },
+    pins: [],
+    signerFactory: async () => signer,
+    store,
+  }
+  const posted = await respond('/me/post\thello gopherspace', opts, store, true)
+  assert.match(posted, /iPosted/)
+  assert.doesNotMatch(posted, /Results for/)
+  const ev = published[0] as { kind: number; content: string }
+  assert.equal(ev.kind, 1)
+  assert.equal(ev.content, 'hello gopherspace')
+})
+
 test('without a signer the personal menu is unavailable even locally', async () => {
   const store = makeStore()
   const opts: ServeOptions = {

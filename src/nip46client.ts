@@ -2,6 +2,7 @@ import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import type { Event, EventTemplate } from 'nostr-tools'
 import { BunkerSigner, parseBunkerInput, createNostrConnectURI } from 'nostr-tools/nip46'
 import type { Pairing } from './identity.ts'
+import { urlHostBlocked } from './netguard.ts'
 
 // NIP-46 with hard timeouts on everything. nostr-tools has no per-request
 // timeout of its own, and a signer waiting for a human (or a powered-off
@@ -20,7 +21,7 @@ export interface RemoteSigner {
   sign(pairing: Pairing, template: EventTemplate, timeoutMs?: number): Promise<Event>
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(
       () => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)}s`)),
@@ -43,6 +44,11 @@ export class Nip46Client implements RemoteSigner {
   async pair(input: string, timeoutMs = 60_000): Promise<PairResult> {
     const bp = await withTimeout(parseBunkerInput(input.trim()), 10_000, 'resolving bunker address')
     if (!bp) throw new Error('not a valid bunker:// URI or NIP-05 bunker address')
+    // Don't let a remote pairing request point the bridge at an internal
+    // relay address (SSRF). Hostnames are allowed; bare private IPs are not.
+    if (bp.relays.some((r) => urlHostBlocked(r))) {
+      throw new Error('bunker relay address is not permitted')
+    }
     const sk = generateSecretKey()
     const signer = BunkerSigner.fromBunker(sk, bp)
     try {

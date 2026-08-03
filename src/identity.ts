@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, renameSync } from 'node:fs'
 import path from 'node:path'
 import type { BunkerPointer } from 'nostr-tools/nip46'
 
@@ -46,9 +46,15 @@ export class PairingStore {
   }
 
   private save(): void {
-    mkdirSync(path.dirname(this.file), { recursive: true })
-    writeFileSync(this.file, JSON.stringify([...this.map.values()], null, 2) + '\n', {
-      mode: 0o600,
-    })
+    const dir = path.dirname(this.file)
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    // Write to a temp file and rename so a crash mid-write cannot truncate
+    // the store and lose every pairing. writeFileSync's mode only applies on
+    // creation, so chmod explicitly in case the destination already exists.
+    const tmp = `${this.file}.${process.pid}.tmp`
+    writeFileSync(tmp, `${JSON.stringify([...this.map.values()], null, 2)}\n`, { mode: 0o600 })
+    chmodSync(tmp, 0o600)
+    renameSync(tmp, this.file)
+    chmodSync(this.file, 0o600)
   }
 }

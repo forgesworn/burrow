@@ -39,8 +39,18 @@ export function matchPersonal(path: string, query: string): PersonalRoute | null
   return null
 }
 
+// A link within the personal menu. Paths under /me are bare selectors on
+// this bridge (scheme 'self'), so they must not be npub-prefixed; anything
+// else (e.g. the public hole at '/') is an ordinary hole link.
 function selfLink(display: string, path: string, npub: string, type = '1'): MenuItem {
-  return { type, display, target: { scheme: 'hole', npub, path } }
+  const target: MenuItem['target'] = path.startsWith(PERSONAL_ROOT)
+    ? { scheme: 'self', path }
+    : { scheme: 'hole', npub, path }
+  return { type, display, target }
+}
+
+function meItem(display: string, path: string, type: string): MenuItem {
+  return { type, display, target: { scheme: 'self', path } }
 }
 
 export async function resolvePersonal(
@@ -61,7 +71,7 @@ export async function resolvePersonal(
         info(''),
         info(`signing with: ${signer.describe}`),
         info(''),
-        { type: '7', display: 'Post a note (type it at the prompt)', target: { scheme: 'hole', npub, path: `${PERSONAL_ROOT}/post` } },
+        meItem('Post a note (type it at the prompt)', `${PERSONAL_ROOT}/post`, '7'),
         info(''),
         selfLink('Your feed', `${PERSONAL_ROOT}/feed`, npub),
         selfLink('Your notes (with delete links)', `${PERSONAL_ROOT}/notes`, npub),
@@ -137,11 +147,9 @@ export async function resolvePersonal(
           display: `${isoDate(ev.created_at)}  ${firstLine(ev.content, 60)}`,
           target: { scheme: 'hole', npub, path: `/notes/${ev.id}` },
         })
-        items.push({
-          type: '7',
-          display: `      delete this note (type: delete)`,
-          target: { scheme: 'hole', npub, path: `${PERSONAL_ROOT}/delete/${ev.id}` },
-        })
+        items.push(
+          meItem('      delete this note (type: delete)', `${PERSONAL_ROOT}/delete/${ev.id}`, '7'),
+        )
       }
       return { kind: 'menu', title: 'Your notes', items }
     }
@@ -152,10 +160,7 @@ export async function resolvePersonal(
         return {
           kind: 'menu',
           title: 'Post a note',
-          items: [
-            info('Nothing typed, nothing posted.'),
-            selfLink('Back', PERSONAL_ROOT, npub),
-          ],
+          items: [info('Nothing typed, nothing posted.'), selfLink('Back', PERSONAL_ROOT, npub)],
         }
       }
       const leak = findSecret(text)

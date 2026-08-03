@@ -1,6 +1,7 @@
 import * as nip19 from 'nostr-tools/nip19'
 import type { MapLine } from './linemap.ts'
 import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { safeRelayUrls } from './netguard.ts'
 
 // Protocol-neutral link resolution: burrowmap lines become MenuItems with
 // abstract targets, which the gopher and gemini renderers turn into wire
@@ -8,7 +9,13 @@ import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
 
 export type LinkTarget =
   | { scheme: 'none' }
-  | { scheme: 'hole'; npub: string; path: string }
+  // `relays` carries the NIP-19 hints from an nprofile/naddr link, so a
+  // bridge can find the linked hole on relays it does not itself carry.
+  // It never reaches the wire: a gopher selector has nowhere to put it.
+  | { scheme: 'hole'; npub: string; path: string; relays?: string[] }
+  // A bare selector on this bridge, not prefixed with an npub. Used by the
+  // loopback /me menu, whose paths are the selectors themselves.
+  | { scheme: 'self'; path: string }
   | { scheme: 'gopher'; host: string; port: number; itemType: string; selector: string }
   | { scheme: 'web'; url: string }
   | { scheme: 'invalid'; reason: string }
@@ -23,8 +30,37 @@ export function info(display: string): MenuItem {
   return { type: 'i', display, target: { scheme: 'none' } }
 }
 
+// Only these schemes may become a rendered link. Blocks javascript: and
+// data: URLs, which a hostile gopher server could otherwise plant in an
+// h/URL: line and have the HTML frontend emit as a live href.
+const SAFE_URL = /^(?:https?|gopher|gemini|nostr):/i
+
+export function isSafeWebUrl(url: string): boolean {
+  return SAFE_URL.test(url.trim())
+}
+
+// Spread form, so a target with no usable hint is byte-identical to one
+// built before hints existed.
+function hints(relays: string[]): { relays?: string[] } {
+  return relays.length > 0 ? { relays } : {}
+}
+
+// Every relay hint a rendered menu carries, keyed by npub. A gopher
+// selector cannot carry the hint to the next request, so the bridge
+// remembers it instead: see HoleStore.addRelayHints.
+export function relayHints(items: MenuItem[]): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const item of items) {
+    const t = item.target
+    if (t.scheme !== 'hole' || !t.relays || t.relays.length === 0) continue
+    const prev = out.get(t.npub)
+    out.set(t.npub, prev ? [...new Set([...prev, ...t.relays])] : t.relays)
+  }
+  return out
+}
+
 function normalisePath(p: string): string {
-  const cleaned = ('/' + p.replace(/^\/+/, '')).replace(/\/+$/, '')
+  const cleaned = `/${p.replace(/^\/+/, '')}`.replace(/\/+$/, '')
   return cleaned === '' ? '/' : cleaned
 }
 
@@ -49,16 +85,31 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
       }
       if (decoded.type === 'nprofile') {
         const npub = nip19.npubEncode(decoded.data.pubkey)
-        return { type, display, target: { scheme: 'hole', npub, path: '/' } }
+        const relays = safeRelayUrls(decoded.data.relays)
+        return { type, display, target: { scheme: 'hole', npub, path: '/', ...hints(relays) } }
       }
       if (decoded.type === 'naddr') {
         const { kind, pubkey, identifier } = decoded.data
         const npub = nip19.npubEncode(pubkey)
+        const relays = safeRelayUrls(decoded.data.relays)
         if (kind === BURROW_KIND) {
-          return { type, display, target: { scheme: 'hole', npub, path: normalisePath(identifier) } }
+          return {
+            type,
+            display,
+            target: { scheme: 'hole', npub, path: normalisePath(identifier), ...hints(relays) },
+          }
         }
         if (kind === LONG_FORM_KIND) {
-          return { type: '0', display, target: { scheme: 'hole', npub, path: `/articles/${identifier}` } }
+          return {
+            type: '0',
+            display,
+            target: {
+              scheme: 'hole',
+              npub,
+              path: `/articles/${identifier}`,
+              ...hints(relays),
+            },
+          }
         }
       }
       throw new Error('unsupported entity')
@@ -74,7 +125,11 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
       const port = url.port === '' ? 70 : Number(url.port)
       const itemType = url.pathname.length > 1 ? url.pathname[1]! : '1'
       const selector = url.pathname.length > 2 ? decodeURIComponent(url.pathname.slice(2)) : ''
-      return { type, display, target: { scheme: 'gopher', host: url.hostname, port, itemType, selector } }
+      return {
+        type,
+        display,
+        target: { scheme: 'gopher', host: url.hostname, port, itemType, selector },
+      }
     } catch {
       return { type: 'i', display, target: { scheme: 'invalid', reason: 'bad gopher url' } }
     }

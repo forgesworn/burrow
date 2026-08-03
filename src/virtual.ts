@@ -38,29 +38,82 @@ export function displayName(profile: Profile | null, npub: string): string {
   return profile?.name ?? `${npub.slice(0, 16)}...`
 }
 
+// A page of a generated stream. Gopher has no query string, so a cursor
+// lives in the path: `/notes/before/<unix>` for the time-ordered streams,
+// `/follows/from/<n>` for the flat people lists. Both are reserved: an
+// author's own document at that path still shadows the generated one.
 export type VirtualPath =
   | { kind: 'root' }
   | { kind: 'profile' }
-  | { kind: 'notes' }
+  | { kind: 'notes'; before?: number }
   | { kind: 'note'; id: string }
-  | { kind: 'articles' }
+  | { kind: 'articles'; before?: number }
   | { kind: 'article'; d: string }
-  | { kind: 'follows' }
-  | { kind: 'followers' }
+  | { kind: 'follows'; from?: number }
+  | { kind: 'followers'; from?: number }
+
+// How many entries a generated page holds before it offers an older one.
+export const PAGE = 20
+export const PEOPLE_PAGE = 200
+
+const BEFORE = /^before\/(\d{1,10})$/
+const FROM = /^from\/(\d{1,7})$/
+
+function peoplePage(kind: 'follows' | 'followers', rest: string): VirtualPath | null {
+  const m = FROM.exec(rest)
+  return m ? { kind, from: Number(m[1]) } : null
+}
 
 export function matchVirtualPath(path: string): VirtualPath | null {
   if (path === '/') return { kind: 'root' }
   if (path === '/profile.txt') return { kind: 'profile' }
   if (path === '/follows') return { kind: 'follows' }
   if (path === '/followers') return { kind: 'followers' }
+  if (path.startsWith('/follows/')) return peoplePage('follows', path.slice('/follows/'.length))
+  if (path.startsWith('/followers/')) {
+    return peoplePage('followers', path.slice('/followers/'.length))
+  }
   if (path === '/notes') return { kind: 'notes' }
   if (path.startsWith('/notes/')) {
-    const id = path.slice('/notes/'.length)
-    return /^[0-9a-f]{64}$/.test(id) ? { kind: 'note', id } : null
+    const rest = path.slice('/notes/'.length)
+    if (/^[0-9a-f]{64}$/.test(rest)) return { kind: 'note', id: rest }
+    const m = BEFORE.exec(rest)
+    return m ? { kind: 'notes', before: Number(m[1]) } : null
   }
   if (path === '/articles') return { kind: 'articles' }
-  if (path.startsWith('/articles/')) return { kind: 'article', d: path.slice('/articles/'.length) }
+  if (path.startsWith('/articles/')) {
+    const rest = path.slice('/articles/'.length)
+    const m = BEFORE.exec(rest)
+    return m ? { kind: 'articles', before: Number(m[1]) } : { kind: 'article', d: rest }
+  }
   return null
+}
+
+// The navigation tail of a generated page: an older-page link when this one
+// filled up, and a way back to the top once the reader has paged down.
+export function pageLines(base: string, oldest: number | null, paged: boolean): MapLine[] {
+  const lines: MapLine[] = []
+  if (oldest !== null || paged) lines.push({ type: 'i', display: '' })
+  if (oldest !== null) {
+    lines.push({ type: '1', display: 'Older', link: `${base}/before/${oldest}` })
+  }
+  if (paged) lines.push({ type: '1', display: 'Back to the latest', link: base })
+  return lines
+}
+
+// The same tail for a flat list paged by offset rather than time.
+export function offsetLines(base: string, total: number, from: number, shown: number): MapLine[] {
+  const lines: MapLine[] = []
+  const next = from + shown
+  if (next >= total && from === 0) return lines
+  lines.push({ type: 'i', display: '' })
+  lines.push({
+    type: 'i',
+    display: `showing ${total === 0 ? 0 : from + 1}-${next} of ${total}`,
+  })
+  if (next < total) lines.push({ type: '1', display: 'More', link: `${base}/from/${next}` })
+  if (from > 0) lines.push({ type: '1', display: 'Back to the start', link: base })
+  return lines
 }
 
 export function wrap(text: string, width = 68): string[] {
@@ -124,7 +177,7 @@ export function profileText(profile: Profile | null, npub: string): string {
   if (profile?.website) rows.push(`web:     ${profile.website}`)
   if (profile?.lud16) rows.push(`zap:     ${profile.lud16}`)
   if (profile?.about) rows.push('', ...wrap(profile.about))
-  return rows.join('\n') + '\n'
+  return `${rows.join('\n')}\n`
 }
 
 export function notesMenuLines(notes: Event[]): MapLine[] {
@@ -137,7 +190,7 @@ export function notesMenuLines(notes: Event[]): MapLine[] {
 }
 
 export function noteText(ev: Event): string {
-  return [`date: ${isoDate(ev.created_at)}`, `id:   ${ev.id}`, '', ev.content].join('\n') + '\n'
+  return `${[`date: ${isoDate(ev.created_at)}`, `id:   ${ev.id}`, '', ev.content].join('\n')}\n`
 }
 
 function articleTitle(ev: Event): string {
@@ -158,5 +211,5 @@ export function articleText(ev: Event): string {
   const summary = tagValue(ev, 'summary')
   if (summary) rows.push('', ...wrap(summary))
   rows.push('', ev.content)
-  return rows.join('\n') + '\n'
+  return `${rows.join('\n')}\n`
 }

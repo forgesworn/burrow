@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import net from 'node:net'
+import type net from 'node:net'
+import http from 'node:http'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -11,6 +12,13 @@ import { createHttpServer, type HttpOptions } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
 import { esc } from '../src/html.ts'
 import { makeStore, sk, npub, note } from './helpers.ts'
+
+// The loopback operator's forms carry a server-lifetime CSRF token; grab it
+// from the /post form to drive the write endpoints the way lynx would.
+async function operatorCsrf(base: string): Promise<string> {
+  const form = await (await fetch(`${base}/post`)).text()
+  return /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
+}
 
 function withNsec<T>(fn: () => Promise<T>): Promise<T> {
   const saved = process.env['BURROW_NSEC']
@@ -114,10 +122,12 @@ test('http frontend', async (t) => {
     await withNsec(async () => {
       const form = await (await fetch(`${base}/post`)).text()
       assert.match(form, /<textarea name="text"/)
+      const csrf = /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
+      assert.ok(csrf.length > 0, 'form must carry a csrf token')
       const res = await fetch(`${base}/post`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ text: 'hello from lynx' }),
+        body: new URLSearchParams({ text: 'hello from lynx', csrf }),
       })
       const body = await res.text()
       assert.match(body, /<h1>Posted<\/h1>/)
@@ -132,10 +142,11 @@ test('http frontend', async (t) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
     await withNsec(async () => {
+      const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/post`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ text: `bunker://x?secret=${'f'.repeat(64)}` }),
+        body: new URLSearchParams({ text: `bunker://x?secret=${'f'.repeat(64)}`, csrf }),
       })
       assert.match(await res.text(), /Not posting that/)
       assert.equal(published.length, 0)
@@ -149,10 +160,11 @@ test('http frontend', async (t) => {
       const view = await (await fetch(`${base}/${npub}/notes/${note.id}`)).text()
       assert.match(view, /Delete this note/)
       assert.match(view, new RegExp(`value="${note.id}"`))
+      const csrf = /name="csrf" value="([^"]+)"/.exec(view)?.[1] ?? ''
       const res = await fetch(`${base}/delete`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ id: note.id }),
+        body: new URLSearchParams({ id: note.id, csrf }),
       })
       assert.match(await res.text(), /Deletion requested/)
       const ev = published[0] as { kind: number; tags: string[][] }
@@ -166,10 +178,11 @@ test('http frontend', async (t) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
     await withNsec(async () => {
+      const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/delete`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ id: 'zz' }),
+        body: new URLSearchParams({ id: 'zz', csrf }),
       })
       assert.equal(res.status, 400)
       assert.equal(published.length, 0)
@@ -198,16 +211,80 @@ test('http frontend', async (t) => {
         await fetch(`${base}/${nip19.npubEncode(strangerNote.pubkey)}/notes/${strangerNote.id}`)
       ).text()
       assert.doesNotMatch(view, /Delete this note/)
-      // and a forged POST is refused server-side
+      // even with a valid operator token, deleting a stranger's note is refused
+      const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/delete`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ id: strangerNote.id }),
+        body: new URLSearchParams({ id: strangerNote.id, csrf }),
       })
       assert.equal(res.status, 403)
       assert.match(await res.text(), /Not yours/)
       assert.equal(published.length, 0)
     })
+  })
+
+  await t.test('a POST without the csrf token is refused', async (t2) => {
+    const published: unknown[] = []
+    const base = await start(t2, {}, published)
+    await withNsec(async () => {
+      const res = await fetch(`${base}/post`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ text: 'no token here' }),
+      })
+      assert.equal(res.status, 403)
+      assert.equal(published.length, 0)
+    })
+  })
+
+  await t.test('a cross-site Origin is refused even with a valid token', async (t2) => {
+    const published: unknown[] = []
+    const base = await start(t2, {}, published)
+    await withNsec(async () => {
+      const csrf = await operatorCsrf(base)
+      const res = await fetch(`${base}/post`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          origin: 'https://evil.example',
+        },
+        body: new URLSearchParams({ text: 'from evil', csrf }),
+      })
+      assert.equal(res.status, 403)
+      assert.equal(published.length, 0)
+    })
+  })
+
+  await t.test('a loopback connection with a foreign Host is not the operator', async (t2) => {
+    const base = await start(t2)
+    const port = Number(new URL(base).port)
+    await withNsec(async () => {
+      // fetch() forbids overriding Host, so drive a raw request that can.
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = http.request(
+          { host: '127.0.0.1', port, path: '/account', headers: { host: 'attacker.example' } },
+          (res) => {
+            let data = ''
+            res.on('data', (c) => (data += c))
+            res.on('end', () => resolve(data))
+          },
+        )
+        req.on('error', reject)
+        req.end()
+      })
+      // DNS-rebinding signature: loopback socket, foreign Host -> no operator trust
+      assert.doesNotMatch(body, /Signed in as/)
+      assert.match(body, /Sign in/)
+    })
+  })
+
+  await t.test('responses carry security headers', async (t2) => {
+    const base = await start(t2)
+    const res = await fetch(`${base}/`)
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff')
+    assert.equal(res.headers.get('x-frame-options'), 'DENY')
+    assert.match(res.headers.get('content-security-policy') ?? '', /default-src 'none'/)
   })
 
   await t.test('feed renders follows', async (t2) => {

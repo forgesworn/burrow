@@ -1,5 +1,6 @@
 import type { Content } from './router.ts'
 import type { MenuItem } from './resolve.ts'
+import { isSafeWebUrl } from './resolve.ts'
 import { targetRef } from './gemtext.ts'
 import { proxyPath } from './gopherclient.ts'
 
@@ -46,6 +47,8 @@ function href(item: MenuItem): string | null {
     const t = item.target
     return proxyPath({ host: t.host, port: t.port, type: t.itemType, selector: t.selector })
   }
+  // Defence in depth: never emit an href for a non-allowlisted scheme.
+  if (item.target.scheme === 'web' && !isSafeWebUrl(item.target.url)) return null
   return targetRef(item)
 }
 
@@ -64,9 +67,7 @@ export function renderMenuHtml(title: string, items: MenuItem[]): string {
     const link = href(item)
     if (link === null) {
       run.push(
-        item.target.scheme === 'invalid'
-          ? `${item.display} (${item.target.reason})`
-          : item.display,
+        item.target.scheme === 'invalid' ? `${item.display} (${item.target.reason})` : item.display,
       )
     } else {
       flush()

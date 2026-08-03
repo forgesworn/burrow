@@ -23,7 +23,8 @@ export class BookmarkStore {
       if (!Array.isArray(parsed)) return []
       return parsed.filter(
         (b): b is Bookmark =>
-          typeof b === 'object' && b !== null &&
+          typeof b === 'object' &&
+          b !== null &&
           typeof (b as Bookmark).name === 'string' &&
           typeof (b as Bookmark).ref === 'string',
       )
@@ -52,6 +53,6 @@ export class BookmarkStore {
 
   private write(marks: Bookmark[]): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true })
-    fs.writeFileSync(this.file, JSON.stringify(marks, null, 2) + '\n')
+    fs.writeFileSync(this.file, `${JSON.stringify(marks, null, 2)}\n`)
   }
 }

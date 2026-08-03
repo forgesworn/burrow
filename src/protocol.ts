@@ -8,7 +8,21 @@ export const PROFILE_KIND = 0
 export const NOTE_KIND = 1
 export const CONTACTS_KIND = 3
 export const DELETE_KIND = 5
+export const RELAY_LIST_KIND = 10002
 export const LONG_FORM_KIND = 30023
+
+// NIP-65: an author's write relays are where their events actually live.
+// `r` tags are `["r", url]` (read+write) or `["r", url, "read"|"write"]`.
+export function writeRelays(ev: Event, max = 4): string[] {
+  const out: string[] = []
+  for (const t of ev.tags) {
+    if (t[0] !== 'r' || !t[1]) continue
+    const marker = t[2]
+    if (marker === undefined || marker === 'write') out.push(t[1])
+    if (out.length >= max) break
+  }
+  return out
+}
 
 export function isoDate(ts: number): string {
   return new Date(ts * 1000).toISOString().slice(0, 10)

@@ -14,7 +14,12 @@ import { pubkey, npub } from './helpers.ts'
 
 test('npub forms parse to hole targets', () => {
   assert.deepEqual(parseClientTarget(npub), { kind: 'hole', pubkey, npub, path: '/' })
-  assert.deepEqual(parseClientTarget(`${npub}/notes`), { kind: 'hole', pubkey, npub, path: '/notes' })
+  assert.deepEqual(parseClientTarget(`${npub}/notes`), {
+    kind: 'hole',
+    pubkey,
+    npub,
+    path: '/notes',
+  })
   assert.deepEqual(parseClientTarget(`nostr:${npub}/notes/`), {
     kind: 'hole',
     pubkey,
@@ -90,7 +95,7 @@ test('a bridge url with an npub selector goes native', () => {
     host: 'example.org',
     port: 70,
     type: '0',
-    selector: 'file.txt',
+    selector: '/file.txt',
   })
 })
 
@@ -122,7 +127,10 @@ test('nip-05 names resolve to hole targets', async () => {
 
   // A throwing resolver reads as unresolvable, not a crash.
   await assert.rejects(
-    () => resolveClientTarget('donkey@example.org', async () => { throw new Error('offline') }),
+    () =>
+      resolveClientTarget('donkey@example.org', async () => {
+        throw new Error('offline')
+      }),
     TargetError,
   )
 
@@ -150,10 +158,7 @@ test('refs round-trip through the parser', () => {
 })
 
 test('describeTarget is short and readable', () => {
-  assert.equal(
-    describeTarget(parseClientTarget(`${npub}/notes`)),
-    `${npub.slice(0, 12)}.../notes`,
-  )
+  assert.equal(describeTarget(parseClientTarget(`${npub}/notes`)), `${npub.slice(0, 12)}.../notes`)
   assert.equal(
     describeTarget(parseClientTarget('gopher://gopher.floodgap.com/0/gopher/relevance.txt')),
     'gopher.floodgap.com/gopher/relevance.txt',
@@ -170,7 +175,13 @@ test('upOf walks towards the root and stops there', () => {
 
   const file = parseClientTarget('gopher://example.org/0/docs/file.txt')
   const dir = upOf(file)
-  assert.deepEqual(dir, { kind: 'gopher', host: 'example.org', port: 70, type: '1', selector: '/docs' })
+  assert.deepEqual(dir, {
+    kind: 'gopher',
+    host: 'example.org',
+    port: 70,
+    type: '1',
+    selector: '/docs',
+  })
   const top = upOf(dir!)
   assert.deepEqual(top, { kind: 'gopher', host: 'example.org', port: 70, type: '1', selector: '' })
   assert.equal(upOf(top!), null)

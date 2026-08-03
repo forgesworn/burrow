@@ -8,7 +8,7 @@ import { targetRef } from './gemtext.ts'
 export function renderForTerminal(content: Content): string {
   switch (content.kind) {
     case 'text':
-      return content.body.replace(/\n+$/, '') + '\n'
+      return `${content.body.replace(/\n+$/, '')}\n`
     case 'error':
       return `error: ${content.message}\n`
     case 'menu': {
@@ -26,7 +26,7 @@ export function renderForTerminal(content: Content): string {
           out.push(`      ${ref}`)
         }
       }
-      return out.join('\n') + '\n'
+      return `${out.join('\n')}\n`
     }
   }
 }
@@ -45,7 +45,7 @@ export function pageLinks(content: Content): MenuItem[] {
 export function renderNumbered(content: Content): string {
   switch (content.kind) {
     case 'text':
-      return content.body.replace(/\n+$/, '') + '\n'
+      return `${content.body.replace(/\n+$/, '')}\n`
     case 'error':
       return `error: ${content.message}\n`
     case 'menu': {
@@ -62,10 +62,12 @@ export function renderNumbered(content: Content): string {
         } else {
           n += 1
           const marker = item.type === '7' ? '?' : item.target.scheme === 'web' ? 'w' : ''
-          out.push(`[${String(n).padStart(width)}] ${item.display}${marker === '' ? '' : ` (${marker})`}`)
+          out.push(
+            `[${String(n).padStart(width)}] ${item.display}${marker === '' ? '' : ` (${marker})`}`,
+          )
         }
       }
-      return out.join('\n') + '\n'
+      return `${out.join('\n')}\n`
     }
   }
 }

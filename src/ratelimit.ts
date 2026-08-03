@@ -3,7 +3,28 @@ interface Bucket {
   at: number
 }
 
-// Per-IP token bucket. Bounded so a scan of the IPv6 space can't eat the
+// Collapse an address to its rate-limit key. A single client is routinely
+// handed a whole IPv6 /64, so keying on the full address would let it cycle
+// through fresh buckets forever (and evict everyone else's); key on the /64
+// instead, and fold IPv4-mapped forms onto the embedded v4 address so they
+// don't get a second free bucket.
+export function limitKey(ip: string): string {
+  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(ip)
+  if (mapped) return mapped[1] as string
+  if (ip.includes(':')) {
+    // Expand a compressed address so "the first four hextets" really is the
+    // /64 network, then key on that and drop the interface identifier.
+    const [head, tail = ''] = ip.split('::')
+    const headGroups = head === '' ? [] : head.split(':')
+    const tailGroups = tail === '' ? [] : tail.split(':')
+    const fill = ip.includes('::') ? Array(8 - headGroups.length - tailGroups.length).fill('0') : []
+    const groups = [...headGroups, ...fill, ...tailGroups]
+    return `${groups.slice(0, 4).join(':')}::/64`
+  }
+  return ip
+}
+
+// Per-key token bucket. Bounded so a scan of the address space can't eat the
 // heap; least-recently-seen buckets are dropped first.
 export class RateLimiter {
   private buckets = new Map<string, Bucket>()
@@ -16,7 +37,8 @@ export class RateLimiter {
     this.refillPerSec = refillPerSec
   }
 
-  allow(ip: string): boolean {
+  allow(rawIp: string): boolean {
+    const ip = limitKey(rawIp)
     const now = Date.now()
     let bucket = this.buckets.get(ip)
     if (bucket) {

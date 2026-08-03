@@ -1,7 +1,7 @@
 import net from 'node:net'
 import type { Content } from './router.ts'
 import type { MenuItem } from './resolve.ts'
-import { info } from './resolve.ts'
+import { info, isSafeWebUrl } from './resolve.ts'
 import {
   holeFromSelector,
   parseClientTarget,
@@ -20,14 +20,22 @@ export { parseProxyPath, proxyPath, type GopherTarget }
 export function fetchGopher(
   target: GopherTarget,
   query?: string,
+  connectHost?: string,
   timeoutMs = 10_000,
   maxBytes = 512 * 1024,
 ): Promise<string> {
   const request = query === undefined ? target.selector : `${target.selector}\t${query}`
   return new Promise((resolve, reject) => {
+    // A CR, LF or NUL in the request line lets a caller inject additional
+    // commands into newline-delimited services (Redis, memcached, ...): the
+    // classic gopher SSRF payload. Refuse it before opening the socket.
+    if (/[\r\n\0]/.test(request)) {
+      reject(new Error('bad selector'))
+      return
+    }
     const chunks: Buffer[] = []
     let total = 0
-    const socket = net.connect(target.port, target.host, () => {
+    const socket = net.connect(target.port, connectHost ?? target.host, () => {
       socket.write(`${request}\r\n`)
     })
     socket.setTimeout(timeoutMs, () => {
@@ -90,9 +98,14 @@ export function parseGopherMenu(body: string): MenuItem[] {
       continue
     }
     if (type === 'h' && selector.startsWith('URL:')) {
-      items.push(
-        nostrAware({ type: 'h', display, target: { scheme: 'web', url: selector.slice(4) } }),
-      )
+      const url = selector.slice(4)
+      if (isSafeWebUrl(url)) {
+        items.push(nostrAware({ type: 'h', display, target: { scheme: 'web', url } }))
+      } else {
+        // javascript:/data:/file: etc. from a hostile server: keep the text,
+        // drop the link.
+        items.push(info(display))
+      }
       continue
     }
     items.push(
@@ -106,16 +119,21 @@ export function parseGopherMenu(body: string): MenuItem[] {
   return items
 }
 
-export async function browseGopher(target: GopherTarget, query?: string): Promise<Content> {
+export async function browseGopher(
+  target: GopherTarget,
+  query?: string,
+  connectHost?: string,
+): Promise<Content> {
   let body: string
   try {
-    body = await fetchGopher(target, query)
+    body = await fetchGopher(target, query, connectHost)
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : 'gopher fetch failed' }
   }
-  const sel = target.selector === '' || target.selector.startsWith('/')
-    ? target.selector
-    : `/${target.selector}`
+  const sel =
+    target.selector === '' || target.selector.startsWith('/')
+      ? target.selector
+      : `/${target.selector}`
   const title = `gopher://${target.host}${target.port === 70 ? '' : `:${target.port}`}/${target.type}${sel}`
   if (target.type === '1' || target.type === '7') {
     return { kind: 'menu', title, items: parseGopherMenu(body) }

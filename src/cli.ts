@@ -20,6 +20,7 @@ import {
   cmdUnpair,
   cmdWhoami,
   cmdDelete,
+  cmdAnnounce,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner } from './signing.ts'
@@ -51,9 +52,14 @@ const USAGE = `usage:
   bridge:
     burrow serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
                  [--gemini-port 1965] [--no-gemini] [--http-port 8070] [--no-http]
-                 [--no-local-trust] [--cert f --key f] [--state-dir d]
+                 [--no-local-trust] [--trust-loopback-anyway]
+                 [--cert f --key f] [--state-dir d]
                  [--pin npub1...]... [--no-virtual] [--no-identity]
       the http frontend is the one to point lynx at for the full client.
+    burrow announce --hostname bridge.example [--http-url https://bridge.example]
+                    [--gopher-port 70] [--gemini-port 1965] [--no-gemini]
+                    [--name n] [--about a] [--dry-run]
+      tells nostr clients this bridge opens kind 31436 (NIP-89).
 
   every command takes [--relay wss://...]... and [--state-dir d].
 
@@ -106,6 +112,7 @@ if (command === 'serve') {
       'http-port': { type: 'string', default: '8070' },
       'no-http': { type: 'boolean', default: false },
       'no-local-trust': { type: 'boolean', default: false },
+      'trust-loopback-anyway': { type: 'boolean', default: false },
     },
   })
   const port = Number(values.port)
@@ -119,7 +126,39 @@ if (command === 'serve') {
 
   const serveStateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
   const servePairings = new PairingStore(path.join(serveStateDir, 'pairings.json'))
-  const localTrust = !values['no-local-trust'] && !values['no-identity']
+  // Operator trust is granted on connection origin (loopback). Behind a
+  // reverse proxy every request originates on loopback, so trusting it when
+  // the bridge is bound to a public address would hand the operator's signer
+  // to every visitor. Only trust loopback when the bind is itself loopback,
+  // unless the operator explicitly overrides.
+  const bindIsLoopback =
+    values.host === '127.0.0.1' || values.host === '::1' || values.host === 'localhost'
+  const trustLoopback = bindIsLoopback || values['trust-loopback-anyway']
+  if (!bindIsLoopback && !values['no-local-trust'] && !values['trust-loopback-anyway']) {
+    console.log(
+      '  operator trust is OFF: bound to a non-loopback address. Behind a reverse\n' +
+        '  proxy, loopback trust would treat every visitor as you. Bind to 127.0.0.1,\n' +
+        '  or pass --trust-loopback-anyway if you understand the risk.',
+    )
+  }
+  const localTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
+
+  // Resolve the operator's signer once and reuse it: resolveSigner may pair a
+  // BURROW_BUNKER, and re-pairing on every /me request would fire a fresh
+  // approval prompt at the signer each time. Reset on failure so a transient
+  // error doesn't wedge it permanently.
+  let cachedSigner: ReturnType<typeof resolveSigner> | undefined
+  const signerFactory = localTrust
+    ? async () => {
+        if (cachedSigner === undefined) cachedSigner = resolveSigner(servePairings)
+        try {
+          return await cachedSigner
+        } catch (err) {
+          cachedSigner = undefined
+          throw err
+        }
+      }
+    : undefined
 
   const gopher = createGopherServer({
     relays,
@@ -127,7 +166,7 @@ if (command === 'serve') {
     pins,
     virtual: virtualEnabled,
     localTrust,
-    signerFactory: localTrust ? () => resolveSigner(servePairings) : undefined,
+    signerFactory,
     store,
     limiter,
   })
@@ -151,7 +190,7 @@ if (command === 'serve') {
       const identity = values['no-identity']
         ? undefined
         : {
-            pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
+            pairings: servePairings,
             signer: new Nip46Client(),
             appName: `burrow (${advertisedHost})`,
           }
@@ -176,20 +215,21 @@ if (command === 'serve') {
 
   if (!values['no-http']) {
     const httpPort = Number(values['http-port'])
-    const localTrust = !values['no-local-trust']
-    const stateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
+    const httpLocalTrust = !values['no-local-trust'] && trustLoopback
     createHttpServer({
       relays,
       pins,
       virtual: virtualEnabled,
       identity: !values['no-identity'],
-      pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
-      localTrust,
+      pairings: servePairings,
+      localTrust: httpLocalTrust,
       store,
       limiter: new RateLimiter(60, 2),
     }).listen(httpPort, values.host, () => {
-      console.log(`burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`)
-      if (localTrust) console.log('  loopback requests act as you, using your stored pairing')
+      console.log(
+        `burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`,
+      )
+      if (httpLocalTrust) console.log('  loopback requests act as you, using your stored pairing')
       if (values.host !== '127.0.0.1' && values.host !== 'localhost') {
         console.log('  note: plain HTTP. Put it behind TLS before exposing it publicly.')
       }
@@ -224,7 +264,12 @@ if (command === 'serve') {
     },
   })
   if (!values.all && positionals.length === 0) fail(USAGE)
-  unpublishHole(values.all ? 'all' : positionals, values.relay ?? DEFAULT_RELAYS, secretFromEnv(), values['dry-run'])
+  unpublishHole(
+    values.all ? 'all' : positionals,
+    values.relay ?? DEFAULT_RELAYS,
+    secretFromEnv(),
+    values['dry-run'],
+  )
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'browse' || (command === undefined && process.stdin.isTTY === true)) {
@@ -300,6 +345,42 @@ if (command === 'serve') {
   const uri = positionals[0]
   if (uri === undefined) fail('usage: burrow pair <bunker://... or user@domain>')
   run(cmdPair(uri, pairingsOf(values)))
+} else if (command === 'announce') {
+  const { values } = parseArgs({
+    args: rest,
+    options: {
+      ...COMMON,
+      hostname: { type: 'string' },
+      name: { type: 'string' },
+      about: { type: 'string' },
+      'gopher-port': { type: 'string', default: '70' },
+      'gemini-port': { type: 'string', default: '1965' },
+      'no-gemini': { type: 'boolean', default: false },
+      'http-url': { type: 'string' },
+      identifier: { type: 'string', default: 'burrow-bridge' },
+      'dry-run': { type: 'boolean', default: false },
+    },
+  })
+  const hostname = values.hostname
+  if (hostname === undefined) {
+    fail('usage: burrow announce --hostname bridge.example [--http-url https://bridge.example]')
+  }
+  run(
+    cmdAnnounce(
+      {
+        name: values.name ?? `burrow bridge at ${hostname}`,
+        about: values.about ?? 'Serves kind 31436 gopherholes over gopher, gemini and http.',
+        hostname,
+        gopherPort: Number(values['gopher-port']),
+        geminiPort: values['no-gemini'] ? null : Number(values['gemini-port']),
+        httpUrl: values['http-url'] ?? null,
+        identifier: values.identifier,
+      },
+      relaysOf(values),
+      pairingsOf(values),
+      values['dry-run'],
+    ),
+  )
 } else if (command === 'unpair') {
   const { values } = parseArgs({ args: rest, options: COMMON })
   process.stdout.write(cmdUnpair(pairingsOf(values)))

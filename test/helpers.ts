@@ -32,7 +32,12 @@ export const article = finalizeEvent(
   sk,
 )
 export const profileEvent = finalizeEvent(
-  { kind: 0, created_at: 1_754_000_000, tags: [], content: '{"name":"testdonkey","about":"test hole"}' },
+  {
+    kind: 0,
+    created_at: 1_754_000_000,
+    tags: [],
+    content: '{"name":"testdonkey","about":"test hole"}',
+  },
   sk,
 )
 

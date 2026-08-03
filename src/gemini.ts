@@ -1,7 +1,8 @@
 import tls from 'node:tls'
 import { readFileSync } from 'node:fs'
 import * as nip19 from 'nostr-tools/nip19'
-import { parseSelector, SelectorError } from './selector.ts'
+import { parseSelector, SelectorError, type Route } from './selector.ts'
+import { geminiRobotsTxt } from './robots.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { renderGemtextMenu } from './gemtext.ts'
 import type { MenuItem } from './resolve.ts'
@@ -30,6 +31,24 @@ interface PendingConnect {
   uri: string
   state: 'waiting' | 'done' | 'failed'
   error?: string
+  at: number
+}
+
+// A client cert is free (self-signed, TOFU), so /pair/connect is reachable
+// by anyone; bound the pending map so it cannot grow without limit or keep
+// stale relay subscriptions around.
+const PENDING_TTL_MS = 150_000
+const MAX_PENDING = 100
+
+function sweepPending(now: number): void {
+  for (const [fp, p] of pendingConnects) {
+    if (now - p.at > PENDING_TTL_MS) pendingConnects.delete(fp)
+  }
+  while (pendingConnects.size > MAX_PENDING) {
+    const oldest = pendingConnects.keys().next().value
+    if (oldest === undefined) break
+    pendingConnects.delete(oldest)
+  }
 }
 
 export interface GeminiContext {
@@ -74,6 +93,10 @@ export function createGeminiServer(opts: GeminiOptions): tls.Server {
           ? { fingerprint: peer.fingerprint256 }
           : null
       socket.setTimeout(90_000, () => socket.destroy())
+      // Absolute deadline in addition to the idle timeout, so a slow byte
+      // drip cannot pin a TLS session open forever.
+      const deadline = setTimeout(() => socket.destroy(), 30_000)
+      socket.on('close', () => clearTimeout(deadline))
       socket.on('error', () => socket.destroy())
       let buf = ''
       let handled = false
@@ -114,6 +137,7 @@ export async function respondGemini(
   }
   if (url.protocol !== 'gemini:') return '59 unsupported scheme\r\n'
   if (rawPath === '' || rawPath === '/') return welcomePage(ctx, store)
+  if (rawPath === '/robots.txt') return `20 text/plain\r\n${geminiRobotsTxt()}`
 
   const head = rawPath.split('/').filter((s) => s !== '')[0] ?? ''
   if (RESERVED.has(head)) return accountRoutes(rawPath, query, ctx, store, cert)
@@ -121,7 +145,7 @@ export async function respondGemini(
   const isSearch = rawPath.endsWith('/search')
   const basePath = isSearch ? rawPath.slice(0, -'/search'.length) || '/' : rawPath
 
-  let route
+  let route: Route
   try {
     route = parseSelector(basePath)
   } catch (err) {
@@ -204,10 +228,11 @@ async function accountRoutes(
 
     case '/pair/connect': {
       if (pairing) return '30 /account\r\n'
+      sweepPending(Date.now())
       let pending = pendingConnects.get(cert.fingerprint)
       if (!pending || pending.state === 'failed') {
         const { uri, finish } = id.signer.startConnect(ctx.relays, id.appName)
-        pending = { uri, state: 'waiting' }
+        pending = { uri, state: 'waiting', at: Date.now() }
         pendingConnects.set(cert.fingerprint, pending)
         const mine = pending
         finish
@@ -261,7 +286,10 @@ async function accountRoutes(
       if (query === '') return '10 Your note (public, signed and broadcast as kind 1)\r\n'
       const content = query.trim()
       if (content === '') return '10 Your note (posted as kind 1)\r\n'
-      if (content.length > 1200) return '59 note too long for a URL line\r\n'
+      // A Gemini request URL must not exceed 1024 bytes, and the note travels
+      // in it percent-encoded, so the real ceiling is well under 1024 chars.
+      if (encodeURIComponent(content).length > 900)
+        return '59 note too long for a gemini url line\r\n'
       const leak = findSecret(content)
       if (leak) {
         return page('Not posting that', [

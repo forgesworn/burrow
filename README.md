@@ -81,6 +81,48 @@ lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 From a clone, `npm install` once and use `node src/cli.ts` in place
 of `npx @forgesworn/burrow`; there is no build step.
 
+Nothing needs to be published for that to work. Point it at any npub
+and a hole is already there, generated from the events that account
+already has:
+
+```
+$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+TheCryptoDonkey
+===============
+
+  TheCryptoDonkey
+  a virtual burrow generated from Nostr events
+
+  Bitcoin, freedom, decentralisation, liberty advocate.
+
+  Profile
+      /npub1mgvlrnf.../profile.txt
+  Notes
+      /npub1mgvlrnf.../notes
+  Articles (long-form)
+      /npub1mgvlrnf.../articles
+  Follows
+      /npub1mgvlrnf.../follows
+  Followers
+      /npub1mgvlrnf.../followers
+  Search
+      /npub1mgvlrnf.../search
+```
+
+(npubs abbreviated above; the real output prints them in full.)
+
+Long streams page rather than stopping dead, on every surface:
+
+```
+$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
+...
+  Older
+      /npub1mgvlrnf.../notes/before/1774317715
+```
+
+Follow that link and you get the next page, plus a way back to the
+top. Same on gopher, Gemini and in lynx.
+
 `publish` prints your hole's root selector when it finishes. Add
 `--dry-run` to inspect the signed events without sending anything,
 or `--expire 30d` for documents that should vanish on their own
@@ -156,6 +198,24 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
+Reads follow the author's NIP-65 relay list (kind 10002), so a hole
+published to someone's own relays is found even when your bridge does
+not carry those relays, not silently replaced by their virtual hole.
+A relay hint inside an `nprofile` or `naddr` link is honoured the same
+way. The built-in gopher proxy refuses loopback and private-range
+addresses, so it can't be turned into a scanner for your internal
+network, and `/robots.txt` keeps crawlers out of it.
+
+Once the bridge is up, tell Nostr clients it exists:
+
+```sh
+burrow announce --hostname gopher.example.org \
+  --http-url https://gopher.example.org --dry-run
+```
+
+That builds a NIP-89 handler announcement (kind 31990) saying this
+bridge opens kind 31436. Drop `--dry-run` to sign and publish it.
+
 ## Navigating: follows, followers, feed
 
 Every hole has these paths, whether or not anyone published anything:
@@ -205,9 +265,18 @@ own notes.
 
 Remote visitors get the same pages, pair a signer through a form, and
 carry a session cookie. That path is plain HTTP, so put it behind TLS
-(or your existing reverse proxy) before exposing it, or pass
-`--no-local-trust` and `--no-identity` to serve reading only. Turn the
-frontend off entirely with `--no-http`.
+before exposing it, or pass `--no-identity` to serve reading only. Turn
+the frontend off entirely with `--no-http`.
+
+Operator trust is decided by connection origin (loopback), so behind a
+reverse proxy every request would look local. burrow therefore disables
+operator trust automatically whenever the bridge is bound to a
+non-loopback address; keep the bind on `127.0.0.1` and let the proxy
+reach it there, or pass `--trust-loopback-anyway` only if you know the
+proxy cannot be reached by anyone but you. State-changing forms carry a
+CSRF token and reject cross-site origins, and the loopback operator is
+recognised only on a loopback `Host`, so a stray browser tab or a
+rebound domain cannot post as you.
 
 ## Gopher as a full client, locally
 
@@ -349,9 +418,11 @@ and relays do not forget. If you ever do leak a bunker URI, rotate the
 secret on the signer; a deletion request is a polite suggestion, not
 a recall.
 
-Notes are single-line and capped around 1200 characters, because a
-Gemini input is one URL line. That constraint is honest to the medium;
-gopherspace was never the place for essays with inline video.
+Notes are single-line and capped at a few hundred characters, because a
+Gemini input is one URL line and a Gemini request URL may not exceed
+1024 bytes once the text is percent-encoded. That constraint is honest
+to the medium; gopherspace was never the place for essays with inline
+video.
 
 One clarification for bark users: bark is a NIP-07 browser extension,
 and Lagrange isn't a browser, so bark can't inject here. But the
@@ -370,6 +441,11 @@ short version: one addressable event per document, `d` tag is the
 path, `type` tag is `0` or `1`, menus link by path or naddr instead
 of host and port. [llms.txt](llms.txt) is the condensed version for
 tools and language models.
+
+Kind 31436 is not yet a NIP.
+[docs/nip-submission.md](docs/nip-submission.md) is the staged
+submission: the kind-table row, the PR text and the checklist to work
+through first. Nothing has been submitted.
 
 ## Support
 

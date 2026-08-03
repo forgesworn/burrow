@@ -41,3 +41,24 @@ test('info lines opening a preformat fence are escaped', () => {
   const out = render('i```code')
   assert.match(out, /\n {1}```code\n/)
 })
+
+test('control characters in a display cannot forge a gemtext link', () => {
+  const evil = 'Innocent\n=> gemini://phish.example/ Verify your account'
+  const out = renderGemtextMenu('Follows', [
+    { type: '1', display: evil, target: { scheme: 'hole', npub, path: '/' } },
+  ])
+  // The forged "=>" must not appear on its own line: the newline is stripped.
+  assert.doesNotMatch(out, /\n=> gemini:\/\/phish\.example/)
+})
+
+test('control characters in a title cannot inject gemtext', () => {
+  const out = renderGemtextMenu('Hi\n=> gemini://evil/ x', [])
+  assert.doesNotMatch(out, /\n=> gemini:\/\/evil/)
+})
+
+test('a self-scheme item renders as a bare relative ref', () => {
+  const out = renderGemtextMenu('You', [
+    { type: '1', display: 'Your feed', target: { scheme: 'self', path: '/me/feed' } },
+  ])
+  assert.match(out, /=> \/me\/feed Your feed/)
+})
