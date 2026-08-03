@@ -1,0 +1,17 @@
+{
+	auto_https disable_redirects
+}
+
+gopherkind.144-126-230-165.sslip.io {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+
+	reverse_proxy 127.0.0.1:8070 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

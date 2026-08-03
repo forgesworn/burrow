@@ -96,11 +96,12 @@ The public reference bridge is available on all three frontends:
 
 - Gopher: `gopher://144.126.230.165/`
 - Gemini: `gemini://144.126.230.165/`
-- HTTP: <http://144.126.230.165:8070/>
+- Web: <https://gopherkind.144-126-230-165.sslip.io/>
 
-The HTTP endpoint is deliberately read-only because it is served directly
-over plaintext. The bridge is one route to relay-held events, not a promise
-of uptime or relay retention.
+The web endpoint terminates TLS on the bridge host, so remote visitors can
+connect a NIP-07 browser extension or pair a NIP-46 signer. Port 8070 is not
+publicly reachable. The bridge is one route to relay-held events, not a
+promise of uptime or relay retention.
 
 Nothing needs to be published for that to work. Point it at any npub
 and a hole is already there, generated from the events that account
