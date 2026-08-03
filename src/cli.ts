@@ -185,7 +185,7 @@ if (command === 'serve') {
       const identity = values['no-identity']
         ? undefined
         : {
-            pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
+            pairings: servePairings,
             signer: new Nip46Client(),
             appName: `burrow (${advertisedHost})`,
           }
@@ -211,13 +211,12 @@ if (command === 'serve') {
   if (!values['no-http']) {
     const httpPort = Number(values['http-port'])
     const httpLocalTrust = !values['no-local-trust'] && trustLoopback
-    const stateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
     createHttpServer({
       relays,
       pins,
       virtual: virtualEnabled,
       identity: !values['no-identity'],
-      pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
+      pairings: servePairings,
       localTrust: httpLocalTrust,
       store,
       limiter: new RateLimiter(60, 2),
