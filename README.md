@@ -116,12 +116,44 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
-## Signing in and posting
+## Using it from the terminal
 
-The Gemini side is a full client, not just a reader. Gemini has client
-certificates as its native identity mechanism (Lagrange will mint one
-for you in two clicks), and burrow binds that certificate to a NIP-46
-remote signer. Visit `/account`, pair once, and you're signed in.
+You do not need a Gemini client, a browser, or a certificate to use
+burrow. Reading needs no identity at all:
+
+```sh
+burrow read npub1...              # someone's hole, virtual or authored
+burrow read npub1.../notes        # their phlog
+burrow search npub1... gopher     # search a hole
+```
+
+Writing needs a signer, resolved in this order: `BURROW_NSEC` (a local
+key), `BURROW_BUNKER` (a one-off bunker URI), or whatever `burrow
+pair` stored for you.
+
+```sh
+burrow pair bunker://...          # once; stored in the state dir
+burrow whoami
+burrow post "hello gopherspace"   # signed by your signer, broadcast
+burrow feed                       # notes from who you follow
+burrow unpair
+```
+
+`burrow post --dry-run` prints the signed event without sending it.
+Every command accepts `--relay` (repeatable) and `--state-dir`.
+
+## Signing in from a Gemini client
+
+The terminal is the comfortable way in for anyone who owns the box.
+The Gemini frontend exists for everyone else: visitors to a public
+bridge who have no shell there and no way to set an environment
+variable.
+
+For them, identity is a Gemini client certificate, which is the
+protocol's native mechanism (Lagrange will mint one, though its
+identity UI takes some getting used to). burrow binds that certificate
+to a NIP-46 remote signer. Visit `/account`, pair once, and you're
+signed in.
 
 Pairing speaks the same dialect as the rest of the Nostr signer world:
 paste a `bunker://` URI from Signet, Amber, nsecBunker or nsec.app, or

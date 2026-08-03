@@ -43,10 +43,20 @@
 
 ## CLI
 
+The CLI is a complete client; the Gemini frontend is for visitors who
+have no shell on the bridge host.
+
+- read (no identity needed): `burrow read <npub[/path]>`,
+  `burrow search <npub> <query>`
+- write: `burrow post <text> [--dry-run]`, `burrow feed [--limit 20]`
+- identity: `burrow pair <bunker://...>`, `burrow unpair`,
+  `burrow whoami`. Signer resolution order: `BURROW_NSEC` local key,
+  then `BURROW_BUNKER` one-off URI, then the stored pairing.
+- all commands take `[--relay wss://...]...` and `[--state-dir d]`
 - `burrow serve [--port 7070] [--gemini-port 1965] [--host 0.0.0.0]
   [--hostname x] [--public-port n] [--relay wss://...]...
   [--pin npub1...]... [--cert f --key f] [--state-dir ~/.burrow]
-  [--no-gemini] [--no-virtual]`
+  [--no-gemini] [--no-virtual] [--no-identity]`
 - `burrow publish <dir> [--relay ...] [--expire 30d] [--dry-run]`,
   signs with `BURROW_NSEC` (nsec or 64-hex). Text files become type 0;
   `index.map`/`gophermap` become their directory's menu; other `*.map`

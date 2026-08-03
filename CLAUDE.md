@@ -22,8 +22,17 @@ src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
 src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
 src/publish.ts    directory -> signed events; NIP-09 unpublish; NIP-40 expire
-src/cli.ts        serve | publish | unpublish
+src/signing.ts    CLI signer resolution: BURROW_NSEC > BURROW_BUNKER > stored
+src/commands.ts   CLI client: read, search, post, feed, pair, whoami
+src/cliview.ts    Content -> terminal text
+src/secretguard.ts blocks credential-shaped content before signing
+src/cli.ts        argument parsing only; logic lives in commands.ts
 ```
+
+Two audiences, deliberately: the operator uses the CLI (owns the box,
+has the key material), visitors use Gemini (no shell, so client certs
+are the only identity the protocol offers). Any new client feature
+should land in the CLI first and reuse the same Content layer.
 
 New frontends plug in at the Content/MenuItem layer; don't put
 protocol-specific rendering in the router.

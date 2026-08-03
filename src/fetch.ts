@@ -30,6 +30,7 @@ export class HoleStore {
   private searchCache = new TtlLru<Event[]>(200, MINUTE)
   private contactsCache = new TtlLru<string[]>(100, 5 * MINUTE)
   private feedCache = new TtlLru<Event[]>(50, MINUTE)
+  private noticesSilenced = false
 
   constructor(relays: string[]) {
     this.relays = relays
@@ -37,10 +38,25 @@ export class HoleStore {
 
   private async query(filter: Filter, maxWait: number): Promise<Event[]> {
     try {
+      await this.silenceNotices()
       return await this.pool.querySync(this.relays, filter, { maxWait })
     } catch {
       return []
     }
+  }
+
+  // Relays without NIP-50 answer a `search` filter with a NOTICE, which
+  // nostr-tools logs to the console by default. That is normal traffic,
+  // not something a user needs to read.
+  private async silenceNotices(): Promise<void> {
+    if (this.noticesSilenced) return
+    this.noticesSilenced = true
+    await Promise.allSettled(
+      this.relays.map(async (url) => {
+        const relay = await this.pool.ensureRelay(url)
+        relay.onnotice = () => {}
+      }),
+    )
   }
 
   async doc(pubkey: string, path: string): Promise<Event | null> {

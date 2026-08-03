@@ -11,17 +11,69 @@ import { ensureSelfSignedCert } from './certs.ts'
 import { PairingStore } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
 import { publishHole, unpublishHole, decodeSecret, parseDuration } from './publish.ts'
+import {
+  cmdRead,
+  cmdSearch,
+  cmdPost,
+  cmdFeed,
+  cmdPair,
+  cmdUnpair,
+  cmdWhoami,
+} from './commands.ts'
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 
 const USAGE = `usage:
-  burrow serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
-               [--gemini-port 1965] [--no-gemini] [--cert f --key f] [--state-dir d]
-               [--relay wss://...]... [--pin npub1...]... [--no-virtual] [--no-identity]
-  burrow publish <dir> [--relay wss://...]... [--expire 30d] [--dry-run]
-  burrow unpublish </path>... | --all [--relay wss://...]... [--dry-run]`
+  read and browse (no identity needed):
+    burrow read <npub[/path]>            print a hole document
+    burrow search <npub> <query>         search a hole
+    burrow feed [--limit 20]             notes from who you follow
+
+  write (needs a signer, see below):
+    burrow post <text> [--dry-run]       sign and broadcast a kind 1 note
+    burrow publish <dir> [--expire 30d] [--dry-run]
+    burrow unpublish </path>... | --all [--dry-run]
+
+  identity:
+    burrow pair <bunker://...>           store a remote signer for future use
+    burrow unpair
+    burrow whoami
+
+  bridge:
+    burrow serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
+                 [--gemini-port 1965] [--no-gemini] [--cert f --key f] [--state-dir d]
+                 [--pin npub1...]... [--no-virtual] [--no-identity]
+
+  every command takes [--relay wss://...]... and [--state-dir d].
+
+  signer resolution: BURROW_NSEC (local key), else BURROW_BUNKER (one-off
+  bunker URI), else whatever \`burrow pair\` stored.`
 
 const [command, ...rest] = process.argv.slice(2)
+
+const COMMON = {
+  relay: { type: 'string', multiple: true },
+  'state-dir': { type: 'string' },
+} as const
+
+function stateDirOf(v: { 'state-dir'?: string }): string {
+  return v['state-dir'] ?? path.join(os.homedir(), '.burrow')
+}
+
+function pairingsOf(v: { 'state-dir'?: string }): PairingStore {
+  return new PairingStore(path.join(stateDirOf(v), 'pairings.json'))
+}
+
+function relaysOf(v: { relay?: string[] }): string[] {
+  return v.relay ?? DEFAULT_RELAYS
+}
+
+function run(p: Promise<string>): void {
+  p.then((out) => {
+    process.stdout.write(out)
+    process.exit(0)
+  }).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
+}
 
 if (command === 'serve') {
   const { values } = parseArgs({
@@ -132,6 +184,51 @@ if (command === 'serve') {
   unpublishHole(values.all ? 'all' : positionals, values.relay ?? DEFAULT_RELAYS, secretFromEnv(), values['dry-run'])
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
+} else if (command === 'read') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: { ...COMMON, 'no-virtual': { type: 'boolean', default: false } },
+  })
+  const target = positionals[0]
+  if (target === undefined) fail('usage: burrow read <npub[/path]>')
+  run(cmdRead(target, relaysOf(values), !values['no-virtual']))
+} else if (command === 'search') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: { ...COMMON, 'no-virtual': { type: 'boolean', default: false } },
+  })
+  const target = positionals[0]
+  const query = positionals.slice(1).join(' ')
+  if (target === undefined || query === '') fail('usage: burrow search <npub> <query>')
+  run(cmdSearch(target, query, relaysOf(values), !values['no-virtual']))
+} else if (command === 'post') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: { ...COMMON, 'dry-run': { type: 'boolean', default: false } },
+  })
+  const text = positionals.join(' ')
+  if (text.trim() === '') fail('usage: burrow post <text>')
+  run(cmdPost(text, relaysOf(values), pairingsOf(values), values['dry-run']))
+} else if (command === 'feed') {
+  const { values } = parseArgs({
+    args: rest,
+    options: { ...COMMON, limit: { type: 'string', default: '20' } },
+  })
+  run(cmdFeed(relaysOf(values), pairingsOf(values), Number(values.limit)))
+} else if (command === 'pair') {
+  const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: COMMON })
+  const uri = positionals[0]
+  if (uri === undefined) fail('usage: burrow pair <bunker://... or user@domain>')
+  run(cmdPair(uri, pairingsOf(values)))
+} else if (command === 'unpair') {
+  const { values } = parseArgs({ args: rest, options: COMMON })
+  process.stdout.write(cmdUnpair(pairingsOf(values)))
+} else if (command === 'whoami') {
+  const { values } = parseArgs({ args: rest, options: COMMON })
+  run(cmdWhoami(relaysOf(values), pairingsOf(values)))
 } else {
   fail(USAGE)
 }
