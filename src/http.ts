@@ -4,6 +4,7 @@ import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError } from './selector.ts'
 import { resolveRoute } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
+import { parseProxyPath, browseGopher } from './gopherclient.ts'
 import type { MenuItem } from './resolve.ts'
 import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
@@ -177,6 +178,30 @@ async function handle(
   if (path === '/post') return postPage(req, opts, store, viewer, signedIn)
   if (path === '/feed') return feedPage(opts, store, viewer, signedIn)
   if (path === '/delete') return deletePage(req, opts, store, viewer, signedIn)
+  if (path.startsWith('/gopher/') || path === '/gopher') {
+    const target = parseProxyPath(path)
+    if (!target) {
+      return html(
+        400,
+        page('Bad gopher address', '<h1>Bad gopher address</h1><p>Use /gopher/host/1/selector</p>', signedIn),
+      )
+    }
+    const q = url.searchParams.get('q')
+    if (target.type === '7' && q === null) {
+      const form =
+        `<h1>Search ${esc(target.host)}</h1><form method="get">` +
+        '<p><input type="text" name="q" size="40"> <input type="submit" value="Search"></p></form>'
+      return html(200, page('Search gopherspace', form, signedIn))
+    }
+    const content = await browseGopher(
+      q === null ? target : { ...target, selector: `${target.selector}\t${q}` },
+    )
+    const rendered = renderContentHtml(content)
+    return html(
+      content.kind === 'error' ? 502 : 200,
+      page(rendered.title, rendered.body, signedIn),
+    )
+  }
 
   // Everything else is hole content: /<npub>[/path], plus /<npub>/search
   const isSearch = path.endsWith('/search')
@@ -236,6 +261,10 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     '<form method="get" action="/go"><p>Open a hole: ',
     '<input type="text" name="npub" size="40" placeholder="npub1..."> ',
     '<input type="submit" value="Go"></p></form>',
+    '<h2>Traditional gopherspace</h2>',
+    '<p>burrow is also a gopher client, so old-school holes render here too.</p>',
+    '<p><a href="/gopher/gopher.floodgap.com/1/">Floodgap</a> ',
+    '<a href="/gopher/gopher.floodgap.com/1/world">Floodgap world map</a></p>',
   ]
   if (opts.pins.length > 0) {
     body.push('<h2>Pinned holes</h2>')

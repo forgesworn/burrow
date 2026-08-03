@@ -50,6 +50,7 @@ export function makeStore(published: unknown[] = []): HoleStore {
     event: async (id: string) => (id === note.id ? note : null),
     searchRelays: async () => [],
     contacts: async (pk: string) => (pk === pubkey ? [pubkey] : []),
+    followers: async (pk: string) => (pk === pubkey ? [pubkey] : []),
     feedNotes: async (pks: string[]) => (pks.includes(pubkey) ? [note] : []),
     profilesBatch: async (pks: string[]) =>
       new Map(pks.includes(pubkey) ? [[pubkey, profileEvent]] : []),

@@ -102,6 +102,12 @@ has:
 | `/notes/<event-id>` | one note as plain text |
 | `/articles` | menu of NIP-23 (kind 30023) long-form articles |
 | `/articles/<d>` | one article as plain text |
+| `/follows` | kind 3 contacts, each linking to that pubkey's hole |
+| `/followers` | authors of kind 3 events tagging this pubkey |
+
+`/followers` is necessarily a sample: relays only know the contact
+lists they carry. Bridges SHOULD cap both lists and say so when they
+truncate.
 
 Authored documents always shadow virtual paths, so authors can take over
 any of them (including `/`) simply by publishing.
@@ -142,8 +148,16 @@ bunker.
 
 Every bunker conversation MUST be bounded by a timeout, and SHOULD use
 a short-lived subscription per operation rather than a persistent one.
-Gopher MUST remain read-only: the protocol is plaintext with no
-authentication, so no credential may ever be accepted over it.
+
+Gopher MUST NOT accept credentials: the protocol is plaintext with no
+authentication, so anything sent over it is public. A bridge MAY
+nevertheless offer a personal menu to loopback clients, where identity
+is established by the origin of the connection rather than by anything
+transmitted. Such a menu SHOULD live under a reserved selector prefix
+(`/me` here), MUST NOT be advertised or served to non-loopback clients,
+and can use type 7 items for input: the search string is the only input
+channel RFC 1436 provides. Destructive actions SHOULD require a typed
+confirmation word.
 
 ## Unpublishing
 

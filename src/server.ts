@@ -13,6 +13,8 @@ import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { parseProfile, displayName } from './virtual.ts'
+import { matchPersonal, resolvePersonal, PERSONAL_ROOT } from './personal.ts'
+import type { CliSigner } from './signing.ts'
 
 export interface ServeOptions {
   relays: string[]
@@ -23,8 +25,16 @@ export interface ServeOptions {
   // Serve virtual holes (profile/notes/articles) for npubs without
   // authored documents. Defaults to on.
   virtual?: boolean
+  // Personal menu (/me) for loopback requests only. Gopher is plaintext
+  // and unauthenticated, so this never applies to a remote client.
+  signerFactory?: () => Promise<CliSigner>
+  localTrust?: boolean
   store?: HoleStore
   limiter?: RateLimiter
+}
+
+function isLoopback(addr: string | undefined): boolean {
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
 }
 
 export function createGopherServer(opts: ServeOptions): net.Server {
@@ -35,6 +45,7 @@ export function createGopherServer(opts: ServeOptions): net.Server {
       socket.end(renderError('rate limited, slow down'))
       return
     }
+    const local = isLoopback(socket.remoteAddress)
     socket.setTimeout(10_000, () => socket.destroy())
     socket.on('error', () => socket.destroy())
     let buf = ''
@@ -50,21 +61,46 @@ export function createGopherServer(opts: ServeOptions): net.Server {
       if (nl === -1) return
       handled = true
       const line = buf.slice(0, nl).replace(/\r$/, '')
-      respond(line, opts, store)
+      respond(line, opts, store, local)
         .catch((err) => renderError(err instanceof Error ? err.message : 'internal error'))
         .then((out) => socket.end(out))
     })
   })
 }
 
-export async function respond(line: string, opts: ServeOptions, store: HoleStore): Promise<string> {
+export async function respond(
+  line: string,
+  opts: ServeOptions,
+  store: HoleStore,
+  local = false,
+): Promise<string> {
+  const [rawPath = '', rawQuery = ''] = line.split('\t')
+  const personalAllowed = local && opts.localTrust !== false && opts.signerFactory !== undefined
+  const personal = matchPersonal(rawPath.trim(), rawQuery)
+  if (personal) {
+    if (!personalAllowed) {
+      return renderError(
+        local
+          ? 'no signer configured for the personal menu'
+          : 'the personal menu is local-only (gopher has no authentication)',
+      )
+    }
+    try {
+      const signer = await opts.signerFactory!()
+      const content = await resolvePersonal(personal, store, signer, opts.relays.length)
+      return toGopher(content, opts.bridge, true)
+    } catch (err) {
+      return renderError(err instanceof Error ? err.message : 'personal menu failed')
+    }
+  }
+
   let route
   try {
     route = parseSelector(line)
   } catch (err) {
     return renderError(err instanceof SelectorError ? err.message : 'bad selector')
   }
-  if (route.kind === 'welcome') return welcome(opts, store)
+  if (route.kind === 'welcome') return welcome(opts, store, personalAllowed)
   const content = await resolveRoute(route, store, { virtual: opts.virtual !== false })
   return toGopher(content, opts.bridge, route.kind === 'search')
 }
@@ -83,12 +119,20 @@ function toGopher(content: Content, bridge: BridgeAddr, banner: boolean): string
   }
 }
 
-async function welcome(opts: ServeOptions, store: HoleStore): Promise<string> {
+async function welcome(
+  opts: ServeOptions,
+  store: HoleStore,
+  personalAllowed = false,
+): Promise<string> {
   const { host, port } = opts.bridge
   let out = ''
   out += infoLine('burrow')
   out += infoLine('gopherholes served from Nostr relays')
   out += infoLine('')
+  if (personalAllowed) {
+    out += gopherLine('1', 'You: feed, follows, post, delete', PERSONAL_ROOT, host, port)
+    out += infoLine('')
+  }
   out += infoLine('Every hole here is a set of signed Nostr events (kind 31436).')
   out += infoLine('No hosting, no server to die: relays mirror the content.')
   out += infoLine('')

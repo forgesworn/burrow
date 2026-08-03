@@ -1,4 +1,5 @@
 import type { Event } from 'nostr-tools'
+import * as nip19 from 'nostr-tools/nip19'
 import { parseBurrowmap } from './linemap.ts'
 import { resolveMapLines, info, type MenuItem } from './resolve.ts'
 import type { HoleStore } from './fetch.ts'
@@ -91,6 +92,37 @@ async function resolveVirtual(
       if (!ev || ev.pubkey !== route.pubkey || ev.kind !== NOTE_KIND) return null
       return { kind: 'text', title: 'Note', body: virtual.noteText(ev) }
     }
+    case 'follows':
+    case 'followers': {
+      const pubkeys =
+        m.kind === 'follows'
+          ? await store.contacts(route.pubkey)
+          : await store.followers(route.pubkey)
+      const capped = pubkeys.slice(0, 200)
+      const profiles = await store.profilesBatch(capped)
+      const people = capped.map((pk) => {
+        const npub = nip19.npubEncode(pk)
+        const profile = virtual.parseProfile(profiles.get(pk) ?? null)
+        return { npub, name: virtual.displayName(profile, npub), about: profile?.about }
+      })
+      people.sort((a, b) => a.name.localeCompare(b.name))
+      const title = m.kind === 'follows' ? 'Follows' : 'Followers'
+      const empty =
+        m.kind === 'follows'
+          ? 'No follows found (kind 3 empty or unreachable).'
+          : 'No followers found on these relays.'
+      const lines = virtual.peopleMenuLines(people, empty)
+      const note =
+        pubkeys.length > capped.length
+          ? [{ type: 'i' as const, display: `(showing ${capped.length} of ${pubkeys.length})` }]
+          : []
+      return {
+        kind: 'menu',
+        title,
+        items: resolveMapLines([...note, ...lines], route.npub),
+      }
+    }
+
     case 'articles': {
       const articles = await store.articles(route.pubkey)
       return {

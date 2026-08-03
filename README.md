@@ -116,6 +116,39 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
+## Navigating: follows, followers, feed
+
+Every hole has these paths, whether or not anyone published anything:
+
+| Path | What it is |
+|---|---|
+| `/` | root menu |
+| `/profile.txt` | kind 0 profile |
+| `/notes`, `/notes/<id>` | recent top-level notes |
+| `/articles`, `/articles/<d>` | NIP-23 long-form |
+| `/follows` | who they follow, each linking to that person's hole |
+| `/followers` | who follows them (a sample of what relays carry) |
+
+So `burrow read npub1.../follows` walks the social graph from the
+terminal, and the same paths are links in lynx, Lagrange, or any gopher
+client. Your own feed lives at `/me/feed` over gopher, `/feed` over
+HTTP and Gemini, or `burrow feed` in the terminal.
+
+## Traditional gopherspace
+
+burrow is a gopher client as well as a gopher server, so old holes
+render through it too:
+
+```sh
+lynx http://localhost:8070/gopher/gopher.floodgap.com/1/
+```
+
+Menus, text files and type 7 searches all work, and links inside a
+proxied menu stay inside the proxy, so you can wander Floodgap and the
+rest of gopherspace from a browser that has never heard of gopher.
+Burrowmap `gopher://` links route through it automatically. lynx can
+of course also just speak gopher directly.
+
 ## The full experience in lynx
 
 lynx is not only a gopher client, it speaks HTTP, so the bridge serves
@@ -136,9 +169,30 @@ carry a session cookie. That path is plain HTTP, so put it behind TLS
 `--no-local-trust` and `--no-identity` to serve reading only. Turn the
 frontend off entirely with `--no-http`.
 
-Gopher on port 70 stays read-only forever, because the protocol has no
-authentication and no encryption. lynx just gets the good version over
-HTTP instead.
+## Gopher as a full client, locally
+
+Gopher over the network is read-only, and always will be: the protocol
+has no authentication and no encryption, so any credential sent over it
+would be public.
+
+On loopback none of that applies, because no credential is sent at all.
+The bridge knows the request came from this machine, and uses the same
+signer the CLI uses. So a local gopher client gets a personal menu at
+`/me`:
+
+```sh
+lynx gopher://127.0.0.1:7070/1/me
+```
+
+Feed, your notes with delete links, who you follow, your followers, and
+posting. Writes use type 7 items, whose search string is the only input
+channel RFC 1436 ever offered, so you compose a note in the same prompt
+gopher used for Veronica queries in 1992. Deleting asks you to type the
+word "delete" to confirm.
+
+Remote clients asking for `/me` get a polite type 3 error, and the
+welcome menu only advertises it locally. `--no-local-trust` turns it
+off entirely.
 
 ## Using it from the terminal
 

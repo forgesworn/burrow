@@ -34,7 +34,17 @@
 - gopher search: type 7 with tab-separated query
 - gemini search: `/<npub>/search` (status 10 input, then results)
 - virtual paths when no authored document matches: `/profile.txt`,
-  `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<d>`
+  `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<d>`,
+  `/follows` (kind 3 contacts as a menu of holes), `/followers`
+  (authors of kind 3 events tagging them; a sample, not a count)
+- gopher personal menu, loopback only, never advertised or served
+  remotely: `/me`, `/me/feed`, `/me/notes`, `/me/follows`,
+  `/me/followers`, `/me/post` (type 7, search string is the note),
+  `/me/delete/<id>` (type 7, must type "delete"). Identity comes from
+  the connection origin, not from anything sent over the wire.
+- gopher proxy: `/gopher/<host>[:port]/<type>/<selector>` on the HTTP
+  frontend fetches and renders traditional gopherspace, rewriting
+  links to stay inside the proxy
 - gemini identity (client certificates + NIP-46, bridge never holds a
   user key): `/account`, `/pair` (bunker:// paste), `/pair/connect`
   (nostrconnect cross-device), `/post` (kind 1 via remote signer),

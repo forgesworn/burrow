@@ -66,7 +66,9 @@ test('http frontend', async (t) => {
     const base = await start(t2)
     const body = await (await fetch(`${base}/${npub}`)).text()
     assert.match(body, new RegExp(`href="/${npub}/about.txt"`))
-    assert.match(body, /href="gopher:\/\/gopher\.floodgap\.com\/1\/"/)
+    // legacy gopherspace is linked through the built-in proxy, so it works
+    // in browsers that do not speak gopher
+    assert.match(body, /href="\/gopher\/gopher\.floodgap\.com\/1"/)
     const text = await (await fetch(`${base}/${npub}/about.txt`)).text()
     assert.match(text, /<pre>[\s\S]*kind 31436/)
   })

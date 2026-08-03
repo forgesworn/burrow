@@ -1,6 +1,7 @@
 import type { Event } from 'nostr-tools'
 import type { MapLine } from './linemap.ts'
 import { tagValue, isoDate, firstLine } from './protocol.ts'
+export { firstLine }
 
 // Virtual holes: any npub browses as a gopherhole even when it has never
 // published a kind 31436 event. Profile, notes and long-form articles are
@@ -44,10 +45,14 @@ export type VirtualPath =
   | { kind: 'note'; id: string }
   | { kind: 'articles' }
   | { kind: 'article'; d: string }
+  | { kind: 'follows' }
+  | { kind: 'followers' }
 
 export function matchVirtualPath(path: string): VirtualPath | null {
   if (path === '/') return { kind: 'root' }
   if (path === '/profile.txt') return { kind: 'profile' }
+  if (path === '/follows') return { kind: 'follows' }
+  if (path === '/followers') return { kind: 'followers' }
   if (path === '/notes') return { kind: 'notes' }
   if (path.startsWith('/notes/')) {
     const id = path.slice('/notes/'.length)
@@ -92,7 +97,24 @@ export function virtualRootLines(profile: Profile | null, npub: string): MapLine
   lines.push({ type: '0', display: 'Profile', link: '/profile.txt' })
   lines.push({ type: '1', display: 'Notes', link: '/notes' })
   lines.push({ type: '1', display: 'Articles (long-form)', link: '/articles' })
+  lines.push({ type: '1', display: 'Follows', link: '/follows' })
+  lines.push({ type: '1', display: 'Followers', link: '/followers' })
   lines.push({ type: '7', display: 'Search', link: '/' })
+  return lines
+}
+
+// A list of people as a menu of holes: each entry links to that npub's
+// own hole, so you can walk the social graph by following links.
+export function peopleMenuLines(
+  people: { npub: string; name: string; about?: string }[],
+  emptyMessage: string,
+): MapLine[] {
+  if (people.length === 0) return [{ type: 'i', display: emptyMessage }]
+  const lines: MapLine[] = []
+  for (const p of people) {
+    lines.push({ type: '1', display: p.name, link: p.npub })
+    if (p.about) lines.push({ type: 'i', display: `    ${firstLine(p.about, 64)}` })
+  }
   return lines
 }
 

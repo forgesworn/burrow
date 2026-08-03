@@ -19,6 +19,8 @@ src/server.ts     TCP gopher frontend (read-only, always)
 src/gemini.ts     TLS gemini frontend (/search is the input endpoint)
 src/http.ts       HTTP frontend for lynx; loopback = operator, no login
 src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
+src/personal.ts   /me menu: loopback-only read+write over gopher
+src/gopherclient.ts  gopher client + proxy for traditional gopherspace
 src/virtual.ts    kind 0/1/30023 -> virtual hole documents
 src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
@@ -56,8 +58,10 @@ protocol-specific rendering in the router.
 - **The bridge never holds a user key.** Signing is always remote via
   NIP-46. Disk state is exactly: the Gemini TLS cert and
   `pairings.json` (cert fingerprint -> bunker binding, mode 600).
-- **Gopher stays read-only.** Plaintext protocol, no auth; never accept
-  a credential over it. All identity features are Gemini-only.
+- **Never accept a credential over gopher.** Plaintext, no auth. The
+  `/me` menu is the one exception and only because it sends nothing:
+  identity is the connection's origin (loopback). It must never be
+  advertised or served to a non-loopback client.
 - Expired events (NIP-40) must never be served; filter on read.
 
 ## Conventions

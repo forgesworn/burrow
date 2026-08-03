@@ -1,6 +1,7 @@
 import type { Content } from './router.ts'
 import type { MenuItem } from './resolve.ts'
 import { targetRef } from './gemtext.ts'
+import { proxyPath } from './gopherclient.ts'
 
 // HTML aimed at lynx first: linear structure, no layout tricks, every
 // link on its own line so lynx numbers them cleanly. Graphical browsers
@@ -38,10 +39,13 @@ ${body}
 }
 
 function href(item: MenuItem): string | null {
-  const ref = targetRef(item)
-  if (ref === null) return null
-  // targetRef gives gemini-shaped paths; /search is the same route here.
-  return ref
+  // Legacy gopherspace goes through the built-in proxy so it works in
+  // graphical browsers too, not just clients that speak gopher natively.
+  if (item.target.scheme === 'gopher') {
+    const t = item.target
+    return proxyPath({ host: t.host, port: t.port, type: t.itemType, selector: t.selector })
+  }
+  return targetRef(item)
 }
 
 export function renderMenuHtml(title: string, items: MenuItem[]): string {

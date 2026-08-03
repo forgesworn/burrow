@@ -22,6 +22,7 @@ import {
   cmdDelete,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
+import { resolveSigner } from './signing.ts'
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 
@@ -111,11 +112,17 @@ if (command === 'serve') {
   const store = new HoleStore(relays)
   const limiter = new RateLimiter()
 
+  const serveStateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
+  const servePairings = new PairingStore(path.join(serveStateDir, 'pairings.json'))
+  const localTrust = !values['no-local-trust'] && !values['no-identity']
+
   const gopher = createGopherServer({
     relays,
     bridge: { host: advertisedHost, port: advertisedPort },
     pins,
     virtual: virtualEnabled,
+    localTrust,
+    signerFactory: localTrust ? () => resolveSigner(servePairings) : undefined,
     store,
     limiter,
   })
@@ -125,6 +132,7 @@ if (command === 'serve') {
     )
     console.log(`relays: ${relays.join(', ')}`)
     if (!virtualEnabled) console.log('virtual holes: off')
+    if (localTrust) console.log('  loopback gets /me: feed, follows, post, delete')
   })
 
   if (!values['no-gemini']) {
