@@ -41,6 +41,10 @@ is given in the changelog unless you prefer otherwise.
 - The HTTP frontend trusts loopback as the operator. Behind a reverse proxy
   every request originates on loopback, so operator trust is disabled unless
   the bridge is bound to a loopback address (or you pass
-  `--trust-loopback-anyway`). Put the frontend behind TLS before exposing it.
+  `--trust-loopback-anyway`). Use `--no-local-trust` behind a proxy so visitors
+  must pair their own signer, and put the frontend behind TLS before exposing it.
 - The gopher proxy refuses to connect to private, loopback and link-local
   ranges. Do not re-expose it to internal networks.
+- Author relay lists, NIP-19 hints and public bunker URIs are resolved through
+  the same socket-time network guard. Operator-configured relays are trusted so
+  local development relays remain possible.

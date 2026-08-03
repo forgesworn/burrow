@@ -12,7 +12,7 @@ const PATTERNS: { re: RegExp; what: string }[] = [
   // A 64-hex string next to the word "secret" or "nsec"/"key": a bare 64-hex
   // is not flagged on its own because event ids and pubkeys share that shape
   // and are pasted legitimately, but in a key context it is almost certainly
-  // a raw private key (decodeSecret accepts exactly that form).
+  // a raw private key.
   {
     re: /\b(?:secret|priv(?:ate)?[ _-]?key|nsec)\b[^0-9a-f]{0,12}[0-9a-f]{64}\b/i,
     what: 'a private key',

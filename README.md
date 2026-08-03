@@ -67,28 +67,34 @@ just publishing.
 Needs Node 24 or newer.
 
 ```sh
-# Browse gopherspace and Nostr interactively, no install
-npx @forgesworn/gopherkind
+# Until the first npm publication, install the current package from GitHub.
+npm install --global github:forgesworn/gopherkind
 
-# Publish the example hole (signs with your key, sends to relays)
-GOPHERKIND_NSEC=nsec1... npx @forgesworn/gopherkind publish examples/hole
+# Browse gopherspace and Nostr interactively
+gopherkind
+
+# Pair your existing NIP-46 signer. Your secret key never enters gopherkind.
+gopherkind pair 'bunker://...'
+
+# Publish the example hole through that signer.
+gopherkind publish examples/hole
 
 # Serve gopherspace. Gopher on 7070, Gemini on 1965, HTTP on 8070.
-npx @forgesworn/gopherkind serve
+gopherkind serve
 
 # Browse your hole, or anyone else's npub, published or not
 lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 ```
 
 From a clone, `npm install` once and use `node src/cli.ts` in place
-of `npx @forgesworn/gopherkind`; there is no build step.
+of `gopherkind`; day-to-day source development needs no build step.
 
 Nothing needs to be published for that to work. Point it at any npub
 and a hole is already there, generated from the events that account
 already has:
 
 ```
-$ npx @forgesworn/gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+$ gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
 TheCryptoDonkey
 ===============
 
@@ -116,7 +122,7 @@ TheCryptoDonkey
 Long streams page rather than stopping dead, on every surface:
 
 ```
-$ npx @forgesworn/gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
+$ gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
 ...
   Older
       /npub1mgvlrnf.../notes/before/1774317715/7e4a...c912
@@ -129,6 +135,12 @@ top. Same on gopher, Gemini and in lynx.
 `--dry-run` to inspect the signed events without sending anything,
 or `--expire 30d` for documents that should vanish on their own
 (NIP-40; s/m/h/d/w all work).
+
+Publishing discovers the author's current NIP-65 write relays, uses their
+union with the configured relays, spreads an existing signed relay list
+alongside the documents, and reads each document back from every destination.
+Acceptance and read-back are reported separately; a document rejected
+everywhere or not readable anywhere makes the command fail.
 
 To take something down, `gopherkind unpublish /about.txt` (or `--all`)
 sends a NIP-09 deletion request. Honest caveat: relays are free to
@@ -186,7 +198,8 @@ collapse slashes, case-fold, or Unicode-normalise a signed `d`. In a URL,
 ## Running a public bridge
 
 ```sh
-node src/cli.ts serve --port 70 --gemini-port 1965 \
+gopherkind serve --host 0.0.0.0 --port 7070 --public-port 70 \
+  --gemini-port 1965 --no-identity --no-local-trust \
   --hostname gopher.example.org \
   --relay wss://relay.damus.io --relay wss://nos.lol \
   --pin npub1somehole...
@@ -204,9 +217,9 @@ Bring your own with `--cert` and `--key`, or skip the whole frontend
 with `--no-gemini`. `--no-virtual` turns virtual holes off if you
 only want authored content.
 
-Bridges are meant to be boring to operate: no database, no state
-beyond the TLS cert. Relay responses are cached for a few
-minutes (longer for immutable things like note bodies), and each IP
+Bridges are meant to be boring to operate: no database. The state directory
+contains the TLS certificate, NIP-46 pairing records and local bookmarks.
+Relay responses are cached for a few minutes (longer for immutable things like note bodies), and each IP
 gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
@@ -215,9 +228,20 @@ Reads follow the author's NIP-65 relay list (kind 10002), so a hole
 published to someone's own relays is found even when your bridge does
 not carry those relays, not silently replaced by their virtual hole.
 A relay hint inside an `nprofile` or `naddr` link is honoured the same
-way. The built-in gopher proxy refuses loopback and private-range
-addresses, so it can't be turned into a scanner for your internal
-network, and `/robots.txt` keeps crawlers out of it.
+way. Hinted relays and public bunker relays are checked again during DNS
+lookup at socket connection time, and loopback, private and link-local answers
+are refused. The built-in gopher proxy applies the same network boundary, and
+`/robots.txt` keeps crawlers out of it.
+
+The HTTP listener exposes `GET /healthz` for service checks and the process
+closes its listeners and relay pool on SIGTERM or SIGINT. The container,
+reverse-proxy and rollback details are in the
+[operations guide](docs/operations.md).
+
+Release tarballs and checksums are attached to GitHub releases even while the
+first npm registry publication remains an owner-controlled bootstrap. The
+exact release procedure and registry gate are in the
+[release guide](docs/releasing.md).
 
 Once the bridge is up, tell Nostr clients it exists:
 
@@ -275,8 +299,8 @@ anywhere. Start `gopherkind serve` and point lynx at
 `http://localhost:8070/`.
 
 Requests from loopback are treated as you, the operator, using the
-same signer the CLI uses (`GOPHERKIND_NSEC`, or whatever `gopherkind pair`
-stored). No login, no cookies, no certificates: open lynx on your own
+remote signer that `gopherkind pair` stored. No login, no cookies, no
+certificates: open lynx on your own
 machine and you are already signed in. You get menus and documents,
 search forms, your feed, a note composer, and a delete button on your
 own notes.
@@ -285,17 +309,18 @@ HTTP and Gemini search lives at `/_gopherkind/search/<npub>`, outside
 the authored hole namespace. A document published at `/search` is
 therefore served normally rather than being intercepted by the bridge.
 
-Remote visitors get the same pages, pair a signer through a form, and
-carry a session cookie. That path is plain HTTP, so put it behind TLS
-before exposing it, or pass `--no-identity` to serve reading only. Turn
-the frontend off entirely with `--no-http`.
+Remote visitors can get the same pages, pair a signer through a form, and
+carry a session cookie when the loopback listener is placed behind TLS with
+`--no-local-trust`. Identity is disabled automatically when gopherkind itself
+binds HTTP to a public address, so that direct plaintext deployment is
+read-only. Turn the frontend off entirely with `--no-http`.
 
 Operator trust is decided by connection origin (loopback), so behind a
 reverse proxy every request would look local. gopherkind therefore disables
 operator trust automatically whenever the bridge is bound to a
-non-loopback address; keep the bind on `127.0.0.1` and let the proxy
-reach it there, or pass `--trust-loopback-anyway` only if you know the
-proxy cannot be reached by anyone but you. State-changing forms carry a
+non-loopback address; keep the bind on `127.0.0.1`, pass `--no-local-trust`,
+and let the proxy reach it there. `--trust-loopback-anyway` is only for a
+proxy that cannot be reached by anyone but you. State-changing forms carry a
 CSRF token and reject cross-site origins, and the loopback operator is
 recognised only on a loopback `Host`, so a stray browser tab or a
 rebound domain cannot post as you.
@@ -379,9 +404,9 @@ gopherkind search npub1... gopher     # search a hole
 gopherkind search gopher://gopher.floodgap.com/7/v2/vs nostr   # Veronica-2
 ```
 
-Writing needs a signer, resolved in this order: `GOPHERKIND_NSEC` (a local
-key), `GOPHERKIND_BUNKER` (a one-off bunker URI), or whatever `gopherkind
-pair` stored for you.
+Writing always uses a remote NIP-46 signer. `GOPHERKIND_BUNKER` provides a
+one-off bunker URI; otherwise gopherkind uses the pairing that `gopherkind
+pair` stored. Local secret keys and nsec input are never accepted.
 
 ```sh
 gopherkind pair bunker://...          # once; stored in the state dir

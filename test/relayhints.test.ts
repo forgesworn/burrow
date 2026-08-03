@@ -40,7 +40,13 @@ test('safeRelayUrls dedupes, caps and rejects absurd input', () => {
   const many = ['a', 'b', 'c', 'd', 'e', 'f'].map((h) => `wss://${h}.example`)
   assert.equal(safeRelayUrls(many).length, 4)
   assert.deepEqual(safeRelayUrls(undefined), [])
+  assert.deepEqual(safeRelayUrls(['wss://relay.example'], 0), [])
   assert.deepEqual(safeRelayUrls([`wss://${'x'.repeat(300)}.example`]), [])
+})
+
+test('only an explicit operator path may retain a local relay', () => {
+  assert.deepEqual(safeRelayUrls(['ws://127.0.0.1:4869']), [])
+  assert.deepEqual(safeRelayUrls(['ws://127.0.0.1:4869'], 4, true), ['ws://127.0.0.1:4869'])
 })
 
 test('a kindmap naddr link carries its relay hints', () => {

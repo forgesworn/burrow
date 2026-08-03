@@ -6,12 +6,16 @@ import path from 'node:path'
 import {
   planDirectory,
   docToTemplate,
-  decodeSecret,
   parseDuration,
   planDeletion,
+  publishHole,
+  unpublishHole,
+  type PublishPool,
 } from '../src/publish.ts'
-import { generateSecretKey, finalizeEvent } from 'nostr-tools/pure'
-import * as nip19 from 'nostr-tools/nip19'
+import { generateSecretKey, finalizeEvent, getPublicKey } from 'nostr-tools/pure'
+import type { Event, EventTemplate, Filter } from 'nostr-tools'
+import type { CliSigner } from '../src/signing.ts'
+import { DOC_KIND, RELAY_LIST_KIND } from '../src/protocol.ts'
 
 function fixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-test-'))
@@ -94,9 +98,140 @@ test('planDeletion covers each document with e and a tags', () => {
   assert.ok(del.tags.some((t) => t[0] === 'a' && t[1] === `31436:${doc.pubkey}:/x.txt`))
 })
 
-test('decodeSecret accepts nsec and hex, rejects junk', () => {
-  const sk = generateSecretKey()
-  assert.deepEqual(decodeSecret(nip19.nsecEncode(sk)), sk)
-  assert.deepEqual(decodeSecret(Buffer.from(sk).toString('hex')), sk)
-  assert.throws(() => decodeSecret('hunter2'))
+class FakePool implements PublishPool {
+  readonly published = new Map<string, Event[]>()
+  destroyed = false
+  private readonly relayList: Event | null
+  private readonly rejectDocs: boolean
+  private readonly hideReadback: boolean
+
+  constructor(
+    relayList: Event | null,
+    rejectDocs = false,
+    initial: Event[] = [],
+    hideReadback = false,
+  ) {
+    this.relayList = relayList
+    this.rejectDocs = rejectDocs
+    this.hideReadback = hideReadback
+    for (const event of initial) this.published.set('wss://author.example', [event])
+  }
+
+  async querySync(relays: string[], filter: Filter): Promise<Event[]> {
+    if (filter.kinds?.includes(RELAY_LIST_KIND))
+      return this.relayList === null ? [] : [this.relayList]
+    const events = relays.flatMap((relay) => this.published.get(relay) ?? [])
+    if (filter.ids) {
+      return this.hideReadback ? [] : events.filter((event) => filter.ids?.includes(event.id))
+    }
+    return events.filter(
+      (event) =>
+        (filter.kinds === undefined || filter.kinds.includes(event.kind)) &&
+        (filter.authors === undefined || filter.authors.includes(event.pubkey)),
+    )
+  }
+
+  publish(relays: string[], event: Event): Promise<string>[] {
+    return relays.map(async (relay) => {
+      if (this.rejectDocs && event.kind === DOC_KIND) throw new Error('rejected')
+      const events = this.published.get(relay) ?? []
+      events.push(event)
+      this.published.set(relay, events)
+      return 'ok'
+    })
+  }
+
+  destroy(): void {
+    this.destroyed = true
+  }
+}
+
+function signerFor(secret: Uint8Array): CliSigner {
+  return {
+    describe: 'test remote signer',
+    pubkey: async () => getPublicKey(secret),
+    sign: async (template: EventTemplate) => finalizeEvent(template, secret),
+  }
+}
+
+test('publish follows the author NIP-65 write set, spreads it and verifies read-back', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  const relayList = finalizeEvent(
+    {
+      kind: RELAY_LIST_KIND,
+      created_at: 1000,
+      tags: [['r', 'wss://author.example', 'write']],
+      content: '',
+    },
+    secret,
+  )
+  const pool = new FakePool(relayList)
+  try {
+    await publishHole(dir, ['wss://configured.example'], signerFor(secret), { pool })
+    for (const relay of ['wss://configured.example', 'wss://author.example']) {
+      const events = pool.published.get(relay) ?? []
+      assert.ok(
+        events.some((event) => event.id === relayList.id),
+        `${relay} should get NIP-65`,
+      )
+      assert.equal(events.filter((event) => event.kind === DOC_KIND).length, 5)
+    }
+    assert.equal(pool.destroyed, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('publish fails truthfully when every relay rejects a document', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  const pool = new FakePool(null, true)
+  try {
+    await assert.rejects(
+      publishHole(dir, ['wss://configured.example'], signerFor(secret), { pool }),
+      /rejected by every relay/,
+    )
+    assert.equal(pool.destroyed, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('publish fails truthfully when accepted documents cannot be read back', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  const pool = new FakePool(null, false, [], true)
+  try {
+    await assert.rejects(
+      publishHole(dir, ['wss://configured.example'], signerFor(secret), { pool }),
+      /accepted but not readable/,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('unpublish discovers documents on the author NIP-65 write relays', async () => {
+  const secret = generateSecretKey()
+  const signer = signerFor(secret)
+  const doc = finalizeEvent(
+    docToTemplate({ path: '/gone.txt', type: '0', title: 'gone', content: 'bye' }, 1001),
+    secret,
+  )
+  const relayList = finalizeEvent(
+    {
+      kind: RELAY_LIST_KIND,
+      created_at: 1000,
+      tags: [['r', 'wss://author.example', 'write']],
+      content: '',
+    },
+    secret,
+  )
+  const pool = new FakePool(relayList, false, [doc])
+  await unpublishHole(['/gone.txt'], ['wss://configured.example'], signer, false, pool)
+  for (const relay of ['wss://configured.example', 'wss://author.example']) {
+    assert.ok((pool.published.get(relay) ?? []).some((event) => event.kind === 5))
+  }
+  assert.equal(pool.destroyed, true)
 })

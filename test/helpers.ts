@@ -4,10 +4,16 @@ import * as nip19 from 'nostr-tools/nip19'
 import { planDirectory, docToTemplate } from '../src/publish.ts'
 import { docPath } from '../src/protocol.ts'
 import type { HoleStore } from '../src/fetch.ts'
+import type { CliSigner } from '../src/signing.ts'
 
 export const sk = generateSecretKey()
 export const pubkey = getPublicKey(sk)
 export const npub = nip19.npubEncode(pubkey)
+export const testSigner: CliSigner = {
+  describe: 'test remote signer',
+  pubkey: async () => pubkey,
+  sign: async (template) => finalizeEvent(template, sk),
+}
 
 export const holeDir = path.join(import.meta.dirname, '..', 'examples', 'hole')
 const directoryDocs = planDirectory(holeDir).map((d) =>

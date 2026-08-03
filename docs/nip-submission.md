@@ -8,9 +8,9 @@ the independent-client gate below is met.
 line the nips repo expects, uses RFC 2119 throughout and carries test vectors.
 A portable superset of the vectors lives in
 `test/fixtures/kind31436-v1.json`.
-That fixture is also included in the npm package for a second client to consume
-without copying this implementation. Its portable field definitions and the
-evidence expected from that client are in `docs/conformance.md`.
+That fixture is also included in the package contents for a second client to
+consume without copying this implementation. Its portable field definitions
+and the evidence expected from that client are in `docs/conformance.md`.
 Bridge behaviour is intentionally excluded and documented in
 `docs/bridge-profile.md` instead.
 

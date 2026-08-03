@@ -19,6 +19,7 @@ import {
   writeRelays,
 } from './protocol.ts'
 import { PAGE, type TimeCursor } from './virtual.ts'
+import { publicRelayUrls, trustRelayUrls } from './netguard.ts'
 
 const MINUTE = 60_000
 
@@ -51,6 +52,7 @@ export interface PoolLike {
 export class HoleStore {
   private pool: PoolLike
   private relays: string[]
+  private filterUntrustedRelays: (urls: readonly string[]) => Promise<string[]>
   private docsCache = new TtlLru<Event | null>(500, MINUTE)
   private holeCache = new TtlLru<Event[]>(100, MINUTE)
   private profileCache = new TtlLru<Event | null>(200, 5 * MINUTE)
@@ -69,9 +71,18 @@ export class HoleStore {
   private hintCache = new TtlLru<string[]>(200, 30 * MINUTE)
   private noticesSilenced = false
 
-  constructor(relays: string[], pool: PoolLike = new SimplePool()) {
+  constructor(
+    relays: string[],
+    pool?: PoolLike,
+    filterUntrustedRelays?: (urls: readonly string[]) => Promise<string[]>,
+  ) {
     this.relays = relays
-    this.pool = pool
+    trustRelayUrls(relays)
+    this.pool = pool ?? new SimplePool()
+    // Injected pools are test doubles which do not open sockets. Preserve their
+    // deterministic relay fixtures unless a test supplies its own guard.
+    this.filterUntrustedRelays =
+      filterUntrustedRelays ?? (pool === undefined ? publicRelayUrls : async (urls) => [...urls])
   }
 
   private async query(filter: Filter, maxWait: number, relays = this.relays): Promise<Event[]> {
@@ -105,7 +116,8 @@ export class HoleStore {
     const hit = this.relayListCache.get(pubkey)
     if (hit !== undefined) {
       const current = hit.expiration === null || hit.expiration > Math.floor(Date.now() / 1000)
-      return union(this.relays, union(current ? hit.relays : [], hinted))
+      const untrusted = await this.filterUntrustedRelays(union(current ? hit.relays : [], hinted))
+      return union(this.relays, untrusted)
     }
     const events = await this.query(
       { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
@@ -118,7 +130,8 @@ export class HoleStore {
       relays: write,
       expiration: newest ? expirationTimestamp(newest) : null,
     })
-    return union(this.relays, union(write, hinted))
+    const untrusted = await this.filterUntrustedRelays(union(write, hinted))
+    return union(this.relays, untrusted)
   }
 
   // Relays without NIP-50 answer a `search` filter with a NOTICE, which

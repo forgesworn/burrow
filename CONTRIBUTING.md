@@ -16,6 +16,7 @@ npm test                     # node:test, no framework
 npm run typecheck            # tsc --noEmit, strict
 npm run lint                 # biome: format check + lint, also runs in CI
 npm run format               # biome: apply the fixes
+npm run coverage             # source-only coverage with enforced thresholds
 ```
 
 Formatting is not a matter of taste here, it is whatever `npm run format`
@@ -25,8 +26,10 @@ the author's call.
 
 Because the source runs under type stripping (`erasableSyntaxOnly`), a few
 TypeScript features are off limits: no enums, no parameter properties, and
-imports of types must be `import type`. The one build (`npm run build`) exists
-only for publishing, where Node refuses to strip types under `node_modules`.
+imports of types must be `import type`. The build (`npm run build`) exists for
+packaging, where Node refuses to strip types under `node_modules`. Git-based
+package installs run it automatically through `prepare`; day-to-day source
+development does not use the output.
 
 nostr-tools is pinned to exactly `2.23.9` on purpose (a later idle-close
 change breaks live subscriptions). Do not bump it without reading the pin.

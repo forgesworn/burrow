@@ -5,13 +5,12 @@ import http from 'node:http'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { nsecEncode } from 'nostr-tools/nip19'
 import * as nip19 from 'nostr-tools/nip19'
 import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure'
 import { createHttpServer, type HttpOptions } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
 import { esc } from '../src/html.ts'
-import { makeStore, sk, npub, note } from './helpers.ts'
+import { makeStore, npub, note, testSigner } from './helpers.ts'
 
 // The loopback operator's forms carry a server-lifetime CSRF token; grab it
 // from the /post form to drive the write endpoints the way lynx would.
@@ -20,13 +19,8 @@ async function operatorCsrf(base: string): Promise<string> {
   return /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
 }
 
-function withNsec<T>(fn: () => Promise<T>): Promise<T> {
-  const saved = process.env['GOPHERKIND_NSEC']
-  process.env['GOPHERKIND_NSEC'] = nsecEncode(sk)
-  return fn().finally(() => {
-    if (saved === undefined) delete process.env['GOPHERKIND_NSEC']
-    else process.env['GOPHERKIND_NSEC'] = saved
-  })
+function withRemoteSigner<T>(fn: () => Promise<T>): Promise<T> {
+  return fn()
 }
 
 async function start(
@@ -42,6 +36,7 @@ async function start(
     virtual: true,
     identity: true,
     pairings: new PairingStore(path.join(dir, 'pairings.json')),
+    operatorSigner: testSigner,
     store: makeStore(published),
     ...overrides,
   })
@@ -55,6 +50,17 @@ test('html escaping closes the obvious hole', () => {
 })
 
 test('http frontend', async (t) => {
+  await t.test('health check is cheap, plain text and supports HEAD', async (t2) => {
+    const base = await start(t2)
+    const get = await fetch(`${base}/healthz`)
+    assert.equal(get.status, 200)
+    assert.equal(get.headers.get('content-type'), 'text/plain; charset=utf-8')
+    assert.equal(await get.text(), 'ok\n')
+    const head = await fetch(`${base}/healthz`, { method: 'HEAD' })
+    assert.equal(head.status, 200)
+    assert.equal(await head.text(), '')
+  })
+
   await t.test('home page lists pins and needs no identity', async (t2) => {
     const base = await start(t2, { identity: false })
     const body = await (await fetch(`${base}/`)).text()
@@ -128,9 +134,9 @@ test('http frontend', async (t) => {
     assert.match(authored, /not an endpoint/)
   })
 
-  await t.test('loopback with GOPHERKIND_NSEC is signed in automatically', async (t2) => {
+  await t.test('loopback with a remote operator signer is signed in automatically', async (t2) => {
     const base = await start(t2)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const body = await (await fetch(`${base}/account`)).text()
       assert.match(body, /Signed in as/)
       assert.match(body, /local operator/)
@@ -139,7 +145,7 @@ test('http frontend', async (t) => {
 
   await t.test('local trust can be turned off', async (t2) => {
     const base = await start(t2, { localTrust: false })
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const body = await (await fetch(`${base}/account`)).text()
       assert.match(body, /<h1>Sign in<\/h1>/)
       const post = await fetch(`${base}/post`, { redirect: 'manual' })
@@ -151,7 +157,7 @@ test('http frontend', async (t) => {
   await t.test('posting signs and publishes', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const form = await (await fetch(`${base}/post`)).text()
       assert.match(form, /<textarea name="text"/)
       const csrf = /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
@@ -173,7 +179,7 @@ test('http frontend', async (t) => {
   await t.test('posting refuses credential-shaped content', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/post`, {
         method: 'POST',
@@ -188,7 +194,7 @@ test('http frontend', async (t) => {
   await t.test('own note offers a delete button and deletion signs kind 5', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const view = await (await fetch(`${base}/${npub}/notes/${note.id}`)).text()
       assert.match(view, /Delete this note/)
       assert.match(view, new RegExp(`value="${note.id}"`))
@@ -209,7 +215,7 @@ test('http frontend', async (t) => {
   await t.test('malformed event id is rejected', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/delete`, {
         method: 'POST',
@@ -237,7 +243,7 @@ test('http frontend', async (t) => {
       },
       published,
     )
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       // the delete button must not be offered on a stranger's note
       const view = await (
         await fetch(`${base}/${nip19.npubEncode(strangerNote.pubkey)}/notes/${strangerNote.id}`)
@@ -259,7 +265,7 @@ test('http frontend', async (t) => {
   await t.test('a POST without the csrf token is refused', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const res = await fetch(`${base}/post`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -273,7 +279,7 @@ test('http frontend', async (t) => {
   await t.test('a cross-site Origin is refused even with a valid token', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const csrf = await operatorCsrf(base)
       const res = await fetch(`${base}/post`, {
         method: 'POST',
@@ -291,7 +297,7 @@ test('http frontend', async (t) => {
   await t.test('a loopback connection with a foreign Host is not the operator', async (t2) => {
     const base = await start(t2)
     const port = Number(new URL(base).port)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       // fetch() forbids overriding Host, so drive a raw request that can.
       const body = await new Promise<string>((resolve, reject) => {
         const req = http.request(
@@ -321,7 +327,7 @@ test('http frontend', async (t) => {
 
   await t.test('feed renders follows', async (t2) => {
     const base = await start(t2)
-    await withNsec(async () => {
+    await withRemoteSigner(async () => {
       const body = await (await fetch(`${base}/feed`)).text()
       assert.match(body, /<h1>Your feed<\/h1>/)
       assert.match(body, new RegExp(`href="/${npub}/notes/${note.id}"`))

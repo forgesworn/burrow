@@ -35,13 +35,14 @@ src/virtual.ts    kind 0/1/30023 -> virtual hole documents
 src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries;
                   NIP-65 outbox reads (author write relays) plus remembered
                   NIP-19 relay hints; PoolLike is injectable for tests
-src/netguard.ts   SSRF guard for the gopher proxy: blocks loopback/private/
-                  link-local ranges, resolves hostnames before connecting;
+src/netguard.ts   outbound network boundary for proxy, relay hints and NIP-46:
+                  blocks loopback/private/link-local DNS answers at socket time;
                   safeRelayUrls bounds untrusted relay hints
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
 src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
-src/publish.ts    directory -> signed events; NIP-09 unpublish; NIP-40 expire
-src/signing.ts    CLI signer resolution: GOPHERKIND_NSEC > GOPHERKIND_BUNKER > stored
+src/publish.ts    directory -> remotely signed events; NIP-65 destinations and
+                  read-back; NIP-09 unpublish; NIP-40 expire
+src/signing.ts    remote CLI signer: GOPHERKIND_BUNKER > stored NIP-46 pairing
 src/commands.ts   CLI client: read, search, post, feed, pair, whoami
 src/cliview.ts    Content -> terminal text (plain and numbered-link forms)
 src/secretguard.ts blocks credential-shaped content before signing
@@ -73,11 +74,15 @@ protocol-specific rendering in the router.
   `node --test`. Publishing is the one exception: Node refuses type
   stripping under node_modules, so `npm run build` compiles `dist/`
   via tsconfig.build.json (rewriteRelativeImportExtensions) and the
-  npm bin points there. Releases go through forgesworn/anvil (OIDC
-  trusted publishing; never npm publish from a workstation).
+  npm bin points there. Git installs also run `prepare` for that reason;
+  normal source development still needs no build. After the one-time,
+  checksum-verified registry bootstrap in `docs/releasing.md`, releases go
+  through forgesworn/anvil (OIDC trusted publishing; never publish routine
+  releases from a workstation).
 - **The bridge never holds a user key.** Signing is always remote via
-  NIP-46. Disk state is exactly: the Gemini TLS cert and
-  `pairings.json` (cert fingerprint -> bunker binding, mode 600).
+  NIP-46. Sensitive disk state is the Gemini TLS key and `pairings.json`
+  (cert fingerprint -> bunker binding, mode 600); bookmarks are ordinary
+  local client state.
 - **Never accept a credential over gopher.** Plaintext, no auth. The
   `/me` menu is the one exception and only because it sends nothing:
   identity is the connection's origin (loopback). It must never be

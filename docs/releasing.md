@@ -1,0 +1,50 @@
+# Releasing gopherkind
+
+Release tags are `v` followed by the exact package version. The release
+workflow rejects a mismatch, runs the full quality gates, builds the npm
+tarball, writes `SHA256SUMS`, and attaches both files to the GitHub release.
+This path works without npm registry credentials.
+
+```sh
+npm version 0.8.0 --no-git-tag-version
+# update CHANGELOG.md, review and merge
+git tag -s v0.8.0 -m 'gopherkind 0.8.0'
+git push origin v0.8.0
+gh release create v0.8.0 --verify-tag --generate-notes
+```
+
+Publishing the GitHub release starts the workflow. Manual dispatch is the
+rerun path for an existing release whose assets need rebuilding.
+
+The registry name `gopherkind` has not had its first npm publication. The
+earlier trusted-publishing attempt returned 404 because the package did not
+yet exist under the publisher's ownership, despite valid GitHub provenance.
+An npm owner must perform the one-time package bootstrap. This is the sole
+workstation-publish exception: publish the exact checksummed GitHub release
+asset, rather than rebuilding the package locally.
+
+```sh
+gh release download v0.7.0 \
+  --pattern 'gopherkind-*.tgz' --pattern SHA256SUMS \
+  --dir gopherkind-0.7.0-release
+cd gopherkind-0.7.0-release
+shasum -a 256 -c SHA256SUMS
+npm login
+npm publish ./gopherkind-0.7.0.tgz --access public
+```
+
+The npm account must have two-factor authentication enabled. Check the package
+page and install `gopherkind@0.7.0` in a clean temporary directory before
+configuring its trusted publisher with these exact values:
+
+- provider: GitHub Actions
+- organisation: `forgesworn`
+- repository: `gopherkind`
+- workflow filename: `release.yml`
+- environment: `npm-publish`
+- allowed action: `npm publish`
+
+After that external setup, set the repository variable
+`NPM_PUBLISH_ENABLED=true`. Future releases will run the pinned ForgeSworn
+anvil workflow after the GitHub tarball is safely attached. Do not add a
+long-lived npm token and do not publish subsequent releases from a workstation.

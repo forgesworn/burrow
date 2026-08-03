@@ -16,7 +16,13 @@ an `nprofile` or `naddr` followed through a menu.
 
 Hints are untrusted. A bridge MUST accept only `ws:` or `wss:` relay URLs,
 reject internal network ranges, impose a small per-author limit, and retain
-its own relay set when hints are added.
+its own relay set when hints are added. Address checks SHOULD happen during the
+socket's DNS lookup so a validated hostname cannot rebind before connection.
+
+A publisher SHOULD use the union of its configured relays and the author's
+current NIP-65 write relays. It SHOULD publish the signed relay-list event to
+that union and read documents back after relay acceptance, because an `OK`
+response alone does not prove that a later reader can retrieve the event.
 
 ## Gopher selectors
 
