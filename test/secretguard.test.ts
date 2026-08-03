@@ -25,3 +25,16 @@ test('lets ordinary notes through', () => {
   assert.equal(findSecret('event id ' + 'a'.repeat(64)), null)
   assert.equal(findSecret('reading about bunkers and gopherspace history'), null)
 })
+
+test('catches a short secret token and burrow-sized nostrconnect secret', () => {
+  assert.match(findSecret('secret=' + 'a'.repeat(16)) ?? '', /secret token/)
+})
+
+test('catches a raw hex private key in a key context', () => {
+  assert.match(findSecret('my private key: ' + 'a'.repeat(64)) ?? '', /private key/)
+  assert.match(findSecret('nsec ' + 'b'.repeat(64)) ?? '', /private key/)
+})
+
+test('sees through zero-width obfuscation of an nsec', () => {
+  assert.match(findSecret('nsec1​' + 'q'.repeat(30)) ?? '', /private key/)
+})

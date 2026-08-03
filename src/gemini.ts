@@ -30,6 +30,24 @@ interface PendingConnect {
   uri: string
   state: 'waiting' | 'done' | 'failed'
   error?: string
+  at: number
+}
+
+// A client cert is free (self-signed, TOFU), so /pair/connect is reachable
+// by anyone; bound the pending map so it cannot grow without limit or keep
+// stale relay subscriptions around.
+const PENDING_TTL_MS = 150_000
+const MAX_PENDING = 100
+
+function sweepPending(now: number): void {
+  for (const [fp, p] of pendingConnects) {
+    if (now - p.at > PENDING_TTL_MS) pendingConnects.delete(fp)
+  }
+  while (pendingConnects.size > MAX_PENDING) {
+    const oldest = pendingConnects.keys().next().value
+    if (oldest === undefined) break
+    pendingConnects.delete(oldest)
+  }
 }
 
 export interface GeminiContext {
@@ -204,10 +222,11 @@ async function accountRoutes(
 
     case '/pair/connect': {
       if (pairing) return '30 /account\r\n'
+      sweepPending(Date.now())
       let pending = pendingConnects.get(cert.fingerprint)
       if (!pending || pending.state === 'failed') {
         const { uri, finish } = id.signer.startConnect(ctx.relays, id.appName)
-        pending = { uri, state: 'waiting' }
+        pending = { uri, state: 'waiting', at: Date.now() }
         pendingConnects.set(cert.fingerprint, pending)
         const mine = pending
         finish
