@@ -6,7 +6,7 @@ import type { Event, Filter } from 'nostr-tools'
 import { matchVirtualPath, PAGE, PEOPLE_PAGE } from '../src/virtual.ts'
 import { HoleStore, type PoolLike } from '../src/fetch.ts'
 import { resolveRoute, type Content } from '../src/router.ts'
-import { NOTE_KIND, CONTACTS_KIND } from '../src/protocol.ts'
+import { NOTE_KIND, CONTACTS_KIND, LONG_FORM_KIND, tagValue } from '../src/protocol.ts'
 
 const sk = generateSecretKey()
 const pk = getPublicKey(sk)
@@ -14,30 +14,35 @@ const npub = nip19.npubEncode(pk)
 const now = Math.floor(Date.now() / 1000)
 
 test('cursor paths parse, and permalinks still win', () => {
+  const id = 'b'.repeat(64)
   assert.deepEqual(matchVirtualPath('/notes'), { kind: 'notes' })
-  assert.deepEqual(matchVirtualPath('/notes/before/1700000000'), {
+  assert.deepEqual(matchVirtualPath(`/notes/before/1700000000/${id}`), {
     kind: 'notes',
-    before: 1700000000,
+    before: { createdAt: 1700000000, id },
   })
   assert.deepEqual(matchVirtualPath(`/notes/${'a'.repeat(64)}`), {
     kind: 'note',
     id: 'a'.repeat(64),
   })
-  assert.deepEqual(matchVirtualPath('/articles/before/42'), { kind: 'articles', before: 42 })
-  assert.deepEqual(matchVirtualPath('/articles/before-2024'), {
-    kind: 'article',
-    d: 'before-2024',
+  assert.deepEqual(matchVirtualPath(`/articles/before/42/${id}`), {
+    kind: 'articles',
+    before: { createdAt: 42, id },
   })
   assert.deepEqual(matchVirtualPath('/follows/from/200'), { kind: 'follows', from: 200 })
   assert.deepEqual(matchVirtualPath('/followers/from/0'), { kind: 'followers', from: 0 })
   // junk cursors are not paths, not pages
   assert.equal(matchVirtualPath('/notes/before/abc'), null)
-  assert.equal(matchVirtualPath('/notes/before/12345678901'), null)
+  assert.equal(matchVirtualPath(`/notes/before/12345678901/${id}`), null)
+  assert.equal(matchVirtualPath('/articles/before-2024'), null)
   assert.equal(matchVirtualPath('/follows/from/x'), null)
 })
 
 function note(created_at: number, content: string): Event {
   return finalizeEvent({ kind: NOTE_KIND, created_at, tags: [], content }, sk)
+}
+
+function article(created_at: number, d: string): Event {
+  return finalizeEvent({ kind: LONG_FORM_KIND, created_at, tags: [['d', d]], content: d }, sk)
 }
 
 function fakePool(handler: (filter: Filter) => Event[]): PoolLike & { filters: Filter[] } {
@@ -78,7 +83,7 @@ test('a full notes page offers the next one, and the cursor advances', async () 
   assert.equal(links.filter((p) => p.startsWith('/notes/before/')).length, 1, 'one older link')
   const cursor = links.find((p) => p.startsWith('/notes/before/')) as string
   // the cursor is the oldest note on this page
-  assert.equal(cursor, `/notes/before/${now - (PAGE - 1)}`)
+  assert.equal(cursor, `/notes/before/${now - (PAGE - 1)}/${stream[PAGE - 1]?.id}`)
 
   const second = await resolveRoute({ kind: 'doc', pubkey: pk, npub, path: cursor }, store, {
     virtual: true,
@@ -95,6 +100,25 @@ test('a full notes page offers the next one, and the cursor advances', async () 
   )
 })
 
+test('a composite cursor keeps events that share the boundary second', async () => {
+  const sameSecond = Array.from({ length: PAGE + 10 }, (_, i) => note(now, `same ${i}`))
+  const pool = fakePool((f) => (f.kinds?.includes(NOTE_KIND) ? sameSecond : []))
+  const store = new HoleStore(['wss://bridge'], pool)
+  const first = await resolveRoute({ kind: 'doc', pubkey: pk, npub, path: '/notes' }, store, {
+    virtual: true,
+  })
+  const firstLinks = menuLinks(first)
+  const cursor = firstLinks.find((p) => p.startsWith('/notes/before/')) as string
+  const second = await resolveRoute({ kind: 'doc', pubkey: pk, npub, path: cursor }, store, {
+    virtual: true,
+  })
+  const noteLinks = [...firstLinks, ...menuLinks(second)].filter((p) =>
+    /^\/notes\/[0-9a-f]{64}$/.test(p),
+  )
+  assert.equal(noteLinks.length, sameSecond.length)
+  assert.equal(new Set(noteLinks).size, sameSecond.length)
+})
+
 test('a short page offers no older link', async () => {
   const few = stream.slice(0, 3)
   const pool = fakePool((f) => (f.kinds?.includes(NOTE_KIND) ? few : []))
@@ -103,6 +127,32 @@ test('a short page offers no older link', async () => {
     virtual: true,
   })
   assert.equal(menuLinks(content).filter((p) => p.startsWith('/notes/before/')).length, 0)
+})
+
+test('article pagination cannot resurrect an older addressable revision', async () => {
+  const winner = article(now, 'revised')
+  const middle = Array.from({ length: PAGE }, (_, index) =>
+    article(now - index - 1, `article-${index}`),
+  )
+  const replaced = article(now - 100, 'revised')
+  const all = [winner, ...middle, replaced]
+  const pool = fakePool((filter) => {
+    if (!filter.kinds?.includes(LONG_FORM_KIND)) return []
+    const until = filter.until ?? Infinity
+    return all.filter((event) => event.created_at <= until)
+  })
+  const store = new HoleStore(['wss://bridge'], pool)
+  const first = await store.articles(pk)
+  const boundary = first.at(-1)
+  assert.ok(boundary)
+  const second = await store.articles(pk, { createdAt: boundary.created_at, id: boundary.id })
+  assert.deepEqual(
+    second.map((event) => tagValue(event, 'd')),
+    ['article-19'],
+  )
+  const articleFilters = pool.filters.filter((filter) => filter.kinds?.includes(LONG_FORM_KIND))
+  assert.ok(articleFilters.some((filter) => filter.until === boundary.created_at))
+  assert.ok(articleFilters.some((filter) => filter['#d']?.includes('revised')))
 })
 
 test('a long follow list pages instead of being silently cut off', async () => {
@@ -161,11 +211,47 @@ test('a short follow list gets no pagination furniture at all', async () => {
   assert.ok(!content.items.some((i) => i.display.startsWith('showing ')))
 })
 
+test('people are sorted before the page offset is applied', async () => {
+  const pubkeys = Array.from({ length: PEOPLE_PAGE + 1 }, () => getPublicKey(generateSecretKey()))
+  const profiles = new Map(
+    pubkeys.map((pubkey, index) => [
+      pubkey,
+      finalizeEvent(
+        {
+          kind: 0,
+          created_at: now,
+          tags: [],
+          content: JSON.stringify({ name: index === PEOPLE_PAGE ? '000 first' : `z ${index}` }),
+        },
+        sk,
+      ),
+    ]),
+  )
+  const store = {
+    doc: async () => null,
+    contacts: async () => pubkeys,
+    profilesBatch: async () => profiles,
+  } as unknown as HoleStore
+  const content = await resolveRoute({ kind: 'doc', pubkey: pk, npub, path: '/follows' }, store, {
+    virtual: true,
+  })
+  assert.equal(content.kind, 'menu')
+  if (content.kind === 'menu') {
+    const firstPerson = content.items.find((item) => item.target.scheme === 'hole')
+    assert.equal(firstPerson?.display, '000 first')
+  }
+})
+
 test('a cursor page is not served when virtual holes are off', async () => {
   const pool = fakePool(() => [])
   const store = new HoleStore(['wss://bridge'], pool)
   const content = await resolveRoute(
-    { kind: 'doc', pubkey: pk, npub, path: '/notes/before/1700000000' },
+    {
+      kind: 'doc',
+      pubkey: pk,
+      npub,
+      path: `/notes/before/1700000000/${'a'.repeat(64)}`,
+    },
     store,
     { virtual: false },
   )

@@ -19,8 +19,9 @@ test('bare npub is the hole root', () => {
   assert.equal((route as { pubkey: string }).pubkey, pubkey)
 })
 
-test('leading slash optional, trailing slash normalised', () => {
-  assert.equal((parseSelector(`${npub}/phlog/`) as { path: string }).path, '/phlog')
+test('leading slash is optional but a trailing slash is not normalised', () => {
+  assert.equal((parseSelector(`${npub}/phlog`) as { path: string }).path, '/phlog')
+  assert.throws(() => parseSelector(`${npub}/phlog/`), SelectorError)
 })
 
 test('nested path', () => {
@@ -46,4 +47,12 @@ test('rejects garbage npub', () => {
 
 test('rejects path traversal', () => {
   assert.throws(() => parseSelector(`/${npub}/../etc/passwd`), SelectorError)
+  assert.throws(() => parseSelector(`/${npub}/a//b`), SelectorError)
+  assert.throws(() => parseSelector(`/${npub}/a/./b`), SelectorError)
+})
+
+test('path bytes are not trimmed or percent-decoded', () => {
+  assert.equal((parseSelector(`/${npub}/a b`) as { path: string }).path, '/a b')
+  assert.equal((parseSelector(`/${npub}/a%20b`) as { path: string }).path, '/a%20b')
+  assert.equal((parseSelector(`/${npub}/a `) as { path: string }).path, '/a ')
 })

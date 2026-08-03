@@ -20,12 +20,7 @@ test('npub forms parse to hole targets', () => {
     npub,
     path: '/notes',
   })
-  assert.deepEqual(parseClientTarget(`nostr:${npub}/notes/`), {
-    kind: 'hole',
-    pubkey,
-    npub,
-    path: '/notes',
-  })
+  assert.throws(() => parseClientTarget(`nostr:${npub}/notes/`), TargetError)
   assert.deepEqual(parseClientTarget(`/${npub}`), { kind: 'hole', pubkey, npub, path: '/' })
   assert.throws(() => parseClientTarget(`${npub}/a/../b`), TargetError)
 })
@@ -42,7 +37,7 @@ test('nprofile and naddr parse to hole targets', () => {
     kind: 'hole',
     pubkey,
     npub,
-    path: '/articles/my-post',
+    path: `/articles/${article}`,
   })
 
   const other = nip19.naddrEncode({ kind: 30000, pubkey, identifier: 'x' })

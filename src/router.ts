@@ -103,14 +103,14 @@ async function resolveVirtual(
     }
     case 'notes': {
       const notes = await store.notes(route.pubkey, m.before)
-      const oldest = notes.length === virtual.PAGE ? (notes.at(-1)?.created_at ?? null) : null
+      const cursor = notes.length === virtual.PAGE ? virtual.eventCursor(notes.at(-1)) : null
       return {
         kind: 'menu',
         title: m.before === undefined ? 'Notes' : 'Notes (older)',
         items: resolveMapLines(
           [
             ...virtual.notesMenuLines(notes),
-            ...virtual.pageLines('/notes', oldest, m.before !== undefined),
+            ...virtual.pageLines('/notes', cursor, m.before !== undefined),
           ],
           route.npub,
         ),
@@ -127,29 +127,29 @@ async function resolveVirtual(
         m.kind === 'follows'
           ? await store.contacts(route.pubkey)
           : await store.followers(route.pubkey)
-      // A big follow list is paged by offset rather than truncated, so the
-      // tail is reachable instead of silently dropped.
-      const from = Math.min(m.from ?? 0, Math.max(pubkeys.length - 1, 0))
-      const page = pubkeys.slice(from, from + virtual.PEOPLE_PAGE)
-      const profiles = await store.profilesBatch(page)
-      const people = page.map((pk) => {
+      // Resolve and sort the complete snapshot before applying the offset.
+      // Slicing first makes page membership depend on relay return order.
+      const profiles = await store.profilesBatch(pubkeys)
+      const people = pubkeys.map((pk) => {
         const npub = nip19.npubEncode(pk)
         const profile = virtual.parseProfile(profiles.get(pk) ?? null)
         return { npub, name: virtual.displayName(profile, npub), about: profile?.about }
       })
-      people.sort((a, b) => a.name.localeCompare(b.name))
+      people.sort((a, b) => a.name.localeCompare(b.name) || a.npub.localeCompare(b.npub))
+      const from = Math.min(m.from ?? 0, Math.max(people.length - 1, 0))
+      const page = people.slice(from, from + virtual.PEOPLE_PAGE)
       const title = m.kind === 'follows' ? 'Follows' : 'Followers'
       const empty =
         m.kind === 'follows'
           ? 'No follows found (kind 3 empty or unreachable).'
           : 'No followers found on these relays.'
       const base = m.kind === 'follows' ? '/follows' : '/followers'
-      const lines = virtual.peopleMenuLines(people, empty)
+      const lines = virtual.peopleMenuLines(page, empty)
       return {
         kind: 'menu',
         title,
         items: resolveMapLines(
-          [...lines, ...virtual.offsetLines(base, pubkeys.length, from, page.length)],
+          [...lines, ...virtual.offsetLines(base, people.length, from, page.length)],
           route.npub,
         ),
       }
@@ -157,20 +157,21 @@ async function resolveVirtual(
 
     case 'articles': {
       const articles = await store.articles(route.pubkey, m.before)
-      const oldest = articles.length === virtual.PAGE ? (articles.at(-1)?.created_at ?? null) : null
+      const cursor = articles.length === virtual.PAGE ? virtual.eventCursor(articles.at(-1)) : null
       return {
         kind: 'menu',
         title: m.before === undefined ? 'Articles' : 'Articles (older)',
         items: resolveMapLines(
           [
             ...virtual.articlesMenuLines(articles),
-            ...virtual.pageLines('/articles', oldest, m.before !== undefined),
+            ...virtual.pageLines('/articles', cursor, m.before !== undefined),
           ],
           route.npub,
         ),
       }
     }
     case 'article': {
+      if (m.pubkey !== route.pubkey) return null
       const ev = await store.article(route.pubkey, m.d)
       if (!ev) return null
       return { kind: 'text', title: tagValue(ev, 'title') ?? m.d, body: virtual.articleText(ev) }
@@ -208,10 +209,12 @@ async function search(
     }
     for (const ev of await store.articles(route.pubkey)) {
       if (matches(ev.content, tagValue(ev, 'title'), tagValue(ev, 'summary'))) {
+        const path = virtual.articleLink(ev)
+        if (path === null) continue
         push(
           '0',
           `${isoDate(ev.created_at)}  ${tagValue(ev, 'title') ?? tagValue(ev, 'd') ?? ''}`,
-          `/articles/${tagValue(ev, 'd') ?? ''}`,
+          path,
         )
       }
     }
@@ -223,10 +226,12 @@ async function search(
     else if (ev.kind === NOTE_KIND && !ev.tags.some((t) => t[0] === 'e')) {
       push('0', `${isoDate(ev.created_at)}  ${firstLine(ev.content)}`, `/notes/${ev.id}`)
     } else if (ev.kind === LONG_FORM_KIND) {
+      const path = virtual.articleLink(ev)
+      if (path === null) continue
       push(
         '0',
         `${isoDate(ev.created_at)}  ${tagValue(ev, 'title') ?? tagValue(ev, 'd') ?? ''}`,
-        `/articles/${tagValue(ev, 'd') ?? ''}`,
+        path,
       )
     }
   }

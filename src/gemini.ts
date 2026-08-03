@@ -70,7 +70,31 @@ export interface ClientCert {
 }
 
 const RESERVED = new Set(['account', 'pair', 'post', 'feed', 'unpair'])
+const SEARCH_PREFIX = '/_gopherkind/search/'
 const pendingConnects = new Map<string, PendingConnect>()
+
+function decodePath(pathname: string): string {
+  return pathname
+    .split('/')
+    .map((segment) => {
+      const decoded = decodeURIComponent(segment)
+      if (decoded.includes('/')) throw new Error('encoded path separator')
+      return decoded
+    })
+    .join('/')
+}
+
+function requestPath(rawUrl: string): string {
+  const scheme = rawUrl.indexOf('://')
+  if (scheme === -1) throw new Error('missing authority')
+  const start = rawUrl.indexOf('/', scheme + 3)
+  if (start === -1) return '/'
+  const query = rawUrl.indexOf('?', start)
+  const fragment = rawUrl.indexOf('#', start)
+  const ends = [query, fragment].filter((index) => index !== -1)
+  const end = ends.length === 0 ? rawUrl.length : Math.min(...ends)
+  return rawUrl.slice(start, end)
+}
 
 export function createGeminiServer(opts: GeminiOptions): tls.Server {
   const store = opts.store ?? new HoleStore(opts.relays)
@@ -129,8 +153,9 @@ export async function respondGemini(
   let rawPath: string
   let query: string
   try {
-    url = new URL(line.trim())
-    rawPath = decodeURIComponent(url.pathname)
+    const rawUrl = line.trim()
+    url = new URL(rawUrl)
+    rawPath = decodePath(requestPath(rawUrl))
     query = decodeURIComponent(url.search.replace(/^\?/, ''))
   } catch {
     return '59 bad request\r\n'
@@ -139,22 +164,16 @@ export async function respondGemini(
   if (rawPath === '' || rawPath === '/') return welcomePage(ctx, store)
   if (rawPath === '/robots.txt') return `20 text/plain\r\n${geminiRobotsTxt()}`
 
-  const head = rawPath.split('/').filter((s) => s !== '')[0] ?? ''
-  if (RESERVED.has(head)) return accountRoutes(rawPath, query, ctx, store, cert)
-
-  const isSearch = rawPath.endsWith('/search')
-  const basePath = isSearch ? rawPath.slice(0, -'/search'.length) || '/' : rawPath
-
-  let route: Route
-  try {
-    route = parseSelector(basePath)
-  } catch (err) {
-    return err instanceof SelectorError ? `51 ${err.message}\r\n` : '59 bad request\r\n'
-  }
-  if (route.kind === 'welcome') return welcomePage(ctx, store)
-  if (route.kind === 'search') return '59 bad request\r\n'
-
-  if (isSearch) {
+  if (rawPath.startsWith(SEARCH_PREFIX)) {
+    const npub = rawPath.slice(SEARCH_PREFIX.length)
+    if (npub === '' || npub.includes('/')) return '51 bad search address\r\n'
+    let route: Route
+    try {
+      route = parseSelector(`/${npub}`)
+    } catch (err) {
+      return err instanceof SelectorError ? `51 ${err.message}\r\n` : '59 bad request\r\n'
+    }
+    if (route.kind !== 'doc') return '51 bad search address\r\n'
     if (query === '') return '10 Search this hole\r\n'
     const content = await resolveRoute(
       { kind: 'search', pubkey: route.pubkey, npub: route.npub, path: '/', query },
@@ -163,6 +182,18 @@ export async function respondGemini(
     )
     return toGemini(content)
   }
+
+  const head = rawPath.split('/').filter((s) => s !== '')[0] ?? ''
+  if (RESERVED.has(head)) return accountRoutes(rawPath, query, ctx, store, cert)
+
+  let route: Route
+  try {
+    route = parseSelector(rawPath)
+  } catch (err) {
+    return err instanceof SelectorError ? `51 ${err.message}\r\n` : '59 bad request\r\n'
+  }
+  if (route.kind === 'welcome') return welcomePage(ctx, store)
+  if (route.kind === 'search') return '59 bad request\r\n'
 
   const content = await resolveRoute(route, store, { virtual: ctx.virtual })
   return toGemini(content)

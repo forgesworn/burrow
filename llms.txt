@@ -14,16 +14,21 @@
 ## Event format
 
 - kind `31436`, addressable. One event per document.
-- `d` tag: absolute path in the hole, starts with `/`; root menu is `/`.
-- `type` tag: `0` text, `1` menu. Anything else is treated as `0`.
-- `title` tag optional. NIP-40 `expiration` honoured; expired documents
-  are never served.
+- exactly one `d` tag: a valid absolute path; root menu is `/`. Paths
+  are byte-exact identifiers and are never normalised.
+- exactly one `type` tag: `0` text or `1` menu. Missing, duplicate or
+  unrecognised required tags make the event invalid.
+- zero or one `title` tag. Gopherkind validation and NIP-40 `expiration`
+  are checked after the NIP-01 winner is selected; a malformed or expired
+  winner makes the path absent and an available older revision is not selected
+  instead. A relay may delete an expired winner, so expiration alone is not a
+  durable tombstone for a coordinate with older history.
 - Menu content is a "kindmap": gophermap lines with host/port columns
   removed. `<itemtype><display>\t<link>` per line; lines without a tab
   are info text. Links: same-hole `/path`, `npub1`/`nprofile1`
   (their hole root), `naddr1` (kind 31436 document, or kind 30023
-  article served at `/articles/<d>`), `gopher://host/T/selector`,
-  or `http(s)://` (served as an `h`/`URL:` item). Optional `nostr:`
+  article served at `/articles/<naddr>`), `gopher://host/T/selector`,
+  or `http(s)://`/`gemini://` (served as an `h`/`URL:` item). Optional `nostr:`
   prefix on entities.
 
 ## Selector namespace (gopher and gemini alike)
@@ -32,9 +37,10 @@
 - `/<npub>`: hole root (authored `d=/`, else virtual root)
 - `/<npub>/<path>`: document at that path
 - gopher search: type 7 with tab-separated query
-- gemini search: `/<npub>/search` (status 10 input, then results)
+- Gemini and HTTP search: `/_gopherkind/search/<npub>`; `/<npub>/search`
+  remains an ordinary authored document
 - virtual paths when no authored document matches: `/profile.txt`,
-  `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<d>`,
+  `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<naddr>`,
   `/follows` (kind 3 contacts as a menu of holes), `/followers`
   (authors of kind 3 events tagging them; a sample, not a count)
 - gopher personal menu, loopback only, never advertised or served
@@ -52,7 +58,7 @@
   by design; the protocol cannot carry credentials safely.
 - http frontend (default port 8070, aimed at lynx: plain HTML, real
   forms, no JavaScript): same hole paths plus `/go`, `/account`,
-  `/pair`, `/post`, `/feed`, `/delete`, `/<npub>/search?q=`. Loopback
+  `/pair`, `/post`, `/feed`, `/delete`, `/_gopherkind/search/<npub>?q=`. Loopback
   requests are trusted as the operator and use the CLI's signer, so
   local browsing needs no login; remote visitors pair via form and get
   a session cookie. Plain HTTP, so terminate TLS in front of it.
@@ -120,3 +126,4 @@ have no shell on the bridge host. Install: `npx @forgesworn/gopherkind`
 
 - README: https://github.com/forgesworn/gopherkind/blob/main/README.md
 - Protocol spec: https://github.com/forgesworn/gopherkind/blob/main/SPEC.md
+- Bridge profile: https://github.com/forgesworn/gopherkind/blob/main/docs/bridge-profile.md

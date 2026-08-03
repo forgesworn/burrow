@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
 import { createGopherServer } from '../src/server.ts'
-import { makeStore, npub, note } from './helpers.ts'
+import { article, makeStore, npub, note } from './helpers.ts'
+import { articleLink } from '../src/virtual.ts'
 
 const server = createGopherServer({
   relays: ['wss://stub.invalid'],
@@ -78,9 +79,10 @@ test('gopher server end to end', async (t) => {
   })
 
   await t.test('virtual articles are served', async () => {
+    const path = articleLink(article) as string
     const menu = await request(port, `/${npub}/articles`)
-    assert.ok(menu.includes(`\t/${npub}/articles/pallasite-lore\tbridge.test\t7070\r\n`))
-    const body = await request(port, `/${npub}/articles/pallasite-lore`)
+    assert.ok(menu.includes(`\t/${npub}${path}\tbridge.test\t7070\r\n`))
+    const body = await request(port, `/${npub}${path}`)
     assert.match(body, /olivine crystals/)
   })
 

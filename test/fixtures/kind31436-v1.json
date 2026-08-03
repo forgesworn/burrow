@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "name": "minimal root menu",
+      "event": { "kind": 31436, "tags": [["d", "/"], ["type", "1"]], "content": "" },
+      "valid": true,
+      "meta": { "path": "/", "type": "1", "title": "/" }
+    },
+    {
+      "name": "optional title and ignored fields",
+      "event": {
+        "kind": 31436,
+        "tags": [
+          ["d", "/about.txt", "ignored"],
+          ["type", "0", "ignored"],
+          ["title", "About"],
+          ["x-example", "ignored"]
+        ],
+        "content": "hello"
+      },
+      "valid": true,
+      "meta": { "path": "/about.txt", "type": "0", "title": "About" }
+    },
+    {
+      "name": "empty title is valid",
+      "event": {
+        "kind": 31436,
+        "tags": [["d", "/empty-title"], ["type", "0"], ["title", ""]],
+        "content": ""
+      },
+      "valid": true,
+      "meta": { "path": "/empty-title", "type": "0", "title": "" }
+    },
+    {
+      "name": "wrong kind",
+      "event": { "kind": 1, "tags": [["d", "/"], ["type", "1"]], "content": "" },
+      "valid": false
+    },
+    {
+      "name": "missing d",
+      "event": { "kind": 31436, "tags": [["type", "1"]], "content": "" },
+      "valid": false
+    },
+    {
+      "name": "d without a value",
+      "event": { "kind": 31436, "tags": [["d"], ["type", "1"]], "content": "" },
+      "valid": false
+    },
+    {
+      "name": "duplicate d",
+      "event": {
+        "kind": 31436,
+        "tags": [["d", "/"], ["d", "/other"], ["type", "1"]],
+        "content": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "missing type",
+      "event": { "kind": 31436, "tags": [["d", "/"]], "content": "" },
+      "valid": false
+    },
+    {
+      "name": "duplicate type",
+      "event": {
+        "kind": 31436,
+        "tags": [["d", "/"], ["type", "0"], ["type", "1"]],
+        "content": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown type",
+      "event": { "kind": 31436, "tags": [["d", "/"], ["type", "9"]], "content": "" },
+      "valid": false
+    },
+    {
+      "name": "duplicate title",
+      "event": {
+        "kind": 31436,
+        "tags": [["d", "/"], ["type", "1"], ["title", "one"], ["title", "two"]],
+        "content": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "control character in title",
+      "event": {
+        "kind": 31436,
+        "tags": [["d", "/"], ["type", "1"], ["title", "bad\nname"]],
+        "content": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid path makes the document invalid",
+      "event": { "kind": 31436, "tags": [["d", "/a/../b"], ["type", "0"]], "content": "" },
+      "valid": false
+    }
+  ],
+  "paths": [
+    { "value": "/", "valid": true, "urlPath": "/" },
+    { "value": "/a", "valid": true, "urlPath": "/a" },
+    { "value": "/a b", "valid": true, "urlPath": "/a%20b" },
+    { "value": "/a%20b", "valid": true, "urlPath": "/a%2520b" },
+    { "value": "/a%2Fb", "valid": true, "urlPath": "/a%252Fb" },
+    { "value": "/a+b", "valid": true, "urlPath": "/a%2Bb" },
+    { "value": "/CAFÉ", "valid": true, "urlPath": "/CAF%C3%89" },
+    { "value": "/CAFÉ", "valid": true, "urlPath": "/CAFE%CC%81" },
+    { "value": "", "valid": false },
+    { "value": "relative", "valid": false },
+    { "value": "/a//b", "valid": false },
+    { "value": "/a/./b", "valid": false },
+    { "value": "/a/../b", "valid": false },
+    { "value": "/a/", "valid": false },
+    { "value": "/a\tb", "valid": false },
+    { "value": "/a\u007fb", "valid": false },
+    { "value": "/a\u0085b", "valid": false }
+  ],
+  "distinctPaths": [["/a b", "/a%20b"], ["/CAFÉ", "/CAFÉ"], ["/A", "/a"]],
+  "kindmap": [
+    {
+      "name": "empty content",
+      "input": "",
+      "output": []
+    },
+    {
+      "name": "same-author link",
+      "input": "0About\t/about.txt",
+      "output": [{ "type": "0", "display": "About", "link": "/about.txt" }]
+    },
+    {
+      "name": "plain information",
+      "input": "hello",
+      "output": [{ "type": "i", "display": "hello" }]
+    },
+    {
+      "name": "optional information prefix",
+      "input": "ihello",
+      "output": [{ "type": "i", "display": "hello" }]
+    },
+    {
+      "name": "one terminating LF does not add a record",
+      "input": "hello\n",
+      "output": [{ "type": "i", "display": "hello" }]
+    },
+    {
+      "name": "a deliberate blank record is retained",
+      "input": "hello\n\n",
+      "output": [{ "type": "i", "display": "hello" }, { "type": "i", "display": "" }]
+    },
+    {
+      "name": "CR immediately before LF is removed",
+      "input": "one\r\ntwo",
+      "output": [{ "type": "i", "display": "one" }, { "type": "i", "display": "two" }]
+    },
+    {
+      "name": "pasted gophermap fields after the second are ignored",
+      "input": "1Home\t/\told.example\t70",
+      "output": [{ "type": "1", "display": "Home", "link": "/" }]
+    },
+    {
+      "name": "empty link degrades to information",
+      "input": "1Broken\t",
+      "output": [{ "type": "i", "display": "Broken" }]
+    },
+    {
+      "name": "information item ignores a non-empty link",
+      "input": "iNotice\t/about",
+      "output": [{ "type": "i", "display": "Notice" }]
+    },
+    {
+      "name": "unknown printable item type is retained",
+      "input": "xCustom\t/about",
+      "output": [{ "type": "x", "display": "Custom", "link": "/about" }]
+    },
+    {
+      "name": "missing item type degrades to information",
+      "input": "\t/about",
+      "output": [{ "type": "i", "display": "" }]
+    },
+    {
+      "name": "control in display degrades and is neutralised",
+      "input": "0Bad\u0001name\t/about",
+      "output": [{ "type": "i", "display": "Bad name" }]
+    },
+    {
+      "name": "control in link degrades without exposing the link",
+      "input": "0Bad target\t/about\u0001forged",
+      "output": [{ "type": "i", "display": "Bad target" }]
+    },
+    {
+      "name": "bare CR in information is neutralised",
+      "input": "one\rtwo",
+      "output": [{ "type": "i", "display": "one two" }]
+    }
+  ],
+  "replacement": [
+    {
+      "name": "greatest created_at wins",
+      "now": 200,
+      "events": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "created_at": 100,
+          "tags": [["d", "/a"], ["type", "0"]]
+        },
+        {
+          "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "0"]]
+        }
+      ],
+      "winner": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "visible": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "name": "lowest id wins a created_at tie",
+      "now": 200,
+      "events": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "0"]]
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "0"]]
+        }
+      ],
+      "winner": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "visible": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "expiry is applied after replacement and does not resurrect",
+      "now": 200,
+      "events": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "created_at": 100,
+          "tags": [["d", "/a"], ["type", "0"]]
+        },
+        {
+          "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "0"], ["expiration", "200"]]
+        }
+      ],
+      "winner": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "visible": null
+    },
+    {
+      "name": "future expiry remains visible",
+      "now": 200,
+      "events": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "0"], ["expiration", "201"]]
+        }
+      ],
+      "winner": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "visible": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "a malformed winner does not reveal an older valid revision",
+      "now": 200,
+      "events": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "created_at": 100,
+          "tags": [["d", "/a"], ["type", "0"]]
+        },
+        {
+          "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "created_at": 101,
+          "tags": [["d", "/a"], ["type", "9"]]
+        }
+      ],
+      "winner": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "visible": null
+    }
+  ],
+  "type0Wire": [
+    { "input": "hello\n.hidden\n", "output": "hello\r\n..hidden\r\n.\r\n" },
+    { "input": "", "output": "\r\n.\r\n" }
+  ]
+}

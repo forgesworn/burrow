@@ -3,9 +3,10 @@
 ## What this is
 
 Gopherholes served from Nostr relays. Kind 31436 addressable events
-hold documents; a stateless bridge serves them over gopher (RFC 1436)
+hold documents; a bridge serves them over gopher (RFC 1436)
 and Gemini; virtual holes render any npub's profile/notes/articles
-without publishing. SPEC.md is the protocol source of truth.
+without publishing. SPEC.md is the kind protocol source of truth;
+docs/bridge-profile.md owns application and frontend behaviour.
 
 ## Architecture
 
@@ -16,7 +17,7 @@ src/resolve.ts    kindmap lines -> MenuItems with abstract link targets
 src/render.ts     Content -> RFC 1436 wire (dot-stuffing, CRLF, info tails)
 src/gemtext.ts    Content -> text/gemini
 src/server.ts     TCP gopher frontend (read-only, always)
-src/gemini.ts     TLS gemini frontend (/search is the input endpoint)
+src/gemini.ts     TLS gemini frontend (/_gopherkind/search/<npub> input)
 src/http.ts       HTTP frontend for lynx; loopback = operator, no login
 src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
 src/robots.ts     one crawl policy, served on http and gemini
@@ -81,7 +82,11 @@ protocol-specific rendering in the router.
   `/me` menu is the one exception and only because it sends nothing:
   identity is the connection's origin (loopback). It must never be
   advertised or served to a non-loopback client.
-- Expired events (NIP-40) must never be served; filter on read.
+- Expired events (NIP-40) must never be served. Select the NIP-01 winner
+  first, then validate it and make the path absent if it is malformed or
+  expired; never fall back to an older revision.
+- Kind 31436 paths are exact signed identifiers. Never trim, case-fold,
+  Unicode-normalise, collapse slashes or percent-decode a `d` for comparison.
 
 ## Conventions
 

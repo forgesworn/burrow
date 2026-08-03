@@ -33,12 +33,35 @@ test('text documents are text/plain', async () => {
   assert.match(out, /kind 31436/)
 })
 
-test('search endpoint asks for input, then serves results', async () => {
-  const ask = await respondGemini(`gemini://localhost/${npub}/search`, ctx, store)
+test('URL decoding keeps spaces distinct from literal percent escapes', async () => {
+  const space = await respondGemini(`gemini://localhost/${npub}/a%20b`, ctx, store)
+  const percent = await respondGemini(`gemini://localhost/${npub}/a%2520b`, ctx, store)
+  assert.match(space, /space path/)
+  assert.doesNotMatch(space, /literal percent path/)
+  assert.match(percent, /literal percent path/)
+})
+
+test('URL paths are validated before a URL parser can collapse dot segments', async () => {
+  for (const path of [`/${npub}/a/../about.txt`, `/${npub}/a/%2e%2e/about.txt`]) {
+    const out = await respondGemini(`gemini://localhost${path}`, ctx, store)
+    assert.match(out, /^51 /)
+    assert.doesNotMatch(out, /kind 31436/)
+  }
+})
+
+test('bridge search asks for input, then serves results without shadowing /search', async () => {
+  const ask = await respondGemini(`gemini://localhost/_gopherkind/search/${npub}`, ctx, store)
   assert.equal(ask, '10 Search this hole\r\n')
-  const out = await respondGemini(`gemini://localhost/${npub}/search?gopherspace`, ctx, store)
+  const out = await respondGemini(
+    `gemini://localhost/_gopherkind/search/${npub}?gopherspace`,
+    ctx,
+    store,
+  )
   assert.match(out, /^20 text\/gemini/)
   assert.ok(out.includes(`=> /${npub}/notes/${note.id}`))
+  const authored = await respondGemini(`gemini://localhost/${npub}/search`, ctx, store)
+  assert.match(authored, /^20 text\/plain/)
+  assert.match(authored, /not an endpoint/)
 })
 
 test('virtual note is served over gemini', async () => {

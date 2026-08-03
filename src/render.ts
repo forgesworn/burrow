@@ -1,5 +1,6 @@
 import type { MapLine } from './linemap.ts'
 import { resolveMapLines, type MenuItem } from './resolve.ts'
+import { replaceControlCharacters } from './protocol.ts'
 
 // RFC 1436 wire rendering.
 
@@ -11,7 +12,7 @@ export interface BridgeAddr {
 const INFO_TAIL = '\t-\terror.host\t1'
 
 function clean(text: string): string {
-  return text.replace(/[\t\r\n]/g, ' ')
+  return replaceControlCharacters(text)
 }
 
 export function gopherLine(
@@ -24,7 +25,8 @@ export function gopherLine(
   // clean() every interpolated field, not just the display: a tab or CRLF
   // in a selector or host (e.g. from a percent-decoded proxied gophermap,
   // or a hostile event) would otherwise forge extra menu records.
-  return `${type}${clean(display)}\t${clean(selector)}\t${clean(host)}\t${Number(port) || 70}\r\n`
+  const safeType = /^[\x21-\x7e]$/.test(type) ? type : 'i'
+  return `${safeType}${clean(display)}\t${clean(selector)}\t${clean(host)}\t${Number(port) || 70}\r\n`
 }
 
 export function infoLine(display: string): string {

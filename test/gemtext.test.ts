@@ -17,9 +17,14 @@ test('menu renders heading, info text and links', () => {
   assert.equal(out, `# Test\n\nWelcome\n=> /${npub}/about.txt About\n`)
 })
 
-test('search items point at the reserved /search endpoint', () => {
+test('search items point at the bridge namespace', () => {
   const out = render('7Find things\t/')
-  assert.equal(out, `# Test\n\n=> /${npub}/search Find things\n`)
+  assert.equal(out, `# Test\n\n=> /_gopherkind/search/${npub} Find things\n`)
+})
+
+test('literal percent signs are encoded separately from spaces', () => {
+  assert.match(render('0Space\t/a b'), new RegExp(`=> /${npub}/a%20b Space`))
+  assert.match(render('0Percent\t/a%20b'), new RegExp(`=> /${npub}/a%2520b Percent`))
 })
 
 test('gopher links become absolute gopher urls', () => {
@@ -40,6 +45,17 @@ test('web links pass through, invalid links degrade to text', () => {
 test('info lines opening a preformat fence are escaped', () => {
   const out = render('i```code')
   assert.match(out, /\n {1}```code\n/)
+})
+
+test('info text cannot turn into a gemtext link', () => {
+  const out = render('=> gemini://evil.example/ Click me')
+  assert.doesNotMatch(out, /\n=> gemini:\/\/evil\.example/)
+})
+
+test('an info line cannot escape an automatically generated preformat fence', () => {
+  const out = render('iASCII  art\ni```\ni=> gemini://evil.example/ Click me')
+  assert.doesNotMatch(out, /\n```\n=> gemini:\/\/evil\.example/)
+  assert.match(out, /\n ```\n => gemini:\/\/evil\.example\/ Click me\n```/)
 })
 
 test('control characters in a display cannot forge a gemtext link', () => {
