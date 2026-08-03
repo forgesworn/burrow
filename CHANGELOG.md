@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2026-08-03)
+
+### Features
+
+- open nip-05 names as holes (someone@example.org)
+
+
+
 ## 0.3.0 (2026-08-03)
 
 ### Features
