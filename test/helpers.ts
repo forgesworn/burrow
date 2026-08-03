@@ -36,8 +36,9 @@ export const profileEvent = finalizeEvent(
   sk,
 )
 
-// Structural stub of HoleStore: everything the router touches, no network.
-export function makeStore(): HoleStore {
+// Structural stub of HoleStore: everything the router and the gemini
+// account routes touch, no network. published collects store.publish calls.
+export function makeStore(published: unknown[] = []): HoleStore {
   return {
     doc: async (pk: string, p: string) => (pk === pubkey ? (byPath.get(p) ?? null) : null),
     hole: async (pk: string) => (pk === pubkey ? authored : []),
@@ -48,6 +49,14 @@ export function makeStore(): HoleStore {
       pk === pubkey && d === 'pallasite-lore' ? article : null,
     event: async (id: string) => (id === note.id ? note : null),
     searchRelays: async () => [],
+    contacts: async (pk: string) => (pk === pubkey ? [pubkey] : []),
+    feedNotes: async (pks: string[]) => (pks.includes(pubkey) ? [note] : []),
+    profilesBatch: async (pks: string[]) =>
+      new Map(pks.includes(pubkey) ? [[pubkey, profileEvent]] : []),
+    publish: async (ev: unknown) => {
+      published.push(ev)
+      return 3
+    },
     close: () => {},
   } as unknown as HoleStore
 }

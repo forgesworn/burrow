@@ -116,6 +116,45 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
+## Signing in and posting
+
+The Gemini side is a full client, not just a reader. Gemini has client
+certificates as its native identity mechanism (Lagrange will mint one
+for you in two clicks), and burrow binds that certificate to a NIP-46
+remote signer. Visit `/account`, pair once, and you're signed in.
+
+Pairing speaks the same dialect as the rest of the Nostr signer world:
+paste a `bunker://` URI from Signet, Amber, nsecBunker or nsec.app, or
+use `/pair/connect` for cross-device NostrConnect, where your phone
+approves a URI the bridge displays. After that:
+
+- `/post` writes a kind 1 note. The bridge builds the event, your
+  signer signs it, relays get it. If your signer is a Heartwood ESP32,
+  posting to gopherspace is literally pressing a physical button.
+- `/feed` renders your follows (kind 3) as a menu of recent notes,
+  each linking into the author's hole.
+- `/unpair` cuts the link, and you can revoke the session on the
+  signer too.
+
+The bridge never holds a user key. Not pasted, not derived, not
+cached. It keeps one small file (`pairings.json` in the state dir,
+mode 600) mapping certificate fingerprints to bunker connections, and
+every signer conversation has a hard timeout so a powered-off signer
+can't wedge a request. Turn the whole layer off with `--no-identity`.
+
+Notes are single-line and capped around 1200 characters, because a
+Gemini input is one URL line. That constraint is honest to the medium;
+gopherspace was never the place for essays with inline video.
+
+One clarification for bark users: bark is a NIP-07 browser extension,
+and Lagrange isn't a browser, so bark can't inject here. But the
+Heartwood bunker behind bark pairs with burrow directly. Same signer,
+different front door.
+
+Gopher stays read-only forever. The protocol has no authentication
+and no encryption, so any credential sent over it would be public.
+1991 gets to read; 2026 gets to write.
+
 ## Protocol
 
 [SPEC.md](SPEC.md) has the event format, the burrowmap grammar, the

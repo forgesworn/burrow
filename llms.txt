@@ -35,6 +35,11 @@
 - gemini search: `/<npub>/search` (status 10 input, then results)
 - virtual paths when no authored document matches: `/profile.txt`,
   `/notes`, `/notes/<event-id>`, `/articles`, `/articles/<d>`
+- gemini identity (client certificates + NIP-46, bridge never holds a
+  user key): `/account`, `/pair` (bunker:// paste), `/pair/connect`
+  (nostrconnect cross-device), `/post` (kind 1 via remote signer),
+  `/feed` (kind 3 follows as a menu), `/unpair`. Gopher is read-only
+  by design; the protocol cannot carry credentials safely.
 
 ## CLI
 
@@ -51,8 +56,9 @@
 
 ## Implementation notes
 
-- Bridge is stateless; the only disk state is the self-signed TLS cert
-  for Gemini (generated via openssl on first run).
+- Disk state is the Gemini TLS cert plus `pairings.json` (cert
+  fingerprint -> bunker binding, mode 600) in the state dir; nothing
+  else. Every NIP-46 call is per-request with a hard timeout.
 - One-shot relay queries only (querySync), never live subscriptions.
 - Per-IP token bucket (20 burst, 1/s refill), TTL+LRU caches (1 to 10
   minutes by type), NIP-50 search merged with client-side grep.

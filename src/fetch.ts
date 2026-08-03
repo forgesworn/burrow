@@ -5,6 +5,7 @@ import {
   BURROW_KIND,
   PROFILE_KIND,
   NOTE_KIND,
+  CONTACTS_KIND,
   LONG_FORM_KIND,
   docPath,
   isExpired,
@@ -27,6 +28,8 @@ export class HoleStore {
   private articleCache = new TtlLru<Event | null>(500, 2 * MINUTE)
   private eventCache = new TtlLru<Event | null>(500, 10 * MINUTE)
   private searchCache = new TtlLru<Event[]>(200, MINUTE)
+  private contactsCache = new TtlLru<string[]>(100, 5 * MINUTE)
+  private feedCache = new TtlLru<Event[]>(50, MINUTE)
 
   constructor(relays: string[]) {
     this.relays = relays
@@ -140,6 +143,61 @@ export class HoleStore {
     const value = dedupeById(events)
     this.searchCache.set(key, value)
     return value
+  }
+
+  async contacts(pubkey: string): Promise<string[]> {
+    const hit = this.contactsCache.get(pubkey)
+    if (hit !== undefined) return hit
+    const events = await this.query({ kinds: [CONTACTS_KIND], authors: [pubkey], limit: 1 }, 4000)
+    const newest = events.sort((a, b) => b.created_at - a.created_at)[0]
+    const value = newest
+      ? [...new Set(newest.tags.filter((t) => t[0] === 'p' && t[1]).map((t) => t[1] as string))]
+      : []
+    this.contactsCache.set(pubkey, value)
+    return value
+  }
+
+  async profilesBatch(pubkeys: string[]): Promise<Map<string, Event>> {
+    const out = new Map<string, Event>()
+    const missing: string[] = []
+    for (const pk of new Set(pubkeys)) {
+      const hit = this.profileCache.get(pk)
+      if (hit === undefined) missing.push(pk)
+      else if (hit !== null) out.set(pk, hit)
+    }
+    if (missing.length > 0) {
+      const events = await this.query({ kinds: [PROFILE_KIND], authors: missing }, 4000)
+      const byPk = new Map<string, Event>()
+      for (const ev of events) {
+        const prev = byPk.get(ev.pubkey)
+        if (!prev || prev.created_at < ev.created_at) byPk.set(ev.pubkey, ev)
+      }
+      for (const pk of missing) {
+        const ev = byPk.get(pk) ?? null
+        this.profileCache.set(pk, ev)
+        if (ev) out.set(pk, ev)
+      }
+    }
+    return out
+  }
+
+  async feedNotes(pubkeys: string[]): Promise<Event[]> {
+    if (pubkeys.length === 0) return []
+    const key = `${pubkeys.length}|${pubkeys.slice(0, 8).join(',')}`
+    const hit = this.feedCache.get(key)
+    if (hit !== undefined) return hit
+    const events = await this.query({ kinds: [NOTE_KIND], authors: pubkeys, limit: 100 }, 6000)
+    const value = dedupeById(events)
+      .filter((ev) => !ev.tags.some((t) => t[0] === 'e'))
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 30)
+    this.feedCache.set(key, value)
+    return value
+  }
+
+  async publish(ev: Event): Promise<number> {
+    const results = await Promise.allSettled(this.pool.publish(this.relays, ev))
+    return results.filter((r) => r.status === 'fulfilled').length
   }
 
   close(): void {

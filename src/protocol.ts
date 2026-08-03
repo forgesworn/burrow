@@ -6,6 +6,7 @@ export const BURROW_KIND = 31436
 
 export const PROFILE_KIND = 0
 export const NOTE_KIND = 1
+export const CONTACTS_KIND = 3
 export const DELETE_KIND = 5
 export const LONG_FORM_KIND = 30023
 

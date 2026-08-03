@@ -60,8 +60,27 @@ test('tls round trip with a generated certificate', { skip: !hasOpenssl }, async
   const dir = mkdtempSync(path.join(tmpdir(), 'burrow-cert-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const certs = ensureSelfSignedCert(dir, 'localhost')
+  const clientDir = mkdtempSync(path.join(tmpdir(), 'burrow-clientcert-'))
+  t.after(() => rmSync(clientDir, { recursive: true, force: true }))
+  const clientCerts = ensureSelfSignedCert(clientDir, 'lagrange-user')
+  const { readFileSync } = await import('node:fs')
+  const { PairingStore } = await import('../src/identity.ts')
+
   const server = createGeminiServer({
     ...ctx,
+    identity: {
+      pairings: new PairingStore(path.join(dir, 'pairings.json')),
+      signer: {
+        pair: async () => {
+          throw new Error('unused')
+        },
+        startConnect: () => ({ uri: 'x', finish: new Promise(() => {}) }),
+        sign: async () => {
+          throw new Error('unused')
+        },
+      },
+      appName: 'test',
+    },
     certFile: certs.cert,
     keyFile: certs.key,
     store: makeStore(),
@@ -71,15 +90,32 @@ test('tls round trip with a generated certificate', { skip: !hasOpenssl }, async
   })
   t.after(() => server.close())
   const port = (server.address() as net.AddressInfo).port
-  const out = await new Promise<string>((resolve, reject) => {
-    const socket = tls.connect({ port, host: '127.0.0.1', rejectUnauthorized: false }, () => {
-      socket.write(`gemini://localhost/${npub}\r\n`)
+
+  const fetchOne = (url: string, withClientCert: boolean): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const socket = tls.connect(
+        {
+          port,
+          host: '127.0.0.1',
+          rejectUnauthorized: false,
+          ...(withClientCert
+            ? { cert: readFileSync(clientCerts.cert), key: readFileSync(clientCerts.key) }
+            : {}),
+        },
+        () => socket.write(`${url}\r\n`),
+      )
+      let acc = ''
+      socket.on('data', (chunk) => (acc += chunk.toString('utf8')))
+      socket.on('end', () => resolve(acc))
+      socket.on('error', reject)
     })
-    let acc = ''
-    socket.on('data', (chunk) => (acc += chunk.toString('utf8')))
-    socket.on('end', () => resolve(acc))
-    socket.on('error', reject)
-  })
-  assert.match(out, /^20 text\/gemini/)
-  assert.ok(out.includes(`=> /${npub}/about.txt About this hole`))
+
+  const menu = await fetchOne(`gemini://localhost/${npub}`, false)
+  assert.match(menu, /^20 text\/gemini/)
+  assert.ok(menu.includes(`=> /${npub}/about.txt About this hole`))
+
+  assert.match(await fetchOne('gemini://localhost/account', false), /^60 /)
+  const account = await fetchOne('gemini://localhost/account', true)
+  assert.match(account, /^20 text\/gemini/)
+  assert.match(account, /not paired/)
 })

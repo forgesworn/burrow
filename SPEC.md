@@ -122,6 +122,29 @@ links relative, `gopher://` links absolute) and text documents as
 `text/plain`. `/<npub>/search` is reserved: without a query it answers
 status `10` (input); with one it serves the search results menu.
 
+## Identity (Gemini only)
+
+Bridges MAY offer a signed-in client over Gemini using client
+certificates as sessions. The certificate's SHA-256 fingerprint is
+bound to a NIP-46 bunker; the user's key never exists on the bridge,
+which holds only its own per-pairing client key for talking to the
+bunker.
+
+| Endpoint | Behaviour |
+|---|---|
+| `/account` | status 60 without a cert; pairing status and actions with one |
+| `/pair` | status 10 input; accepts a `bunker://` URI or NIP-05 bunker address |
+| `/pair/connect` | shows a bridge-generated `nostrconnect://` URI for cross-device approval |
+| `/pair/status` | polls the pending cross-device connection |
+| `/post` | status 10 input; builds a kind 1 event, has the bunker sign it, publishes |
+| `/feed` | recent top-level notes from the user's kind 3 follows, as a menu |
+| `/unpair` | removes the certificate binding |
+
+Every bunker conversation MUST be bounded by a timeout, and SHOULD use
+a short-lived subscription per operation rather than a persistent one.
+Gopher MUST remain read-only: the protocol is plaintext with no
+authentication, so no credential may ever be accepted over it.
+
 ## Unpublishing
 
 Removing a document is a NIP-09 deletion request: kind 5 with an `e` tag
