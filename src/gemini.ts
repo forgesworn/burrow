@@ -9,6 +9,7 @@ import { HoleStore } from './fetch.ts'
 import { RateLimiter } from './ratelimit.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, firstLine, isoDate } from './protocol.ts'
+import { findSecret } from './secretguard.ts'
 import type { PairingStore, Pairing } from './identity.ts'
 import type { RemoteSigner, PairResult } from './nip46client.ts'
 
@@ -257,10 +258,27 @@ async function accountRoutes(
 
     case '/post': {
       if (!pairing) return '30 /account\r\n'
-      if (query === '') return '10 Your note (posted as kind 1)\r\n'
+      if (query === '') return '10 Your note (public, signed and broadcast as kind 1)\r\n'
       const content = query.trim()
       if (content === '') return '10 Your note (posted as kind 1)\r\n'
       if (content.length > 1200) return '59 note too long for a URL line\r\n'
+      const leak = findSecret(content)
+      if (leak) {
+        return page('Not posting that', [
+          `That note contains what looks like ${leak}.`,
+          'Nothing was signed and nothing was sent.',
+          '',
+          'If you meant to pair a signer, the input you want is:',
+          '',
+          '=> /pair Pair a signer',
+          '',
+          'If you already pasted a bunker secret somewhere public,',
+          'rotate it on the signer: the URI alone can authorise a new',
+          'client to request signatures.',
+          '',
+          '=> /post Write a different note',
+        ])
+      }
       try {
         const signed = await id.signer.sign(pairing, {
           kind: NOTE_KIND,

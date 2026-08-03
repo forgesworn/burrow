@@ -142,6 +142,14 @@ mode 600) mapping certificate fingerprints to bunker connections, and
 every signer conversation has a hard timeout so a powered-off signer
 can't wedge a request. Turn the whole layer off with `--no-identity`.
 
+`/post` and `publish` both refuse content that looks like a
+credential: a `bunker://` or `nostrconnect://` URI, an nsec or
+ncryptsec, a bare `secret=` token. The pair and post inputs sit close
+together, a remote signer will cheerfully sign whatever you hand it,
+and relays do not forget. If you ever do leak a bunker URI, rotate the
+secret on the signer; a deletion request is a polite suggestion, not
+a recall.
+
 Notes are single-line and capped around 1200 characters, because a
 Gemini input is one URL line. That constraint is honest to the medium;
 gopherspace was never the place for essays with inline video.

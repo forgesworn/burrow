@@ -5,6 +5,7 @@ import type { Event, EventTemplate } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { SimplePool } from 'nostr-tools/pool'
 import { BURROW_KIND, DELETE_KIND, docPath, isExpired } from './protocol.ts'
+import { findSecret } from './secretguard.ts'
 
 export interface PlannedDoc {
   path: string
@@ -96,6 +97,15 @@ export async function publishHole(
 ): Promise<void> {
   const docs = planDirectory(dir)
   if (docs.length === 0) throw new Error(`no documents found in ${dir}`)
+  for (const doc of docs) {
+    const leak = findSecret(doc.content)
+    if (leak) {
+      throw new Error(
+        `${doc.path} contains what looks like ${leak}; refusing to publish. ` +
+          'Remove it, or move the file out of the hole directory.',
+      )
+    }
+  }
   const createdAt = Math.floor(Date.now() / 1000)
   const events = docs.map((d) => finalizeEvent(docToTemplate(d, createdAt, opts.expireSeconds), secret))
   const npub = nip19.npubEncode(getPublicKey(secret))

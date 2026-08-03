@@ -59,6 +59,9 @@
 - Disk state is the Gemini TLS cert plus `pairings.json` (cert
   fingerprint -> bunker binding, mode 600) in the state dir; nothing
   else. Every NIP-46 call is per-request with a hard timeout.
+- `src/secretguard.ts` blocks credential-shaped content (bunker://,
+  nostrconnect://, nsec, ncryptsec, `secret=`) on both the /post path
+  and CLI publish, before anything is signed.
 - One-shot relay queries only (querySync), never live subscriptions.
 - Per-IP token bucket (20 burst, 1/s refill), TTL+LRU caches (1 to 10
   minutes by type), NIP-50 search merged with client-side grep.
