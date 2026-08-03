@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseBurrowmap } from '../src/linemap.ts'
-import { renderMenu, renderText, renderError } from '../src/render.ts'
+import { renderMenu, renderText, renderError, renderItem } from '../src/render.ts'
 import { BURROW_KIND } from '../src/protocol.ts'
 
 const bridge = { host: 'bridge.test', port: 7070 }
@@ -80,4 +80,24 @@ test('text is CRLF, dot-stuffed, dot-terminated', () => {
 
 test('errors are type 3 menus', () => {
   assert.equal(renderError('nope'), '3nope\t-\terror.host\t1\r\n.\r\n')
+})
+
+test('a self-scheme item renders as a bare selector, no npub prefix', () => {
+  const out = renderItem({ type: '1', display: 'Your feed', target: { scheme: 'self', path: '/me/feed' } }, bridge)
+  assert.equal(out, '1Your feed\t/me/feed\tbridge.test\t7070\r\n')
+})
+
+test('tabs and CRLF in a proxied selector cannot forge extra records', () => {
+  const out = renderItem(
+    {
+      type: '1',
+      display: 'Innocent',
+      target: { scheme: 'gopher', host: 'evil.example', port: 70, itemType: '1', selector: '/a\r\n1FAKE\t/x\thost\t70' },
+    },
+    bridge,
+  )
+  // Exactly one wire record: one CRLF, and exactly three tab separators
+  // (type+display, selector, host, port), so no forged extra line or column.
+  assert.equal(out.match(/\r\n/g)?.length, 1)
+  assert.equal(out.match(/\t/g)?.length, 3)
 })

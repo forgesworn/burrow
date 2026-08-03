@@ -21,7 +21,10 @@ export function gopherLine(
   host: string,
   port: number,
 ): string {
-  return `${type}${clean(display)}\t${selector}\t${host}\t${port}\r\n`
+  // clean() every interpolated field, not just the display: a tab or CRLF
+  // in a selector or host (e.g. from a percent-decoded proxied gophermap,
+  // or a hostile event) would otherwise forge extra menu records.
+  return `${type}${clean(display)}\t${clean(selector)}\t${clean(host)}\t${Number(port) || 70}\r\n`
 }
 
 export function infoLine(display: string): string {
@@ -41,6 +44,8 @@ export function renderItem(item: MenuItem, bridge: BridgeAddr): string {
       return infoLine(`${item.display} (${t.reason})`)
     case 'hole':
       return gopherLine(item.type, item.display, holeSelector(t.npub, t.path), bridge.host, bridge.port)
+    case 'self':
+      return gopherLine(item.type, item.display, t.path, bridge.host, bridge.port)
     case 'gopher':
       return gopherLine(t.itemType, item.display, t.selector, t.host, t.port)
     case 'web':

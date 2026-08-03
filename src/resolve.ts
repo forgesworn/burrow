@@ -9,6 +9,9 @@ import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
 export type LinkTarget =
   | { scheme: 'none' }
   | { scheme: 'hole'; npub: string; path: string }
+  // A bare selector on this bridge, not prefixed with an npub. Used by the
+  // loopback /me menu, whose paths are the selectors themselves.
+  | { scheme: 'self'; path: string }
   | { scheme: 'gopher'; host: string; port: number; itemType: string; selector: string }
   | { scheme: 'web'; url: string }
   | { scheme: 'invalid'; reason: string }
