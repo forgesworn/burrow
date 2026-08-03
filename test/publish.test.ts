@@ -52,6 +52,7 @@ test('docToTemplate carries d, type and title tags', () => {
     ['d', '/x.txt'],
     ['type', '0'],
     ['title', 'x.txt'],
+    ['alt', 'gopherhole document at /x.txt'],
   ])
 })
 

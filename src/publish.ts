@@ -62,6 +62,9 @@ export function docToTemplate(
     ['d', doc.path],
     ['type', doc.type],
     ['title', doc.title],
+    // NIP-31: a human-readable fallback so generic Nostr clients that do not
+    // understand kind 31436 can still render something meaningful.
+    ['alt', `gopherhole ${doc.type === '1' ? 'menu' : 'document'} at ${doc.path}`],
   ]
   if (expireSeconds !== undefined) tags.push(['expiration', String(createdAt + expireSeconds)])
   return { kind: BURROW_KIND, created_at: createdAt, tags, content: doc.content }
@@ -103,6 +106,17 @@ export async function publishHole(
       throw new Error(
         `${doc.path} contains what looks like ${leak}; refusing to publish. ` +
           'Remove it, or move the file out of the hole directory.',
+      )
+    }
+  }
+  // Most relays cap event size (commonly 64-256 KB) and will silently reject
+  // an oversized document. Warn rather than fail, so a big page still tries.
+  const SIZE_WARN = 60 * 1024
+  for (const doc of docs) {
+    if (Buffer.byteLength(doc.content, 'utf8') > SIZE_WARN) {
+      console.error(
+        `warning: ${doc.path} is ${Math.round(Buffer.byteLength(doc.content, 'utf8') / 1024)} KB; ` +
+          'some relays may reject it.',
       )
     }
   }

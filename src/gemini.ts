@@ -284,7 +284,9 @@ async function accountRoutes(
       if (query === '') return '10 Your note (public, signed and broadcast as kind 1)\r\n'
       const content = query.trim()
       if (content === '') return '10 Your note (posted as kind 1)\r\n'
-      if (content.length > 1200) return '59 note too long for a URL line\r\n'
+      // A Gemini request URL must not exceed 1024 bytes, and the note travels
+      // in it percent-encoded, so the real ceiling is well under 1024 chars.
+      if (encodeURIComponent(content).length > 900) return '59 note too long for a gemini url line\r\n'
       const leak = findSecret(content)
       if (leak) {
         return page('Not posting that', [
