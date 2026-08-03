@@ -47,6 +47,19 @@ export function isBlockedAddress(ip: string): boolean {
   return true // not an IP literal: caller must resolve first
 }
 
+// Cheap literal-IP check for a URL's host, used to keep the NIP-46 pairing
+// flow from dialling an internal address given as a bare IP. Hostnames pass
+// here (they are not resolved); the check catches the obvious internal case.
+export function urlHostBlocked(url: string): boolean {
+  let host: string
+  try {
+    host = new URL(url).hostname.replace(/^\[|\]$/g, '')
+  } catch {
+    return false
+  }
+  return isIP(host) !== 0 && isBlockedAddress(host)
+}
+
 // Validate a proxy target host and return the IP to connect to. Resolving
 // here and connecting to the returned literal closes the DNS-rebinding
 // window between check and connect.

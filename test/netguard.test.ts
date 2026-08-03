@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isBlockedAddress, resolvePublicHost, BlockedHostError } from '../src/netguard.ts'
+import { isBlockedAddress, resolvePublicHost, BlockedHostError, urlHostBlocked } from '../src/netguard.ts'
 import { fetchGopher } from '../src/gopherclient.ts'
 
 test('loopback, private, link-local and metadata addresses are blocked', () => {
@@ -43,6 +43,13 @@ test('resolvePublicHost refuses a private IP literal', async () => {
 
 test('resolvePublicHost returns a validated public IP literal unchanged', async () => {
   assert.equal(await resolvePublicHost('8.8.8.8'), '8.8.8.8')
+})
+
+test('urlHostBlocked flags private IP hosts but passes hostnames', () => {
+  assert.equal(urlHostBlocked('wss://10.0.0.1'), true)
+  assert.equal(urlHostBlocked('wss://[::1]:4869'), true)
+  assert.equal(urlHostBlocked('wss://relay.example.com'), false)
+  assert.equal(urlHostBlocked('wss://1.1.1.1'), false)
 })
 
 test('fetchGopher refuses a selector carrying CR or LF', async () => {
