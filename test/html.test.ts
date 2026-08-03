@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { renderMenuHtml } from '../src/html.ts'
+import { page, renderMenuHtml } from '../src/html.ts'
 import { renderGemtextMenu } from '../src/gemtext.ts'
 import { info } from '../src/resolve.ts'
 import type { MenuItem } from '../src/resolve.ts'
@@ -35,6 +35,19 @@ test('info runs are split by links, not merged across them', () => {
 test('blank padding around an info run is trimmed', () => {
   const out = renderMenuHtml('T', [info(''), info('text'), info('')])
   assert.match(out, /<pre>text<\/pre>/)
+})
+
+test('html shell keeps navigation and form controls within a mobile viewport', () => {
+  const out = page(
+    'Publish',
+    '<form><input type="text" size="50"><textarea cols="72"></textarea></form>',
+    true,
+  )
+  assert.match(out, /<meta name="viewport" content="width=device-width,initial-scale=1">/)
+  assert.match(out, /\*\{box-sizing:border-box\}/)
+  assert.match(out, /nav\{display:flex;flex-wrap:wrap;/)
+  assert.match(out, /textarea,input\{[^}]*max-width:100%\}/)
+  assert.match(out, /textarea\{width:100%;resize:vertical\}/)
 })
 
 test('gemtext fences art but leaves prose alone', () => {

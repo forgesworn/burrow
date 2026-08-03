@@ -21,13 +21,16 @@ export interface PageMeta {
   description?: string
 }
 
-const STYLE = `body{max-width:52em;margin:2em auto;padding:0 1em;font-family:monospace;
-font-size:1rem;line-height:1.5;background:#111;color:#eae6dc}
-a{color:#8fd}h1,h2{font-weight:normal}nav a{margin-right:1em}
+const STYLE = `*{box-sizing:border-box}
+body{max-width:54em;margin:2em auto;padding:0 1em;font-family:monospace;
+font-size:1rem;line-height:1.5;background:#111;color:#eae6dc;overflow-wrap:anywhere}
+a{color:#8fd}h1,h2{font-weight:normal}
+nav{display:flex;flex-wrap:wrap;gap:.25em 1em}
 pre{white-space:pre;overflow-x:auto;max-width:100%}
 hr{border:0;border-top:1px solid #444}
 textarea,input{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
-border:1px solid #666;padding:.4em}
+border:1px solid #666;padding:.4em;max-width:100%}
+textarea{width:100%;resize:vertical}
 @media(prefers-color-scheme:light){body{background:#fff;color:#111}a{color:#046}
 textarea,input{background:#fff;color:#111}}`
 
