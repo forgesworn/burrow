@@ -130,6 +130,15 @@ to the bridge's own relay set when no list is found. A bridge that queries
 only its own relays will serve an empty or virtual hole for any author it
 does not share a relay with.
 
+A bridge SHOULD also honour the relay hints carried in an `nprofile` or
+`naddr` link. A gopher selector has nowhere to carry a hint into the next
+request, so a bridge that renders such a link SHOULD remember the hint for
+that author and apply it when the visitor follows the link. Hints come from
+documents the bridge did not write, so a bridge MUST treat them as
+untrusted: accept only `ws:`/`wss:` URLs, reject addresses in internal
+ranges, and bound how many are used per author (e.g. 4). Hints widen the
+relay set; a bridge MUST NOT drop its own relays in favour of them.
+
 ## Bridge behaviour (gopher)
 
 A bridge is a TCP server speaking RFC 1436 on one side and Nostr on the

@@ -60,6 +60,30 @@ export function urlHostBlocked(url: string): boolean {
   return isIP(host) !== 0 && isBlockedAddress(host)
 }
 
+// Relay hints arrive from content the bridge did not write (an `nprofile`
+// or `naddr` inside someone else's burrowmap), so they are untrusted input
+// that would otherwise become an outbound connection. Keep only ws/wss
+// URLs that are not bare internal addresses, and cap how many are taken.
+export function safeRelayUrls(urls: readonly string[] | undefined, max = 4): string[] {
+  if (!urls) return []
+  const out: string[] = []
+  for (const raw of urls) {
+    if (typeof raw !== 'string' || raw.length > 200) continue
+    let url: URL
+    try {
+      url = new URL(raw.trim())
+    } catch {
+      continue
+    }
+    if (url.protocol !== 'wss:' && url.protocol !== 'ws:') continue
+    if (urlHostBlocked(url.href)) continue
+    const normalised = url.href.replace(/\/$/, '')
+    if (!out.includes(normalised)) out.push(normalised)
+    if (out.length >= max) break
+  }
+  return out
+}
+
 // Validate a proxy target host and return the IP to connect to. Resolving
 // here and connecting to the returned literal closes the DNS-rebinding
 // window between check and connect.

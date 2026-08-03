@@ -1,7 +1,7 @@
 import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseBurrowmap } from './linemap.ts'
-import { resolveMapLines, info, type MenuItem } from './resolve.ts'
+import { resolveMapLines, relayHints, info, type MenuItem } from './resolve.ts'
 import type { HoleStore } from './fetch.ts'
 import type { Route } from './selector.ts'
 import {
@@ -40,7 +40,7 @@ export async function resolveRoute(
   if (route.kind === 'search') return search(route, store, opts)
 
   const ev = await store.doc(route.pubkey, route.path)
-  if (ev) return contentFromDoc(ev, route.npub)
+  if (ev) return rememberHints(contentFromDoc(ev, route.npub), store)
 
   // Single-item permalinks (a note or an article) resolve even when the
   // generated virtual hole is disabled, because burrowmap links and the
@@ -53,6 +53,22 @@ export async function resolveRoute(
     if (v) return v
   }
   return { kind: 'error', message: `no document at ${route.path} in ${short(route.npub)}` }
+}
+
+// A rendered link's relay hints cannot survive into the next gopher
+// selector, so the store keeps them: following the link then reads the
+// linked author from the relays their document named.
+function rememberHints(content: Content, store: HoleStore): Content {
+  if (content.kind !== 'menu') return content
+  for (const [npub, relays] of relayHints(content.items)) {
+    try {
+      const decoded = nip19.decode(npub)
+      if (decoded.type === 'npub') store.addRelayHints(decoded.data, relays)
+    } catch {
+      // an unresolvable npub simply carries no hint
+    }
+  }
+  return content
 }
 
 function contentFromDoc(ev: Event, npub: string): Content {

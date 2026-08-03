@@ -154,6 +154,10 @@ export async function fetchLocation(
     const fetcher = deps.gopher ?? browseGopher
     return fetcher(loc, query)
   }
+  // NIP-19 relay hints on the address the user gave us widen the read set
+  // for that author, so `nostr:nprofile1...` finds a hole on relays this
+  // client does not otherwise carry.
+  if (loc.relays) deps.store.addRelayHints(loc.pubkey, loc.relays)
   const route =
     query === undefined
       ? ({ kind: 'doc', pubkey: loc.pubkey, npub: loc.npub, path: loc.path } as const)

@@ -18,6 +18,7 @@ export async function cmdRead(target: string, relays: string[], virtual: boolean
   const parsed = await resolveClientTarget(target)
   if (parsed.kind === 'gopher') return renderForTerminal(await browseGopher(parsed))
   const store = new HoleStore(relays)
+  if (parsed.relays) store.addRelayHints(parsed.pubkey, parsed.relays)
   try {
     const content = await resolveRoute(
       { kind: 'doc', pubkey: parsed.pubkey, npub: parsed.npub, path: parsed.path },
@@ -46,6 +47,7 @@ export async function cmdSearch(
     return renderForTerminal(await browseGopher(parsed, query))
   }
   const store = new HoleStore(relays)
+  if (parsed.relays) store.addRelayHints(parsed.pubkey, parsed.relays)
   try {
     const content = await resolveRoute(
       { kind: 'search', pubkey: parsed.pubkey, npub: parsed.npub, path: '/', query },

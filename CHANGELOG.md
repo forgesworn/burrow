@@ -25,6 +25,9 @@
 ### Added
 
 - NIP-65 outbox reads: a hole is found on the author's own write relays
+- NIP-19 relay hints: an `nprofile`/`naddr` link's relays widen the read set
+  for that author, validated and bounded (ws/wss only, no internal
+  addresses, at most 4)
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents

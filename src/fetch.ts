@@ -16,6 +16,10 @@ import {
 
 const MINUTE = 60_000
 
+// Relay hints come from other people's documents; a hole cannot make the
+// bridge fan a query out across an unbounded relay set.
+const MAX_HINTS = 4
+
 // The subset of SimplePool the store uses, so tests can inject a fake and
 // exercise the fetch/dedupe/expiry logic without a network.
 export interface PoolLike {
@@ -43,6 +47,7 @@ export class HoleStore {
   private followersCache = new TtlLru<string[]>(100, 5 * MINUTE)
   private feedCache = new TtlLru<Event[]>(50, MINUTE)
   private relayListCache = new TtlLru<string[]>(200, 10 * MINUTE)
+  private hintCache = new TtlLru<string[]>(200, 30 * MINUTE)
   private noticesSilenced = false
 
   constructor(relays: string[], pool: PoolLike = new SimplePool()) {
@@ -63,22 +68,36 @@ export class HoleStore {
     }
   }
 
+  // NIP-19 relay hints from an nprofile/naddr link. A gopher selector has
+  // nowhere to carry them, so a hint seen while rendering a menu is
+  // remembered here and widens the read set when the visitor follows the
+  // link. Untrusted input: callers pass them through safeRelayUrls first,
+  // and only a bounded number per author is kept.
+  addRelayHints(pubkey: string, relays: string[]): void {
+    if (relays.length === 0) return
+    const merged = union(this.hintCache.get(pubkey) ?? [], relays).slice(0, MAX_HINTS)
+    this.hintCache.set(pubkey, merged)
+  }
+
   // NIP-65 outbox: an author's events live on their own write relays, which
   // the bridge may not carry. Resolve the author's kind 10002 list from the
   // bridge relays, then read that author from the bridge relays UNION their
-  // write relays, so a hole is found wherever it was actually published.
-  // Falls back to the bridge relays alone when no list is found.
+  // write relays UNION any relay hints seen for them, so a hole is found
+  // wherever it was actually published. Falls back to the bridge relays
+  // alone when no list is found.
   private async authorRelays(pubkey: string): Promise<string[]> {
+    const hinted = this.hintCache.get(pubkey) ?? []
     const hit = this.relayListCache.get(pubkey)
-    if (hit !== undefined) return union(this.relays, hit)
+    if (hit !== undefined) return union(this.relays, union(hit, hinted))
     const events = await this.query(
       { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
       3000,
+      union(this.relays, hinted),
     )
     const newest = events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))[0]
     const write = newest ? writeRelays(newest) : []
     this.relayListCache.set(pubkey, write)
-    return union(this.relays, write)
+    return union(this.relays, union(write, hinted))
   }
 
   // Relays without NIP-50 answer a `search` filter with a NOTICE, which

@@ -1,6 +1,7 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { queryProfile } from 'nostr-tools/nip05'
 import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { safeRelayUrls } from './netguard.ts'
 
 // One parser for everything a client can point at: a Nostr hole (npub,
 // nprofile, naddr, with or without a path) or a traditional gopher server.
@@ -16,7 +17,9 @@ export interface GopherTarget {
 }
 
 export type ClientTarget =
-  | { kind: 'hole'; pubkey: string; npub: string; path: string }
+  // `relays` are the NIP-19 hints from an nprofile/naddr: relays the author
+  // named, which the client adds to its own set when reading this hole.
+  | { kind: 'hole'; pubkey: string; npub: string; path: string; relays?: string[] }
   | ({ kind: 'gopher' } & GopherTarget)
 
 export class TargetError extends Error {}
@@ -58,6 +61,12 @@ function normalisePath(p: string): string {
   return cleaned === '' ? '/' : cleaned
 }
 
+// Spread form, so a target with no usable hint stays byte-identical to one
+// built before hints existed (refOf and bookmarks are unaffected).
+function hints(relays: string[]): { relays?: string[] } {
+  return relays.length > 0 ? { relays } : {}
+}
+
 function holeFromBech(bech: string, path: string): ClientTarget {
   let decoded: ReturnType<typeof nip19.decode>
   try {
@@ -70,16 +79,24 @@ function holeFromBech(bech: string, path: string): ClientTarget {
   }
   if (decoded.type === 'nprofile') {
     const npub = nip19.npubEncode(decoded.data.pubkey)
-    return { kind: 'hole', pubkey: decoded.data.pubkey, npub, path: normalisePath(path) }
+    const relays = safeRelayUrls(decoded.data.relays)
+    return {
+      kind: 'hole',
+      pubkey: decoded.data.pubkey,
+      npub,
+      path: normalisePath(path),
+      ...hints(relays),
+    }
   }
   if (decoded.type === 'naddr') {
     const { kind, pubkey, identifier } = decoded.data
     const npub = nip19.npubEncode(pubkey)
+    const relays = safeRelayUrls(decoded.data.relays)
     if (kind === BURROW_KIND) {
-      return { kind: 'hole', pubkey, npub, path: normalisePath(identifier) }
+      return { kind: 'hole', pubkey, npub, path: normalisePath(identifier), ...hints(relays) }
     }
     if (kind === LONG_FORM_KIND) {
-      return { kind: 'hole', pubkey, npub, path: `/articles/${identifier}` }
+      return { kind: 'hole', pubkey, npub, path: `/articles/${identifier}`, ...hints(relays) }
     }
     throw new TargetError(`naddr kind ${kind} is not browsable`)
   }
