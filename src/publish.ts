@@ -209,6 +209,15 @@ export interface PublishOptions {
   verifyReadback?: boolean
 }
 
+export interface PublishedDocumentReport {
+  npub: string
+  path: string
+  eventId: string
+  relays: string[]
+  acceptedBy: string[]
+  readableFrom: string[]
+}
+
 export interface PublishPool {
   querySync(relays: string[], filter: Filter, opts: { maxWait: number }): Promise<Event[]>
   publish(relays: string[], event: Event): Promise<string>[]
@@ -266,6 +275,59 @@ async function verifyPublished(
     }),
   )
   return out
+}
+
+// Publish one browser-authored document with the same relay discovery and
+// read-back guarantees as directory publishing. The web frontend uses this
+// rather than its HoleStore so an easy authoring path does not quietly weaken
+// the publisher's NIP-65 or settlement-truth behaviour.
+export async function publishDocument(
+  doc: PlannedDoc,
+  relays: string[],
+  signer: CliSigner,
+  opts: { pool?: PublishPool; now?: number } = {},
+): Promise<PublishedDocumentReport> {
+  const leak = findSecret(doc.content)
+  if (leak) {
+    throw new Error(
+      `${doc.path} contains what looks like ${leak}; refusing to publish. ` +
+        'Remove it before trying again.',
+    )
+  }
+  if (Buffer.byteLength(doc.path, 'utf8') > 190) {
+    throw new Error(`${doc.path} is longer than the 190-byte interoperable selector limit`)
+  }
+  if (Buffer.byteLength(doc.content, 'utf8') > 60 * 1024) {
+    throw new Error(`${doc.path} is larger than the 60 KB relay-safe authoring limit`)
+  }
+
+  const pubkey = await signer.pubkey()
+  const event = await signer.sign(docToTemplate(doc, opts.now ?? Math.floor(Date.now() / 1000)))
+  if (event.pubkey !== pubkey) throw new Error('signer returned the wrong author')
+
+  const pool = opts.pool ?? new SimplePool()
+  try {
+    const plan = await relayPlan(pubkey, relays, pool)
+    if (plan.relayList !== null) await publishOne(pool, plan.relays, plan.relayList)
+    const acceptedBy = await publishOne(pool, plan.relays, event)
+    if (acceptedBy.length === 0) throw new Error('document was rejected by every relay')
+
+    const readback = await verifyPublished(pool, plan.relays, [event])
+    const readableFrom = plan.relays.filter((relay) => readback.get(relay)?.has(event.id) === true)
+    if (readableFrom.length === 0) {
+      throw new Error('document was accepted but is not readable from any relay')
+    }
+    return {
+      npub: npubEncode(pubkey),
+      path: doc.path,
+      eventId: event.id,
+      relays: plan.relays,
+      acceptedBy,
+      readableFrom,
+    }
+  } finally {
+    pool.destroy()
+  }
 }
 
 export async function publishHole(

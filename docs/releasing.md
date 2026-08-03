@@ -6,11 +6,11 @@ tarball, writes `SHA256SUMS`, and attaches both files to the GitHub release.
 This path works without npm registry credentials.
 
 ```sh
-npm version 0.8.0 --no-git-tag-version
+npm version 0.9.0 --no-git-tag-version
 # update CHANGELOG.md, review and merge
-git tag -a v0.8.0 -m 'gopherkind 0.8.0'
-git push origin v0.8.0
-gh release create v0.8.0 --verify-tag --generate-notes
+git tag -a v0.9.0 -m 'gopherkind 0.9.0'
+git push origin v0.9.0
+gh release create v0.9.0 --verify-tag --generate-notes
 ```
 
 Publishing the GitHub release starts the workflow. Manual dispatch is the
@@ -24,17 +24,17 @@ workstation-publish exception: publish the exact checksummed GitHub release
 asset, rather than rebuilding the package locally.
 
 ```sh
-gh release download v0.8.0 \
+gh release download v0.9.0 \
   --pattern 'gopherkind-*.tgz' --pattern SHA256SUMS \
-  --dir gopherkind-0.8.0-release
-cd gopherkind-0.8.0-release
+  --dir gopherkind-0.9.0-release
+cd gopherkind-0.9.0-release
 shasum -a 256 -c SHA256SUMS
 npm login
-npm publish ./gopherkind-0.8.0.tgz --access public
+npm publish ./gopherkind-0.9.0.tgz --access public
 ```
 
 The npm account must have two-factor authentication enabled. Check the package
-page and install `gopherkind@0.8.0` in a clean temporary directory before
+page and install `gopherkind@0.9.0` in a clean temporary directory before
 configuring its trusted publisher. npm 11.11 or later can do that directly:
 
 ```sh

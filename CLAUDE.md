@@ -18,7 +18,8 @@ src/render.ts     Content -> RFC 1436 wire (dot-stuffing, CRLF, info tails)
 src/gemtext.ts    Content -> text/gemini
 src/server.ts     TCP gopher frontend (read-only, always)
 src/gemini.ts     TLS gemini frontend (/_gopherkind/search/<npub> input)
-src/http.ts       HTTP frontend for lynx; loopback = operator, no login
+src/http.ts       HTTP frontend for lynx; loopback operator and explicit TLS
+                  proxy identity; /publish uses shared publisher truth
 src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
 src/robots.ts     one crawl policy, served on http and gemini
 src/personal.ts   /me menu: loopback-only read+write over gopher
@@ -40,8 +41,9 @@ src/netguard.ts   outbound network boundary for proxy, relay hints and NIP-46:
                   safeRelayUrls bounds untrusted relay hints
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
 src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
-src/publish.ts    directory -> remotely signed events; NIP-65 destinations and
-                  read-back; NIP-09 unpublish; NIP-40 expire
+src/publish.ts    directory or one document -> remotely signed events; NIP-65
+                  destinations and read-back; NIP-09 unpublish; NIP-40 expire
+src/recovery.ts   per-relay hole inspection; human and versioned JSON reports
 src/signing.ts    remote CLI signer: GOPHERKIND_BUNKER > stored NIP-46 pairing
 src/commands.ts   CLI client: read, search, post, feed, pair, whoami
 src/cliview.ts    Content -> terminal text (plain and numbered-link forms)

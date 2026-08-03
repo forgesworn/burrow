@@ -84,3 +84,44 @@ test('a wildcard bind requires an advertised hostname', () => {
   assert.notEqual(result.status, 0)
   assert.match(result.out, /--hostname is required/)
 })
+
+test('public HTTP identity requires an explicit safe proxy contract', () => {
+  const noUrl = run(srcCli, [
+    'serve',
+    '--host',
+    '0.0.0.0',
+    '--hostname',
+    'bridge.example',
+    '--http-behind-proxy',
+    '--no-local-trust',
+    '--no-gemini',
+  ])
+  assert.notEqual(noUrl.status, 0)
+  assert.match(noUrl.out, /requires an https --http-url/)
+
+  const localTrust = run(srcCli, [
+    'serve',
+    '--host',
+    '0.0.0.0',
+    '--hostname',
+    'bridge.example',
+    '--http-behind-proxy',
+    '--http-url',
+    'https://bridge.example',
+    '--no-gemini',
+  ])
+  assert.notEqual(localTrust.status, 0)
+  assert.match(localTrust.out, /requires --no-local-trust/)
+
+  const badOrigin = run(srcCli, [
+    'serve',
+    '--hostname',
+    'bridge.example',
+    '--http-url',
+    'https://bridge.example/not-an-origin',
+    '--no-gemini',
+    '--no-http',
+  ])
+  assert.notEqual(badOrigin.status, 0)
+  assert.match(badOrigin.out, /without a path/)
+})

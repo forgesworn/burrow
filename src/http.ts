@@ -3,9 +3,9 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { robotsTxt } from './robots.ts'
-import { resolveRoute } from './router.ts'
+import { resolveRoute, type Content } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
-import { parseProxyPath, browseGopher } from './gopherclient.ts'
+import { parseProxyPath, proxyPath, browseGopher } from './gopherclient.ts'
 import { resolvePublicHost } from './netguard.ts'
 import type { MenuItem } from './resolve.ts'
 import { HoleStore } from './fetch.ts'
@@ -16,6 +16,9 @@ import { storedSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
+import { holeRef } from './gemtext.ts'
+import { resolveClientTarget, type ClientTarget } from './target.ts'
+import { publishDocument, type PlannedDoc, type PublishedDocumentReport } from './publish.ts'
 
 // HTTP frontend, written for lynx: plain HTML, real forms, no JavaScript
 // anywhere. Loopback requests are treated as the operator and use the
@@ -35,6 +38,13 @@ export interface HttpOptions {
   operatorSigner?: CliSigner
   // Trust loopback requests as the operator. On by default.
   localTrust?: boolean
+  // Canonical public HTTPS origin when this listener is behind a reverse
+  // proxy. It affects links and share metadata, never request authority.
+  publicUrl?: string
+  // Injectable seams for tests and embedders. Production uses the shared
+  // target resolver and the NIP-65/read-back publisher.
+  resolveTarget?: (input: string) => Promise<ClientTarget>
+  documentPublisher?: (document: PlannedDoc, signer: CliSigner) => Promise<PublishedDocumentReport>
 }
 
 interface Session {
@@ -46,6 +56,38 @@ interface Session {
 const sessions = new Map<string, Session>()
 const SESSION_MS = 12 * 60 * 60 * 1000
 const SEARCH_PREFIX = '/_gopherkind/search/'
+
+function targetLocation(target: ClientTarget): string {
+  return target.kind === 'hole'
+    ? holeRef(target.npub, target.path)
+    : proxyPath({
+        host: target.host,
+        port: target.port,
+        type: target.type,
+        selector: target.selector,
+      })
+}
+
+function canonical(opts: HttpOptions, ref: string): string | undefined {
+  if (opts.publicUrl === undefined) return undefined
+  return new URL(ref, `${opts.publicUrl.replace(/\/$/, '')}/`).toString()
+}
+
+function contentDescription(content: Content): string {
+  if (content.kind === 'text') return firstLine(content.body, 180) || content.title
+  if (content.kind === 'menu') {
+    return (
+      firstLine(
+        content.items
+          .filter((item) => item.target.scheme === 'none')
+          .map((item) => item.display)
+          .join(' '),
+        180,
+      ) || content.title
+    )
+  }
+  return content.message
+}
 
 function decodePath(pathname: string): string {
   return pathname
@@ -280,14 +322,27 @@ async function handle(
     return html(200, robotsTxt(), { 'content-type': 'text/plain; charset=utf-8' })
   }
   if (path === '/go') {
-    const target = (url.searchParams.get('npub') ?? '').trim().replace(/^nostr:/, '')
-    if (target === '') return redirect('/')
-    return redirect(`/${encodeURIComponent(target)}`)
+    const input = (url.searchParams.get('npub') ?? '').trim()
+    if (input === '') return redirect('/')
+    try {
+      const target = await (opts.resolveTarget ?? resolveClientTarget)(input)
+      return redirect(targetLocation(target))
+    } catch (err) {
+      return html(
+        400,
+        page(
+          'Cannot open that',
+          `<h1>Cannot open that</h1><p>${esc(err instanceof Error ? err.message : 'bad target')}</p>`,
+          signedIn,
+        ),
+      )
+    }
   }
   if (path === '/account') return accountPage(opts, viewer, store, signedIn)
   if (path === '/pair') return pairPage(req, opts, signedIn)
   if (path === '/unpair') return unpairPage(req, signedIn)
   if (path === '/post') return postPage(req, opts, store, viewer, signedIn)
+  if (path === '/publish') return publishPage(req, opts, viewer, signedIn)
   if (path === '/feed') return feedPage(opts, store, viewer, signedIn)
   if (path === '/delete') return deletePage(req, opts, store, viewer, signedIn)
   if (path.startsWith('/gopher/') || path === '/gopher') {
@@ -366,6 +421,25 @@ async function handle(
   }
 
   // Everything else is authored or virtual hole content: /<npub>[/path].
+  // A NIP-05 name is a human-facing alias only. Resolve it, then redirect to
+  // the canonical npub path so every generated link remains bridge-portable.
+  const firstSegment = path.slice(1).split('/')[0] ?? ''
+  if (firstSegment.includes('@')) {
+    try {
+      const target = await (opts.resolveTarget ?? resolveClientTarget)(path.slice(1))
+      if (target.kind !== 'hole') throw new Error('not a Nostr identity')
+      return redirect(targetLocation(target))
+    } catch (err) {
+      return html(
+        404,
+        page(
+          'Not found',
+          `<h1>Not found</h1><p>${esc(err instanceof Error ? err.message : 'bad NIP-05 name')}</p>`,
+          signedIn,
+        ),
+      )
+    }
+  }
   let route: Route
   try {
     route = parseSelector(path)
@@ -395,7 +469,10 @@ async function handle(
   }
   return html(
     content.kind === 'error' ? 404 : 200,
-    page(rendered.title, rendered.body + extra, signedIn),
+    page(rendered.title, rendered.body + extra, signedIn, {
+      canonical: canonical(opts, holeRef(route.npub, route.path)),
+      description: contentDescription(content),
+    }),
   )
 }
 
@@ -429,7 +506,11 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
       body.push(`<p><a href="/${esc(npub)}">${esc(name)}</a></p>`)
     }
   }
-  return page('gopherkind', body.join('\n'), signedIn)
+  return page('gopherkind', body.join('\n'), signedIn, {
+    canonical: canonical(opts, '/'),
+    description:
+      'Signed, navigable Nostr reading rooms served over Gopher, Gemini, HTTP and the terminal.',
+  })
 }
 
 async function accountPage(
@@ -615,6 +696,106 @@ async function postPage(
         'Posting failed',
         `<h1>Posting failed</h1><p>${esc(err instanceof Error ? err.message : 'unknown')}</p>` +
           form,
+        signedIn,
+      ),
+    )
+  }
+}
+
+function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string {
+  const type = values.type ?? '0'
+  return [
+    '<h1>Publish a document</h1>',
+    '<p>Publish one signed Gopherkind document. Paths are exact and publishing',
+    'the same path replaces its current revision.</p>',
+    '<form method="post" action="/publish">',
+    csrfField(viewer),
+    `<p>Path <input type="text" name="path" size="50" value="${esc(values.path ?? '/')}" required></p>`,
+    `<p>Title <input type="text" name="title" size="50" value="${esc(values.title ?? '')}"></p>`,
+    '<p>Type <select name="type">',
+    `<option value="0"${type === '0' ? ' selected' : ''}>text</option>`,
+    `<option value="1"${type === '1' ? ' selected' : ''}>kindmap menu</option>`,
+    '</select></p>',
+    `<p><textarea name="content" rows="20" cols="72">${esc(values.content ?? '')}</textarea></p>`,
+    '<p><label><input type="checkbox" name="replace" value="yes" required> ',
+    'I understand this replaces any current document at the same exact path.</label></p>',
+    '<p><input type="submit" value="Sign and publish"></p></form>',
+  ].join('\n')
+}
+
+async function publishPage(
+  req: http.IncomingMessage,
+  opts: HttpOptions,
+  viewer: Viewer,
+  signedIn: boolean,
+): Promise<Reply> {
+  if (!viewer.signer) return redirect('/account')
+  if (req.method !== 'POST') {
+    return html(200, page('Publish a document', documentForm(viewer), signedIn))
+  }
+
+  const body = await readBody(req)
+  if (!csrfOk(req, body, viewer)) {
+    return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
+  }
+  const document: PlannedDoc = {
+    path: (body['path'] ?? '').trim(),
+    title: (body['title'] ?? '').trim() || (body['path'] ?? '').trim(),
+    type: body['type'] === '1' ? '1' : '0',
+    content: body['content'] ?? '',
+  }
+  if (body['replace'] !== 'yes') {
+    return html(
+      400,
+      page(
+        'Confirm replacement',
+        '<h1>Confirm replacement</h1><p>Nothing was signed. Confirm the exact-path replacement before publishing.</p>' +
+          documentForm(viewer, document),
+        signedIn,
+      ),
+    )
+  }
+  const leak = findSecret(document.content)
+  if (leak) {
+    return html(
+      400,
+      page(
+        'Not publishing that',
+        `<h1>Not publishing that</h1><p>The document contains what looks like ${esc(leak)}. ` +
+          'Nothing was signed or sent, and the content has been removed from this form.</p>' +
+          documentForm(viewer, { ...document, content: '' }),
+        signedIn,
+      ),
+    )
+  }
+
+  try {
+    const report = await (
+      opts.documentPublisher ??
+      ((doc: PlannedDoc, signer: CliSigner) => publishDocument(doc, opts.relays, signer))
+    )(document, viewer.signer)
+    const ref = holeRef(report.npub, report.path)
+    return html(
+      200,
+      page(
+        'Published',
+        [
+          '<h1>Published</h1>',
+          `<p><code>${esc(report.path)}</code> was accepted by ${report.acceptedBy.length}/${report.relays.length} relays`,
+          `and read back from ${report.readableFrom.length}/${report.relays.length}.</p>`,
+          `<p><a href="${esc(ref)}">Read the document</a></p>`,
+          '<p><a href="/publish">Publish another document</a></p>',
+        ].join('\n'),
+        signedIn,
+      ),
+    )
+  } catch (err) {
+    return html(
+      400,
+      page(
+        'Publishing failed',
+        `<h1>Publishing failed</h1><p>${esc(err instanceof Error ? err.message : 'unknown')}</p>` +
+          documentForm(viewer, document),
         signedIn,
       ),
     )

@@ -38,7 +38,7 @@ const USAGE = `usage:
     gopherkind browse [target]           browse from an npub or gopher:// url
     gopherkind read <target>             print a hole document or gopher page
     gopherkind search <target> <query>   search a hole, or a gopher type 7 endpoint
-    gopherkind inspect <npub>            show current documents visible on each relay
+    gopherkind inspect <npub> [--json]   show current documents visible on each relay
     gopherkind export <npub> <dir>       save a lossless, re-publishable snapshot
     gopherkind feed [--limit 20]         notes from who you follow
     targets: npub[/path], nostr: entity, name@domain (NIP-05), gopher:// url
@@ -57,6 +57,7 @@ const USAGE = `usage:
   bridge:
     gopherkind serve [--port 7070] [--host 127.0.0.1] [--hostname name] [--public-port n]
                      [--gemini-port 1965] [--no-gemini] [--http-port 8070] [--no-http]
+                     [--http-url https://bridge.example] [--http-behind-proxy]
                      [--no-local-trust] [--trust-loopback-anyway]
                      [--cert f --key f] [--state-dir d]
                      [--pin npub1...]... [--no-virtual] [--no-identity]
@@ -116,6 +117,8 @@ if (command === 'serve') {
       'no-identity': { type: 'boolean', default: false },
       'http-port': { type: 'string', default: '8070' },
       'no-http': { type: 'boolean', default: false },
+      'http-url': { type: 'string' },
+      'http-behind-proxy': { type: 'boolean', default: false },
       'no-local-trust': { type: 'boolean', default: false },
       'trust-loopback-anyway': { type: 'boolean', default: false },
     },
@@ -151,6 +154,37 @@ if (command === 'serve') {
   // unless the operator explicitly overrides.
   const bindIsLoopback =
     values.host === '127.0.0.1' || values.host === '::1' || values.host === 'localhost'
+  let publicHttpUrl: string | undefined
+  if (values['http-url'] !== undefined) {
+    let parsed: URL
+    try {
+      parsed = new URL(values['http-url'])
+    } catch {
+      fail('--http-url must be an absolute http(s) origin')
+    }
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username !== '' ||
+      parsed.password !== '' ||
+      parsed.pathname !== '/' ||
+      parsed.search !== '' ||
+      parsed.hash !== ''
+    ) {
+      fail('--http-url must be an absolute http(s) origin without a path, query or credentials')
+    }
+    publicHttpUrl = parsed.origin
+  }
+  const httpBehindProxy = values['http-behind-proxy']
+  if (httpBehindProxy) {
+    if (values['no-http']) fail('--http-behind-proxy conflicts with --no-http')
+    if (publicHttpUrl === undefined || !publicHttpUrl.startsWith('https://')) {
+      fail('--http-behind-proxy requires an https --http-url')
+    }
+    if (!values['no-local-trust']) {
+      fail('--http-behind-proxy requires --no-local-trust')
+    }
+    if (values['no-identity']) fail('--http-behind-proxy conflicts with --no-identity')
+  }
   const trustLoopback = bindIsLoopback || values['trust-loopback-anyway']
   if (!bindIsLoopback && !values['no-local-trust'] && !values['trust-loopback-anyway']) {
     console.log(
@@ -160,7 +194,7 @@ if (command === 'serve') {
     )
   }
   const localTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
-  const httpIdentity = !values['no-identity'] && bindIsLoopback
+  const httpIdentity = !values['no-identity'] && (bindIsLoopback || httpBehindProxy)
 
   // Resolve the operator's signer once and reuse it: resolveSigner may pair a
   // GOPHERKIND_BUNKER, and re-pairing on every /me request would fire a fresh
@@ -247,6 +281,7 @@ if (command === 'serve') {
       localTrust: httpLocalTrust,
       store,
       limiter: new RateLimiter(60, 2),
+      publicUrl: publicHttpUrl,
     })
     servers.push(http)
     http.listen(httpPort, values.host, () => {
@@ -254,7 +289,9 @@ if (command === 'serve') {
         `gopherkind: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`,
       )
       if (httpLocalTrust) console.log('  loopback requests act as you, using your stored pairing')
-      if (!bindIsLoopback) {
+      if (httpBehindProxy) {
+        console.log(`  HTTP identity is ON behind the explicit TLS proxy at ${publicHttpUrl}`)
+      } else if (!bindIsLoopback) {
         console.log('  HTTP identity is OFF on a public bind; plain HTTP is read-only.')
       }
     })
@@ -365,11 +402,11 @@ if (command === 'serve') {
   const { values, positionals } = parseArgs({
     args: rest,
     allowPositionals: true,
-    options: COMMON,
+    options: { ...COMMON, json: { type: 'boolean', default: false } },
   })
   const target = positionals[0]
   if (target === undefined) fail('usage: gopherkind inspect <npub|nprofile|name@domain>')
-  run(cmdInspect(target, relaysOf(values)))
+  run(cmdInspect(target, relaysOf(values), values.json))
 } else if (command === 'export') {
   const { values, positionals } = parseArgs({
     args: rest,

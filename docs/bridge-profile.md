@@ -135,6 +135,12 @@ gopher selector. Each UTF-8 path segment is percent-encoded once in generated
 links and decoded once on input. A literal percent sign is therefore encoded
 as `%25` and is not confused with an existing escape.
 
+An HTTP frontend MAY accept a NIP-05 identifier as an entry point. After
+resolution it SHOULD redirect to `/<npub><path>` rather than treating the
+mutable name as document identity. When a bridge has a public HTTPS origin,
+authored and virtual pages SHOULD expose that npub path as their canonical URL
+and MAY emit equivalent social-preview metadata.
+
 Menus become gemtext or plain HTML, and type `0` documents remain plain text.
 Frontends SHOULD serve a robots policy which prevents a bridge's proxy and
 account routes from turning into a crawler gateway while allowing authored
@@ -148,8 +154,12 @@ holds only its own NIP-46 client key and MUST never request or store the user's
 secret key.
 
 Signer requests MUST have hard timeouts and short-lived subscriptions. Pair,
-post, feed and unpair routes belong to the bridge's reserved application
-namespace, not to a hole.
+post, publish, feed and unpair routes belong to the bridge's reserved
+application namespace, not to a hole. A document publishing form MUST make
+exact-path replacement explicit before asking the signer to sign. It SHOULD
+use the same NIP-65 relay destinations and post-acceptance read-back as a
+directory publisher, and MUST NOT claim success when the document cannot be
+retrieved from any destination.
 
 A loopback-only gopher menu MAY offer personal actions where identity derives
 from the connection origin. It MUST NOT be advertised or served to a remote

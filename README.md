@@ -70,7 +70,7 @@ just publishing.
 Needs Node 24 or newer.
 
 ```sh
-# Until the first npm publication, install the current package from GitHub.
+# Until the one-time npm bootstrap is complete, install from GitHub.
 npm install --global github:forgesworn/gopherkind
 
 # Browse gopherspace and Nostr interactively
@@ -157,8 +157,10 @@ everywhere or not readable anywhere makes the command fail.
 
 `gopherkind inspect npub1...` performs the read side of that check again later.
 It shows how many current documents are readable from each configured,
-hinted and author write relay, including stale and missing paths. This is a
-snapshot of retrievability now, not a retention guarantee.
+hinted and author write relay, including stale and missing paths. Add `--json`
+for a versioned machine-readable report suitable for monitoring and recovery
+checks. Either form is a snapshot of retrievability now, not a retention
+guarantee.
 
 To recover a hole into editable files:
 
@@ -235,6 +237,22 @@ gopherkind serve --host 0.0.0.0 --port 7070 --public-port 70 \
   --relay wss://relay.damus.io --relay wss://nos.lol \
   --pin npub1somehole...
 ```
+
+That direct-public profile is deliberately read-only over HTTP. To put the
+HTTP frontend behind a same-host TLS reverse proxy and allow visitors to pair
+their own signer, keep port 8070 private and make the trust boundary explicit:
+
+```sh
+gopherkind serve --host 0.0.0.0 --port 7070 --public-port 70 \
+  --hostname gopher.example.org --no-local-trust \
+  --http-url https://gopher.example.org --http-behind-proxy
+```
+
+The proxy must be the only route to port 8070, preserve `Host`, and set
+`X-Forwarded-Proto: https`. The bridge then emits canonical and social-preview
+metadata for the HTTPS origin. NIP-05 names work in the HTTP opener and as
+direct paths, but redirect to an npub URL so links are portable between
+bridges.
 
 Default relays are Damus, nos.lol and Primal; `--relay` (repeatable)
 replaces them. `--hostname` and `--public-port` control the address
@@ -337,28 +355,28 @@ Requests from loopback are treated as you, the operator, using the
 remote signer that `gopherkind pair` stored. No login, no cookies, no
 certificates: open lynx on your own
 machine and you are already signed in. You get menus and documents,
-search forms, your feed, a note composer, and a delete button on your
-own notes.
+search forms, your feed, a note composer, a single-document publisher,
+and a delete button on your own notes.
 
 HTTP and Gemini search lives at `/_gopherkind/search/<npub>`, outside
 the authored hole namespace. A document published at `/search` is
 therefore served normally rather than being intercepted by the bridge.
 
 Remote visitors can get the same pages, pair a signer through a form, and
-carry a session cookie when the loopback listener is placed behind TLS with
-`--no-local-trust`. Identity is disabled automatically when gopherkind itself
-binds HTTP to a public address, so that direct plaintext deployment is
-read-only. Turn the frontend off entirely with `--no-http`.
+carry a session cookie when the listener sits behind TLS. A non-loopback bind
+requires `--http-behind-proxy`, an HTTPS `--http-url`, and
+`--no-local-trust`; the HTTP port must not be exposed directly. Identity is
+disabled automatically on an ordinary public bind, so direct plaintext
+deployment is read-only. Turn the frontend off entirely with `--no-http`.
 
 Operator trust is decided by connection origin (loopback), so behind a
-reverse proxy every request would look local. gopherkind therefore disables
-operator trust automatically whenever the bridge is bound to a
-non-loopback address; keep the bind on `127.0.0.1`, pass `--no-local-trust`,
-and let the proxy reach it there. `--trust-loopback-anyway` is only for a
-proxy that cannot be reached by anyone but you. State-changing forms carry a
-CSRF token and reject cross-site origins, and the loopback operator is
-recognised only on a loopback `Host`, so a stray browser tab or a
-rebound domain cannot post as you.
+reverse proxy every request would look local. Pass `--no-local-trust` for any
+proxied deployment. A same-host proxy can reach a `127.0.0.1` bind; a
+container-network proxy uses the explicit `--http-behind-proxy` contract.
+`--trust-loopback-anyway` is only for a proxy that cannot be reached by anyone
+but you. State-changing forms carry a CSRF token and reject cross-site origins,
+and the loopback operator is recognised only on a loopback `Host`, so a stray
+browser tab or a rebound domain cannot post as you.
 
 ## Gopher as a full client, locally
 
@@ -481,6 +499,9 @@ approves a URI the bridge displays. After that:
 - `/post` writes a kind 1 note. The bridge builds the event, your
   signer signs it, relays get it. If your signer is a Heartwood ESP32,
   posting to gopherspace is literally pressing a physical button.
+- `/publish` writes one kind 31436 document after explicit confirmation that
+  the exact path will replace its current revision. It uses the same NIP-65
+  relay plan and acceptance/read-back checks as the CLI publisher.
 - `/feed` renders your follows (kind 3) as a menu of recent notes,
   each linking into the author's hole.
 - `/unpair` cuts the link, and you can revoke the session on the
@@ -525,10 +546,10 @@ field definitions are in [the conformance guide](docs/conformance.md).
 [llms.txt](llms.txt) is the condensed implementation guide for tools and
 language models.
 
-Kind 31436 is not yet a NIP.
-[docs/nip-submission.md](docs/nip-submission.md) is the staged
-submission: the kind-table row, the PR text and the checklist to work
-through first. Nothing has been submitted.
+Kind 31436 is not yet an accepted NIP. The proposal was submitted to
+`nostr-protocol/nips` as [PR #2429](https://github.com/nostr-protocol/nips/pull/2429)
+on 3 August 2026 and remains unmerged. [docs/nip-submission.md](docs/nip-submission.md)
+records the proposal and its independent fixture evidence.
 
 ## Support
 

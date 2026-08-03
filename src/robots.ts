@@ -7,7 +7,17 @@
 // bridge that wants them found is the point, so those stay allowed.
 
 // Paths no crawler should walk, on either frontend.
-const DISALLOWED = ['/gopher/', '/go', '/account', '/pair', '/unpair', '/post', '/feed', '/delete']
+const DISALLOWED = [
+  '/gopher/',
+  '/go',
+  '/account',
+  '/pair',
+  '/unpair',
+  '/post',
+  '/publish',
+  '/feed',
+  '/delete',
+]
 
 // The Gemini companion spec has no wildcard agent token in practice: crawlers
 // look for their own virtual agent name and fall back to `*`.

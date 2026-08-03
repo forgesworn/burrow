@@ -16,6 +16,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import { docToTemplate, planDirectory, RECOVERY_MANIFEST } from '../src/publish.ts'
 import {
   formatHoleInspection,
+  formatHoleInspectionJson,
   inspectHole,
   type InspectPool,
   writeHoleExport,
@@ -190,6 +191,19 @@ test('relay inspection distinguishes current, stale, missing and unreachable doc
     },
   ])
   assert.match(formatHoleInspection(result), /read check now, not proof/)
+  const machine = JSON.parse(formatHoleInspectionJson(result))
+  assert.equal(machine.format, 'gopherkind-hole-inspection')
+  assert.equal(machine.version, 1)
+  assert.equal(machine.checkedAt, '1970-01-01T00:33:20.000Z')
+  assert.deepEqual(machine.summary, {
+    currentDocuments: 2,
+    reachableRelays: 2,
+    minimumCurrentCopies: 1,
+  })
+  assert.deepEqual(machine.copies, [
+    { path: '/', eventId: root.id, currentCopies: 1 },
+    { path: '/about', eventId: about.id, currentCopies: 1 },
+  ])
   assert.equal(pool.destroyed, true)
 })
 
