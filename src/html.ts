@@ -18,7 +18,8 @@ export function esc(s: string): string {
 const STYLE = `body{max-width:52em;margin:2em auto;padding:0 1em;font-family:monospace;
 font-size:1rem;line-height:1.5;background:#111;color:#eae6dc}
 a{color:#8fd}h1,h2{font-weight:normal}nav a{margin-right:1em}
-pre{white-space:pre-wrap}hr{border:0;border-top:1px solid #444}
+pre{white-space:pre;overflow-x:auto;max-width:100%}
+hr{border:0;border-top:1px solid #444}
 textarea,input{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
 border:1px solid #666;padding:.4em}
 @media(prefers-color-scheme:light){body{background:#fff;color:#111}a{color:#046}
@@ -50,18 +51,29 @@ function href(item: MenuItem): string | null {
 
 export function renderMenuHtml(title: string, items: MenuItem[]): string {
   const out = [`<h1>${esc(title)}</h1>`]
+  // Runs of info lines become one <pre> block. Gopher menus align ASCII
+  // art and box borders with runs of spaces, which <p> would collapse.
+  let run: string[] = []
+  const flush = (): void => {
+    while (run.length > 0 && run[run.length - 1]?.trim() === '') run.pop()
+    while (run.length > 0 && run[0]?.trim() === '') run.shift()
+    if (run.length > 0) out.push(`<pre>${esc(run.join('\n'))}</pre>`)
+    run = []
+  }
   for (const item of items) {
     const link = href(item)
     if (link === null) {
-      const text =
+      run.push(
         item.target.scheme === 'invalid'
           ? `${item.display} (${item.target.reason})`
-          : item.display
-      out.push(text.trim() === '' ? '<br>' : `<p>${esc(text)}</p>`)
+          : item.display,
+      )
     } else {
+      flush()
       out.push(`<p><a href="${esc(link)}">${esc(item.display)}</a></p>`)
     }
   }
+  flush()
   return out.join('\n')
 }
 

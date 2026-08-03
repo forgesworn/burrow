@@ -28,19 +28,35 @@ function escapeInfo(line: string): string {
   return line.startsWith('```') ? ` ${line}` : line
 }
 
+// Gopher menus align ASCII art with runs of spaces, which a gemini client
+// renders in a proportional font unless it is fenced as preformatted.
+// Fence a run only when it looks like art, so ordinary prose stays prose.
+function looksPreformatted(lines: string[]): boolean {
+  return lines.some((l) => /\S {2,}\S/.test(l) || /(.)\1{7,}/.test(l.trim()))
+}
+
 export function renderGemtextMenu(title: string, items: MenuItem[]): string {
   const out = [`# ${title}`, '']
+  let run: string[] = []
+  const flush = (): void => {
+    if (run.length === 0) return
+    if (looksPreformatted(run)) out.push('```', ...run, '```')
+    else out.push(...run.map(escapeInfo))
+    run = []
+  }
   for (const item of items) {
     const ref = targetRef(item)
     if (ref === null) {
-      const text =
+      run.push(
         item.target.scheme === 'invalid'
           ? `${item.display} (${item.target.reason})`
-          : item.display
-      out.push(escapeInfo(text))
+          : item.display,
+      )
     } else {
+      flush()
       out.push(`=> ${ref} ${item.display}`.trimEnd())
     }
   }
+  flush()
   return out.join('\n') + '\n'
 }
