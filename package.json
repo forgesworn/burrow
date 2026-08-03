@@ -4,6 +4,22 @@
   "description": "Gopherholes served from Nostr relays, and a gopher client that speaks Nostr. Publish once, mirrored everywhere, signed by your npub.",
   "type": "module",
   "license": "MIT",
+  "author": "TheCryptoDonkey",
+  "keywords": [
+    "nostr",
+    "gopher",
+    "gemini",
+    "rfc1436",
+    "phlog",
+    "gopherhole",
+    "nip-46",
+    "bridge",
+    "cli"
+  ],
+  "homepage": "https://github.com/forgesworn/burrow#readme",
+  "bugs": {
+    "url": "https://github.com/forgesworn/burrow/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/forgesworn/burrow.git"
@@ -28,8 +44,10 @@
   },
   "scripts": {
     "test": "node --test",
+    "coverage": "node --test --experimental-test-coverage",
     "typecheck": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "serve": "node src/cli.ts serve"
   },

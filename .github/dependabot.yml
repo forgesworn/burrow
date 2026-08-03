@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Pinned to exactly 2.23.9 on purpose: a later idle-close change kills
+      # live subscriptions. Bump deliberately, never via an automated PR.
+      - dependency-name: nostr-tools
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
