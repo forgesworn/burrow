@@ -1,5 +1,6 @@
 import http from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { isIP } from 'node:net'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { robotsTxt } from './robots.ts'
@@ -41,6 +42,9 @@ export interface HttpOptions {
   // Canonical public HTTPS origin when this listener is behind a reverse
   // proxy. It affects links and share metadata, never request authority.
   publicUrl?: string
+  // Trust one proxy-supplied client address for rate limiting. The CLI enables
+  // this only as part of the explicit private TLS-proxy contract.
+  trustedProxy?: boolean
   // Injectable seams for tests and embedders. Production uses the shared
   // target resolver and the NIP-65/read-back publisher.
   resolveTarget?: (input: string) => Promise<ClientTarget>
@@ -161,6 +165,17 @@ function secureFlag(req: http.IncomingMessage): string {
   return encrypted || forwarded ? ' Secure;' : ''
 }
 
+function rateLimitAddress(req: http.IncomingMessage, trustedProxy: boolean): string {
+  if (trustedProxy) {
+    const forwarded = req.headers['x-forwarded-for']
+    if (typeof forwarded === 'string' && !forwarded.includes(',')) {
+      const address = forwarded.trim()
+      if (isIP(address) !== 0) return address
+    }
+  }
+  return req.socket.remoteAddress ?? 'unknown'
+}
+
 function sessionFrom(cookieHeader: string | undefined): Session | null {
   const raw = /(?:^|;\s*)gopherkind=([A-Za-z0-9_-]+)/.exec(cookieHeader ?? '')?.[1]
   if (!raw) return null
@@ -258,7 +273,7 @@ export function createHttpServer(opts: HttpOptions): http.Server {
       res.end(req.method === 'HEAD' ? undefined : 'ok\n')
       return
     }
-    if (!limiter.allow(req.socket.remoteAddress ?? 'unknown')) {
+    if (!limiter.allow(rateLimitAddress(req, opts.trustedProxy === true))) {
       res.writeHead(429, { 'content-type': 'text/plain', ...SECURITY_HEADERS })
       res.end('slow down\n')
       return

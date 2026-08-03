@@ -73,10 +73,12 @@ The container runs as the unprivileged `node` user and includes a health
 check. Replace `gopher.example.org` with the address clients actually use;
 this is written into gopher menus. The example expects a TLS proxy on the same
 private container network. Port 8070 is deliberately not published on the
-host. The proxy must preserve `Host` and set `X-Forwarded-Proto: https`.
-`--http-behind-proxy` refuses to start without an HTTPS `--http-url` and
-`--no-local-trust`. Omit that option and add `--no-identity` for a direct,
-read-only plaintext HTTP deployment.
+host. The proxy must preserve `Host`, set `X-Forwarded-Proto: https`, and
+replace `X-Forwarded-For` with the single client address. The last rule lets
+the bridge rate-limit visitors separately without accepting a spoofed or
+ambiguous chain. `--http-behind-proxy` refuses to start without an HTTPS
+`--http-url` and `--no-local-trust`. Omit that option and add `--no-identity`
+for a direct, read-only plaintext HTTP deployment.
 
 ## State, backup and recovery
 

@@ -10,6 +10,7 @@ import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure'
 import { createHttpServer, type HttpOptions } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
 import { esc } from '../src/html.ts'
+import { RateLimiter } from '../src/ratelimit.ts'
 import { makeStore, npub, note, pubkey, testSigner } from './helpers.ts'
 
 // The loopback operator's forms carry a server-lifetime CSRF token; grab it
@@ -59,6 +60,36 @@ test('http frontend', async (t) => {
     const head = await fetch(`${base}/healthz`, { method: 'HEAD' })
     assert.equal(head.status, 200)
     assert.equal(await head.text(), '')
+  })
+
+  await t.test(
+    'explicit proxy mode rate-limits validated visitor addresses separately',
+    async (t2) => {
+      const base = await start(t2, {
+        trustedProxy: true,
+        limiter: new RateLimiter(1, 0),
+      })
+      const first = await fetch(base, { headers: { 'x-forwarded-for': '198.51.100.10' } })
+      assert.equal(first.status, 200)
+      const repeated = await fetch(base, { headers: { 'x-forwarded-for': '198.51.100.10' } })
+      assert.equal(repeated.status, 429)
+      const other = await fetch(base, { headers: { 'x-forwarded-for': '198.51.100.11' } })
+      assert.equal(other.status, 200)
+      const malformed = await fetch(base, { headers: { 'x-forwarded-for': 'not-an-address' } })
+      assert.equal(malformed.status, 200)
+      const chain = await fetch(base, {
+        headers: { 'x-forwarded-for': '198.51.100.12, 198.51.100.13' },
+      })
+      assert.equal(chain.status, 429)
+    },
+  )
+
+  await t.test('ordinary listeners ignore forwarded visitor addresses', async (t2) => {
+    const base = await start(t2, { limiter: new RateLimiter(1, 0) })
+    const first = await fetch(base, { headers: { 'x-forwarded-for': '198.51.100.20' } })
+    assert.equal(first.status, 200)
+    const spoofed = await fetch(base, { headers: { 'x-forwarded-for': '198.51.100.21' } })
+    assert.equal(spoofed.status, 429)
   })
 
   await t.test('home page lists pins and needs no identity', async (t2) => {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 (2026-08-03)
+
+### Fixed
+
+- rate-limit visitors by one validated `X-Forwarded-For` address in explicit
+  TLS proxy mode instead of treating the reverse proxy as one global visitor
+- ignore missing, malformed and multi-hop forwarded addresses rather than
+  accepting an ambiguous rate-limit identity
+
 ## 0.9.0 (2026-08-03)
 
 ### Public launch surface
