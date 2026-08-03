@@ -116,6 +116,30 @@ gets a token bucket (burst of 20, refills 1/s) so a scraper can't
 turn your bridge into a relay cannon. Search uses NIP-50 where a relay supports it and quietly
 falls back to grepping fetched events where it doesn't.
 
+## The full experience in lynx
+
+lynx is not only a gopher client, it speaks HTTP, so the bridge serves
+a third frontend built for it: plain HTML, real forms, no JavaScript
+anywhere. Start `burrow serve` and point lynx at
+`http://localhost:8070/`.
+
+Requests from loopback are treated as you, the operator, using the
+same signer the CLI uses (`BURROW_NSEC`, or whatever `burrow pair`
+stored). No login, no cookies, no certificates: open lynx on your own
+machine and you are already signed in. You get menus and documents,
+search forms, your feed, a note composer, and a delete button on your
+own notes.
+
+Remote visitors get the same pages, pair a signer through a form, and
+carry a session cookie. That path is plain HTTP, so put it behind TLS
+(or your existing reverse proxy) before exposing it, or pass
+`--no-local-trust` and `--no-identity` to serve reading only. Turn the
+frontend off entirely with `--no-http`.
+
+Gopher on port 70 stays read-only forever, because the protocol has no
+authentication and no encryption. lynx just gets the good version over
+HTTP instead.
+
 ## Using it from the terminal
 
 You do not need a Gemini client, a browser, or a certificate to use
@@ -136,24 +160,30 @@ burrow pair bunker://...          # once; stored in the state dir
 burrow whoami
 burrow post "hello gopherspace"   # signed by your signer, broadcast
 burrow feed                       # notes from who you follow
+burrow delete <id|note1|nevent1>  # NIP-09 deletion request
 burrow unpair
 ```
+
+`burrow delete --wide` also sends the request to a broader relay set
+than you read from, which matters because content spreads further than
+your own relay list. Deletion is a request: relays may ignore it, and
+clients keep local caches. If what you deleted contained a secret,
+rotate the secret too.
 
 `burrow post --dry-run` prints the signed event without sending it.
 Every command accepts `--relay` (repeatable) and `--state-dir`.
 
 ## Signing in from a Gemini client
 
-The terminal is the comfortable way in for anyone who owns the box.
-The Gemini frontend exists for everyone else: visitors to a public
-bridge who have no shell there and no way to set an environment
-variable.
+The terminal and the HTTP frontend cover most needs. The Gemini
+frontend exists for people already living in Geminispace, where client
+certificates are the native identity mechanism.
 
-For them, identity is a Gemini client certificate, which is the
-protocol's native mechanism (Lagrange will mint one, though its
-identity UI takes some getting used to). burrow binds that certificate
-to a NIP-46 remote signer. Visit `/account`, pair once, and you're
-signed in.
+burrow binds that certificate to a NIP-46 remote signer. Visit
+`/account`, pair once, and you're signed in. Lagrange will mint a
+certificate for you, though its identity UI takes some getting used
+to; if that sounds like hard work, use lynx over HTTP or the CLI
+instead.
 
 Pairing speaks the same dialect as the rest of the Nostr signer world:
 paste a `bunker://` URI from Signet, Amber, nsecBunker or nsec.app, or

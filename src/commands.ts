@@ -7,7 +7,7 @@ import { renderForTerminal } from './cliview.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, firstLine, isoDate } from './protocol.ts'
+import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
@@ -109,6 +109,94 @@ export async function cmdFeed(
       out.push('')
     }
     return out.join('\n')
+  } finally {
+    store.close()
+  }
+}
+
+// Relays worth telling about a deletion even if you never read from them.
+// Deletion requests only work where the content spread, so this list is
+// deliberately wider than the read set.
+export const WIDE_RELAYS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.primal.net',
+  'wss://relay.nostr.band',
+  'wss://nostr.wine',
+  'wss://relay.snort.social',
+  'wss://offchain.pub',
+  'wss://relayable.org',
+  'wss://nostr.oxtr.dev',
+  'wss://nostr.mom',
+  'wss://relay.nostr.bg',
+  'wss://relay.mostr.pub',
+  'wss://nostr.bitcoiner.social',
+  'wss://relay.noswhere.com',
+]
+
+export function parseEventId(input: string): string {
+  const raw = input.trim().replace(/^nostr:/, '')
+  if (/^[0-9a-f]{64}$/i.test(raw)) return raw.toLowerCase()
+  try {
+    const decoded = nip19.decode(raw)
+    if (decoded.type === 'note') return decoded.data
+    if (decoded.type === 'nevent') return decoded.data.id
+  } catch {
+    // fall through to the shared error below
+  }
+  throw new Error(`not an event id, note1... or nevent1...: ${input}`)
+}
+
+export async function cmdDelete(
+  target: string,
+  relays: string[],
+  pairings: PairingStore,
+  opts: { dryRun: boolean; wide: boolean; reason?: string },
+): Promise<string> {
+  const id = parseEventId(target)
+  const signer = await resolveSigner(pairings)
+  const mine = await signer.pubkey()
+  const readStore = new HoleStore(relays)
+  let kind = NOTE_KIND
+  try {
+    const existing = await readStore.event(id)
+    if (existing) {
+      if (existing.pubkey !== mine) {
+        throw new Error(
+          `that event was written by ${nip19.npubEncode(existing.pubkey)}, not you; ` +
+            'you can only request deletion of your own events',
+        )
+      }
+      kind = existing.kind
+    }
+  } finally {
+    readStore.close()
+  }
+
+  const signed = await signer.sign({
+    kind: DELETE_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['e', id],
+      ['k', String(kind)],
+    ],
+    content: opts.reason ?? 'deleted by author',
+  })
+  if (opts.dryRun) return `${JSON.stringify(signed, null, 2)}\nnot published (dry run)\n`
+
+  const targets = opts.wide ? [...new Set([...relays, ...WIDE_RELAYS])] : relays
+  const store = new HoleStore(targets)
+  try {
+    const accepted = await store.publish(signed)
+    return [
+      `deletion request for kind ${kind} event ${id.slice(0, 16)}...`,
+      `accepted by ${accepted}/${targets.length} relays`,
+      '',
+      'Deletion is a request, not a guarantee: relays may ignore it and',
+      'clients may keep a local copy. If the event contained a secret,',
+      'rotate the secret as well.',
+      '',
+    ].join('\n')
   } finally {
     store.close()
   }

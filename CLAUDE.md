@@ -15,8 +15,10 @@ src/router.ts     Route -> protocol-neutral Content (authored beats virtual)
 src/resolve.ts    burrowmap lines -> MenuItems with abstract link targets
 src/render.ts     Content -> RFC 1436 wire (dot-stuffing, CRLF, info tails)
 src/gemtext.ts    Content -> text/gemini
-src/server.ts     TCP gopher frontend
+src/server.ts     TCP gopher frontend (read-only, always)
 src/gemini.ts     TLS gemini frontend (/search is the input endpoint)
+src/http.ts       HTTP frontend for lynx; loopback = operator, no login
+src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
 src/virtual.ts    kind 0/1/30023 -> virtual hole documents
 src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
@@ -29,10 +31,14 @@ src/secretguard.ts blocks credential-shaped content before signing
 src/cli.ts        argument parsing only; logic lives in commands.ts
 ```
 
-Two audiences, deliberately: the operator uses the CLI (owns the box,
-has the key material), visitors use Gemini (no shell, so client certs
-are the only identity the protocol offers). Any new client feature
-should land in the CLI first and reuse the same Content layer.
+Four surfaces, one router. The operator uses the CLI or lynx over HTTP
+(loopback is trusted as them); visitors use HTTP with a session cookie
+or Gemini with a client certificate; gopher is read-only for everyone.
+Any new client feature lands in the CLI first and reuses the shared
+Content/MenuItem layer, so no surface is second-class.
+
+The HTTP frontend must stay JavaScript-free and work in lynx. If a
+feature needs scripting, it does not belong here.
 
 New frontends plug in at the Content/MenuItem layer; don't put
 protocol-specific rendering in the router.

@@ -1,8 +1,8 @@
 # forgesworn/burrow
 
 > Gopherholes served from Nostr relays. Documents are addressable Nostr
-> events (kind 31436, named for RFC 1436); a stateless bridge daemon
-> serves them over gopher (RFC 1436) and Gemini from the same events.
+> events (kind 31436, named for RFC 1436); a bridge daemon serves them
+> over gopher (RFC 1436), Gemini and HTTP from the same events.
 > Virtual holes render any npub's kind 0 profile, kind 1 notes and
 > NIP-23 long-form articles as browsable gopherspace with no publishing
 > required. TypeScript on Node >= 24, one runtime dependency
@@ -40,6 +40,12 @@
   (nostrconnect cross-device), `/post` (kind 1 via remote signer),
   `/feed` (kind 3 follows as a menu), `/unpair`. Gopher is read-only
   by design; the protocol cannot carry credentials safely.
+- http frontend (default port 8070, aimed at lynx: plain HTML, real
+  forms, no JavaScript): same hole paths plus `/go`, `/account`,
+  `/pair`, `/post`, `/feed`, `/delete`, `/<npub>/search?q=`. Loopback
+  requests are trusted as the operator and use the CLI's signer, so
+  local browsing needs no login; remote visitors pair via form and get
+  a session cookie. Plain HTTP, so terminate TLS in front of it.
 
 ## CLI
 
@@ -48,7 +54,8 @@ have no shell on the bridge host.
 
 - read (no identity needed): `burrow read <npub[/path]>`,
   `burrow search <npub> <query>`
-- write: `burrow post <text> [--dry-run]`, `burrow feed [--limit 20]`
+- write: `burrow post <text> [--dry-run]`, `burrow feed [--limit 20]`,
+  `burrow delete <id|note1|nevent1> [--wide] [--reason x]` (NIP-09)
 - identity: `burrow pair <bunker://...>`, `burrow unpair`,
   `burrow whoami`. Signer resolution order: `BURROW_NSEC` local key,
   then `BURROW_BUNKER` one-off URI, then the stored pairing.

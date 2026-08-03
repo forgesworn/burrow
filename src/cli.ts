@@ -19,7 +19,9 @@ import {
   cmdPair,
   cmdUnpair,
   cmdWhoami,
+  cmdDelete,
 } from './commands.ts'
+import { createHttpServer } from './http.ts'
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 
@@ -31,6 +33,7 @@ const USAGE = `usage:
 
   write (needs a signer, see below):
     burrow post <text> [--dry-run]       sign and broadcast a kind 1 note
+    burrow delete <id|note1|nevent1> [--wide] [--dry-run]
     burrow publish <dir> [--expire 30d] [--dry-run]
     burrow unpublish </path>... | --all [--dry-run]
 
@@ -41,8 +44,10 @@ const USAGE = `usage:
 
   bridge:
     burrow serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
-                 [--gemini-port 1965] [--no-gemini] [--cert f --key f] [--state-dir d]
+                 [--gemini-port 1965] [--no-gemini] [--http-port 8070] [--no-http]
+                 [--no-local-trust] [--cert f --key f] [--state-dir d]
                  [--pin npub1...]... [--no-virtual] [--no-identity]
+      the http frontend is the one to point lynx at for the full client.
 
   every command takes [--relay wss://...]... and [--state-dir d].
 
@@ -92,6 +97,9 @@ if (command === 'serve') {
       pin: { type: 'string', multiple: true },
       'no-virtual': { type: 'boolean', default: false },
       'no-identity': { type: 'boolean', default: false },
+      'http-port': { type: 'string', default: '8070' },
+      'no-http': { type: 'boolean', default: false },
+      'no-local-trust': { type: 'boolean', default: false },
     },
   })
   const port = Number(values.port)
@@ -151,6 +159,28 @@ if (command === 'serve') {
     } catch (err) {
       console.error(`gemini disabled: ${err instanceof Error ? err.message : String(err)}`)
     }
+  }
+
+  if (!values['no-http']) {
+    const httpPort = Number(values['http-port'])
+    const localTrust = !values['no-local-trust']
+    const stateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
+    createHttpServer({
+      relays,
+      pins,
+      virtual: virtualEnabled,
+      identity: !values['no-identity'],
+      pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
+      localTrust,
+      store,
+      limiter: new RateLimiter(60, 2),
+    }).listen(httpPort, values.host, () => {
+      console.log(`burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`)
+      if (localTrust) console.log('  loopback requests act as you, using your stored pairing')
+      if (values.host !== '127.0.0.1' && values.host !== 'localhost') {
+        console.log('  note: plain HTTP. Put it behind TLS before exposing it publicly.')
+      }
+    })
   }
 } else if (command === 'publish') {
   const { values, positionals } = parseArgs({
@@ -212,6 +242,26 @@ if (command === 'serve') {
   const text = positionals.join(' ')
   if (text.trim() === '') fail('usage: burrow post <text>')
   run(cmdPost(text, relaysOf(values), pairingsOf(values), values['dry-run']))
+} else if (command === 'delete') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: {
+      ...COMMON,
+      'dry-run': { type: 'boolean', default: false },
+      wide: { type: 'boolean', default: false },
+      reason: { type: 'string' },
+    },
+  })
+  const target = positionals[0]
+  if (target === undefined) fail('usage: burrow delete <id|note1...|nevent1...> [--wide]')
+  run(
+    cmdDelete(target, relaysOf(values), pairingsOf(values), {
+      dryRun: values['dry-run'],
+      wide: values.wide,
+      reason: values.reason,
+    }),
+  )
 } else if (command === 'feed') {
   const { values } = parseArgs({
     args: rest,

@@ -50,7 +50,7 @@ export function storedSigner(store: PairingStore): CliSigner | null {
   if (!pairing) return null
   const client = new Nip46Client()
   return {
-    describe: `paired bunker (${pairing.bunker.relays[0] ?? 'no relay'})`,
+    describe: `stored pairing via ${pairing.bunker.relays[0] ?? 'no relay'}`,
     pubkey: async () => pairing.userPubkey,
     sign: (tpl) => client.sign(pairing, tpl),
   }

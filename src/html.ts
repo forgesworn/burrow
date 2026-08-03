@@ -1,0 +1,76 @@
+import type { Content } from './router.ts'
+import type { MenuItem } from './resolve.ts'
+import { targetRef } from './gemtext.ts'
+
+// HTML aimed at lynx first: linear structure, no layout tricks, every
+// link on its own line so lynx numbers them cleanly. Graphical browsers
+// get a readable column from the small inline stylesheet.
+
+export function esc(s: string): string {
+  return s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+const STYLE = `body{max-width:52em;margin:2em auto;padding:0 1em;font-family:monospace;
+font-size:1rem;line-height:1.5;background:#111;color:#eae6dc}
+a{color:#8fd}h1,h2{font-weight:normal}nav a{margin-right:1em}
+pre{white-space:pre-wrap}hr{border:0;border-top:1px solid #444}
+textarea,input{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
+border:1px solid #666;padding:.4em}
+@media(prefers-color-scheme:light){body{background:#fff;color:#111}a{color:#046}
+textarea,input{background:#fff;color:#111}}`
+
+export function page(title: string, body: string, signedIn: boolean): string {
+  const nav = signedIn
+    ? '<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/account">account</a>'
+    : '<a href="/">home</a><a href="/account">sign in</a>'
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title><style>${STYLE}</style></head>
+<body><nav>${nav}</nav><hr>
+${body}
+</body></html>
+`
+}
+
+function href(item: MenuItem): string | null {
+  const ref = targetRef(item)
+  if (ref === null) return null
+  // targetRef gives gemini-shaped paths; /search is the same route here.
+  return ref
+}
+
+export function renderMenuHtml(title: string, items: MenuItem[]): string {
+  const out = [`<h1>${esc(title)}</h1>`]
+  for (const item of items) {
+    const link = href(item)
+    if (link === null) {
+      const text =
+        item.target.scheme === 'invalid'
+          ? `${item.display} (${item.target.reason})`
+          : item.display
+      out.push(text.trim() === '' ? '<br>' : `<p>${esc(text)}</p>`)
+    } else {
+      out.push(`<p><a href="${esc(link)}">${esc(item.display)}</a></p>`)
+    }
+  }
+  return out.join('\n')
+}
+
+export function renderContentHtml(content: Content): { title: string; body: string } {
+  switch (content.kind) {
+    case 'menu':
+      return { title: content.title, body: renderMenuHtml(content.title, content.items) }
+    case 'text':
+      return {
+        title: content.title,
+        body: `<h1>${esc(content.title)}</h1>\n<pre>${esc(content.body)}</pre>`,
+      }
+    case 'error':
+      return { title: 'Not found', body: `<h1>Not found</h1>\n<p>${esc(content.message)}</p>` }
+  }
+}
