@@ -102,11 +102,18 @@ async function resolveVirtual(
       return { kind: 'text', title: 'Profile', body: virtual.profileText(profile, route.npub) }
     }
     case 'notes': {
-      const notes = await store.notes(route.pubkey)
+      const notes = await store.notes(route.pubkey, m.before)
+      const oldest = notes.length === virtual.PAGE ? (notes.at(-1)?.created_at ?? null) : null
       return {
         kind: 'menu',
-        title: 'Notes',
-        items: resolveMapLines(virtual.notesMenuLines(notes), route.npub),
+        title: m.before === undefined ? 'Notes' : 'Notes (older)',
+        items: resolveMapLines(
+          [
+            ...virtual.notesMenuLines(notes),
+            ...virtual.pageLines('/notes', oldest, m.before !== undefined),
+          ],
+          route.npub,
+        ),
       }
     }
     case 'note': {
@@ -120,9 +127,12 @@ async function resolveVirtual(
         m.kind === 'follows'
           ? await store.contacts(route.pubkey)
           : await store.followers(route.pubkey)
-      const capped = pubkeys.slice(0, 200)
-      const profiles = await store.profilesBatch(capped)
-      const people = capped.map((pk) => {
+      // A big follow list is paged by offset rather than truncated, so the
+      // tail is reachable instead of silently dropped.
+      const from = Math.min(m.from ?? 0, Math.max(pubkeys.length - 1, 0))
+      const page = pubkeys.slice(from, from + virtual.PEOPLE_PAGE)
+      const profiles = await store.profilesBatch(page)
+      const people = page.map((pk) => {
         const npub = nip19.npubEncode(pk)
         const profile = virtual.parseProfile(profiles.get(pk) ?? null)
         return { npub, name: virtual.displayName(profile, npub), about: profile?.about }
@@ -133,24 +143,31 @@ async function resolveVirtual(
         m.kind === 'follows'
           ? 'No follows found (kind 3 empty or unreachable).'
           : 'No followers found on these relays.'
+      const base = m.kind === 'follows' ? '/follows' : '/followers'
       const lines = virtual.peopleMenuLines(people, empty)
-      const note =
-        pubkeys.length > capped.length
-          ? [{ type: 'i' as const, display: `(showing ${capped.length} of ${pubkeys.length})` }]
-          : []
       return {
         kind: 'menu',
         title,
-        items: resolveMapLines([...note, ...lines], route.npub),
+        items: resolveMapLines(
+          [...lines, ...virtual.offsetLines(base, pubkeys.length, from, page.length)],
+          route.npub,
+        ),
       }
     }
 
     case 'articles': {
-      const articles = await store.articles(route.pubkey)
+      const articles = await store.articles(route.pubkey, m.before)
+      const oldest = articles.length === virtual.PAGE ? (articles.at(-1)?.created_at ?? null) : null
       return {
         kind: 'menu',
-        title: 'Articles',
-        items: resolveMapLines(virtual.articlesMenuLines(articles), route.npub),
+        title: m.before === undefined ? 'Articles' : 'Articles (older)',
+        items: resolveMapLines(
+          [
+            ...virtual.articlesMenuLines(articles),
+            ...virtual.pageLines('/articles', oldest, m.before !== undefined),
+          ],
+          route.npub,
+        ),
       }
     }
     case 'article': {

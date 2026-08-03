@@ -183,11 +183,26 @@ has:
 | `/articles/<d>` | one article as plain text |
 | `/follows` | kind 3 contacts, each linking to that pubkey's hole |
 | `/followers` | authors of kind 3 events tagging this pubkey |
+| `/notes/before/<unix>` | the next page of older notes |
+| `/articles/before/<unix>` | the next page of older articles |
+| `/follows/from/<n>` | the people list continued from offset `n` |
+| `/followers/from/<n>` | the same for followers |
+
+A generated stream is longer than one menu, so bridges SHOULD page rather
+than truncate. The two cursor forms are `before/<unix>`, an **exclusive**
+bound on `created_at` for the time-ordered streams, and `from/<n>`, a
+zero-based offset into the flat people lists. A bridge that fills a page
+SHOULD offer a link to the next one, and a bridge on a later page SHOULD
+offer a way back to the first. An exclusive time bound means a second event
+sharing the boundary second is passed over; that is preferred to a cursor
+that can loop. `before/<digits>` and `from/<digits>` are reserved under
+those four paths, on the same terms as every other virtual path: an authored
+document at the same `d` still shadows the generated page.
 
 `/followers` is necessarily a sample: relays only know the contact lists
-they carry, and a carried list may be stale. Bridges SHOULD cap both lists
-and say so when they truncate. NIP-05 identifiers in a profile SHOULD be
-labelled unverified unless the bridge has verified them.
+they carry, and a carried list may be stale. A bridge that does cap a list
+rather than page it MUST say so in the menu. NIP-05 identifiers in a profile
+SHOULD be labelled unverified unless the bridge has verified them.
 
 The single-item permalinks `/notes/<event-id>` and `/articles/<d>` refer to
 events that exist regardless of the generated hole, so a bridge SHOULD serve

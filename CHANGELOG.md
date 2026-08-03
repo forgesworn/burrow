@@ -31,6 +31,9 @@
 - single-item permalinks (`/notes/<id>`, `/articles/<d>`) served under
   `--no-virtual`
 - NIP-31 `alt` tag on published documents
+- pagination for the generated streams: `/notes/before/<unix>`,
+  `/articles/before/<unix>`, `/follows/from/<n>`, `/followers/from/<n>`. A
+  long follow list is paged rather than silently cut off at 200
 - `/robots.txt` on the HTTP and Gemini frontends: the gopherspace proxy and
   the account paths are closed to crawlers, holes stay indexable
 - biome for linting and formatting, enforced in CI (`npm run lint`)

@@ -13,6 +13,7 @@ import {
   tagValue,
   writeRelays,
 } from './protocol.ts'
+import { PAGE } from './virtual.ts'
 
 const MINUTE = 60_000
 
@@ -162,27 +163,39 @@ export class HoleStore {
     return value
   }
 
-  async notes(pubkey: string): Promise<Event[]> {
-    const hit = this.notesCache.get(pubkey)
+  // `before` is a page cursor: the created_at of the oldest note already
+  // shown. The boundary is exclusive, so a page never repeats a note; the
+  // cost is that a second note sharing that exact timestamp is passed over,
+  // which beats a cursor that can loop on a batch of same-second notes.
+  async notes(pubkey: string, before?: number): Promise<Event[]> {
+    const key = before === undefined ? pubkey : `${pubkey}|${before}`
+    const hit = this.notesCache.get(key)
     if (hit !== undefined) return hit
     const events = await this.query(
-      { kinds: [NOTE_KIND], authors: [pubkey], limit: 100 },
+      { kinds: [NOTE_KIND], authors: [pubkey], limit: 100, ...(before ? { until: before } : {}) },
       6000,
       await this.authorRelays(pubkey),
     )
     const value = dedupeById(events)
       .filter((ev) => !ev.tags.some((t) => t[0] === 'e'))
+      .filter((ev) => before === undefined || ev.created_at < before)
       .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, 20)
-    this.notesCache.set(pubkey, value)
+      .slice(0, PAGE)
+    this.notesCache.set(key, value)
     return value
   }
 
-  async articles(pubkey: string): Promise<Event[]> {
-    const hit = this.articlesCache.get(pubkey)
+  async articles(pubkey: string, before?: number): Promise<Event[]> {
+    const key = before === undefined ? pubkey : `${pubkey}|${before}`
+    const hit = this.articlesCache.get(key)
     if (hit !== undefined) return hit
     const events = await this.query(
-      { kinds: [LONG_FORM_KIND], authors: [pubkey], limit: 100 },
+      {
+        kinds: [LONG_FORM_KIND],
+        authors: [pubkey],
+        limit: 100,
+        ...(before ? { until: before } : {}),
+      },
       6000,
       await this.authorRelays(pubkey),
     )
@@ -194,8 +207,11 @@ export class HoleStore {
       const prev = byD.get(d)
       if (!prev || isNewer(ev, prev)) byD.set(d, ev)
     }
-    const value = [...byD.values()].sort((a, b) => b.created_at - a.created_at)
-    this.articlesCache.set(pubkey, value)
+    const value = [...byD.values()]
+      .filter((ev) => before === undefined || ev.created_at < before)
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, PAGE)
+    this.articlesCache.set(key, value)
     return value
   }
 
