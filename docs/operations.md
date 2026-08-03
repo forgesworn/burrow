@@ -36,8 +36,9 @@ Put the HTTP listener behind a same-host TLS reverse proxy and proxy only to
 `127.0.0.1:8070`. `--no-local-trust` is essential in that layout: otherwise
 every proxied request arrives from loopback and would be treated as the local
 operator. Set `--http-url https://gopher.example.org` so public pages carry
-canonical metadata. Remote HTTP visitors can still pair their own NIP-46
-signer.
+canonical metadata. Remote HTTP visitors can pair their own NIP-46 signer or
+connect a NIP-07 browser extension. Both require this HTTPS identity boundary;
+the direct plaintext deployment remains read-only.
 
 Expose TCP 70 or 7070 for gopher and TCP 1965 for Gemini as required. The
 bridge's default high gopher port avoids needing root; use a firewall redirect

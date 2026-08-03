@@ -11,13 +11,38 @@ import { createHttpServer, type HttpOptions } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
 import { esc } from '../src/html.ts'
 import { RateLimiter } from '../src/ratelimit.ts'
-import { makeStore, npub, note, pubkey, testSigner } from './helpers.ts'
+import { docToTemplate } from '../src/publish.ts'
+import { NIP98_KIND } from '../src/nip07.ts'
+import { makeStore, npub, note, pubkey, sk, testSigner } from './helpers.ts'
 
 // The loopback operator's forms carry a server-lifetime CSRF token; grab it
 // from the /post form to drive the write endpoints the way lynx would.
 async function operatorCsrf(base: string): Promise<string> {
   const form = await (await fetch(`${base}/post`)).text()
   return /name="csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
+}
+
+function csrfFrom(html: string): string {
+  return /name="csrf" value="([^"]+)"/.exec(html)?.[1] ?? ''
+}
+
+function nip07Authorization(base: string, secret = sk): { event: unknown; header: string } {
+  const event = finalizeEvent(
+    {
+      kind: NIP98_KIND,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['u', `${base}/nip07/connect`],
+        ['method', 'POST'],
+      ],
+      content: '',
+    },
+    secret,
+  )
+  return {
+    event,
+    header: `Nostr ${Buffer.from(JSON.stringify(event)).toString('base64')}`,
+  }
 }
 
 function withRemoteSigner<T>(fn: () => Promise<T>): Promise<T> {
@@ -231,6 +256,200 @@ test('http frontend', async (t) => {
     })
   })
 
+  await t.test(
+    'NIP-07 connects a browser session and signs every write in the extension',
+    async (t2) => {
+      const published: unknown[] = []
+      const browserDocuments: Array<{ document: unknown; event: unknown }> = []
+      const base = await start(
+        t2,
+        {
+          localTrust: false,
+          signedDocumentPublisher: async (document, event) => {
+            browserDocuments.push({ document, event })
+            return {
+              npub,
+              path: document.path,
+              eventId: event.id,
+              relays: ['wss://stub.invalid'],
+              acceptedBy: ['wss://stub.invalid'],
+              readableFrom: ['wss://stub.invalid'],
+            }
+          },
+        },
+        published,
+      )
+
+      const anonymous = await (await fetch(`${base}/account`)).text()
+      assert.match(anonymous, /Browser extension \(NIP-07\)/)
+      assert.match(anonymous, /data-nip07-connect/)
+      assert.match(anonymous, /Remote signer \(NIP-46\)/)
+      const script = await fetch(`${base}/browser.js`)
+      assert.match(script.headers.get('content-type') ?? '', /^text\/javascript/)
+      const scriptBody = await script.text()
+      assert.match(scriptBody, /window\.nostr/)
+      assert.match(scriptBody, /nostr\.getPublicKey\(\)/)
+      assert.match(scriptBody, /nostr\.signEvent\(template\)/)
+      assert.match(scriptBody, /window\.history\.back\(\)/)
+
+      const auth = nip07Authorization(base)
+      const connected = await fetch(`${base}/nip07/connect`, {
+        method: 'POST',
+        headers: { authorization: auth.header, origin: base },
+      })
+      assert.equal(connected.status, 204)
+      const cookie = connected.headers.get('set-cookie')?.split(';')[0] ?? ''
+      assert.match(cookie, /^gopherkind=/)
+
+      const account = await (await fetch(`${base}/account`, { headers: { cookie } })).text()
+      assert.match(account, /Signed in as/)
+      assert.match(account, /NIP-07 browser extension/)
+      assert.match(account, /Disconnect/)
+
+      const postForm = await (await fetch(`${base}/post`, { headers: { cookie } })).text()
+      assert.match(postForm, /data-nip07-action="post"/)
+      assert.match(postForm, new RegExp(`data-nip07-pubkey="${pubkey}"`))
+      const signedNote = finalizeEvent(
+        {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: 'hello from a Chrome extension',
+        },
+        sk,
+      )
+      const posted = await fetch(`${base}/post`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie,
+          origin: base,
+        },
+        body: new URLSearchParams({
+          csrf: csrfFrom(postForm),
+          event: JSON.stringify(signedNote),
+        }),
+      })
+      assert.equal(posted.status, 200)
+      assert.match(await posted.text(), /<h1>Posted<\/h1>/)
+      assert.deepEqual(published[0], signedNote)
+
+      const publishForm = await (await fetch(`${base}/publish`, { headers: { cookie } })).text()
+      assert.match(publishForm, /data-nip07-action="publish"/)
+      const document = {
+        path: '/chrome.txt',
+        type: '0' as const,
+        title: 'Chrome',
+        content: 'signed by window.nostr',
+      }
+      const signedDocument = finalizeEvent(
+        docToTemplate(document, Math.floor(Date.now() / 1000)),
+        sk,
+      )
+      const publishedDocument = await fetch(`${base}/publish`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie,
+          origin: base,
+        },
+        body: new URLSearchParams({
+          csrf: csrfFrom(publishForm),
+          replace: 'yes',
+          event: JSON.stringify(signedDocument),
+        }),
+      })
+      assert.equal(publishedDocument.status, 200)
+      assert.match(await publishedDocument.text(), /<h1>Published<\/h1>/)
+      assert.deepEqual(browserDocuments, [{ document, event: signedDocument }])
+
+      const notePage = await (
+        await fetch(`${base}/${npub}/notes/${note.id}`, { headers: { cookie } })
+      ).text()
+      assert.match(notePage, /data-nip07-action="delete"/)
+      const signedDeletion = finalizeEvent(
+        {
+          kind: 5,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['e', note.id],
+            ['k', '1'],
+          ],
+          content: 'deleted by author',
+        },
+        sk,
+      )
+      const deleted = await fetch(`${base}/delete`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie,
+          origin: base,
+        },
+        body: new URLSearchParams({
+          csrf: csrfFrom(notePage),
+          event: JSON.stringify(signedDeletion),
+        }),
+      })
+      assert.equal(deleted.status, 200)
+      assert.match(await deleted.text(), /Deletion requested/)
+      assert.deepEqual(published[1], signedDeletion)
+
+      const feed = await (await fetch(`${base}/feed`, { headers: { cookie } })).text()
+      assert.match(feed, /<h1>Your feed<\/h1>/)
+
+      const replay = await fetch(`${base}/nip07/connect`, {
+        method: 'POST',
+        headers: { authorization: auth.header, origin: base },
+      })
+      assert.equal(replay.status, 401)
+      assert.match(await replay.text(), /already used/)
+    },
+  )
+
+  await t.test('NIP-07 rejects a different extension account and disabled identity', async (t2) => {
+    const published: unknown[] = []
+    const base = await start(t2, { localTrust: false }, published)
+    const auth = nip07Authorization(base)
+    const connected = await fetch(`${base}/nip07/connect`, {
+      method: 'POST',
+      headers: { authorization: auth.header, origin: base },
+    })
+    const cookie = connected.headers.get('set-cookie')?.split(';')[0] ?? ''
+    const form = await (await fetch(`${base}/post`, { headers: { cookie } })).text()
+    const wrongAuthor = finalizeEvent(
+      {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: 'wrong account',
+      },
+      generateSecretKey(),
+    )
+    const refused = await fetch(`${base}/post`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie,
+        origin: base,
+      },
+      body: new URLSearchParams({
+        csrf: csrfFrom(form),
+        event: JSON.stringify(wrongAuthor),
+      }),
+    })
+    assert.match(await refused.text(), /wrong author/)
+    assert.equal(published.length, 0)
+
+    const disabled = await start(t2, { identity: false, localTrust: false })
+    const disabledAuth = nip07Authorization(disabled)
+    const noIdentity = await fetch(`${disabled}/nip07/connect`, {
+      method: 'POST',
+      headers: { authorization: disabledAuth.header, origin: disabled },
+    })
+    assert.equal(noIdentity.status, 404)
+  })
+
   await t.test('posting signs and publishes', async (t2) => {
     const published: unknown[] = []
     const base = await start(t2, {}, published)
@@ -355,7 +574,7 @@ test('http frontend', async (t) => {
       })
       assert.equal(response.status, 400)
       const body = await response.text()
-      assert.match(body, /Nothing was signed or sent/)
+      assert.match(body, /Nothing was sent to a relay/)
       assert.doesNotMatch(body, /signer\.example/)
       assert.match(body, /<textarea name="content"[^>]*><\/textarea>/)
       assert.equal(calls, 0)
@@ -493,7 +712,11 @@ test('http frontend', async (t) => {
     const res = await fetch(`${base}/`)
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff')
     assert.equal(res.headers.get('x-frame-options'), 'DENY')
-    assert.match(res.headers.get('content-security-policy') ?? '', /default-src 'none'/)
+    const csp = res.headers.get('content-security-policy') ?? ''
+    assert.match(csp, /default-src 'none'/)
+    assert.match(csp, /script-src 'self'/)
+    assert.match(csp, /connect-src 'self'/)
+    assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/)
   })
 
   await t.test('feed renders follows', async (t2) => {

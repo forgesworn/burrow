@@ -149,17 +149,24 @@ documents to be indexed.
 ## Identity features
 
 A Gemini frontend MAY bind a client certificate fingerprint to a NIP-46
-remote signer. An HTTP frontend MAY provide an equivalent session. The bridge
-holds only its own NIP-46 client key and MUST never request or store the user's
-secret key.
+remote signer. An HTTP frontend MAY provide an equivalent NIP-46 session or
+establish a NIP-07 session by verifying a fresh, exact-URL NIP-98 event. It
+MUST refuse replay and MUST verify the signature, session author and exact
+event template again for every browser-signed write. A NIP-07 session MUST NOT
+fall back to a bridge-side signer. The bridge holds only its own NIP-46 client
+key and MUST never request or store the user's secret key.
 
-Signer requests MUST have hard timeouts and short-lived subscriptions. Pair,
-post, publish, feed and unpair routes belong to the bridge's reserved
-application namespace, not to a hole. A document publishing form MUST make
-exact-path replacement explicit before asking the signer to sign. It SHOULD
-use the same NIP-65 relay destinations and post-acceptance read-back as a
-directory publisher, and MUST NOT claim success when the document cannot be
-retrieved from any destination.
+Server-mediated signer requests MUST have hard timeouts and short-lived
+subscriptions. A browser SHOULD show a pending message while its extension
+awaits approval. Pair, NIP-07 connect, post, publish, feed and unpair routes
+belong to the bridge's reserved application namespace, not to a hole. A
+document publishing form MUST make exact-path replacement explicit before
+asking the signer to sign. It SHOULD use the same NIP-65 relay destinations
+and post-acceptance read-back as a directory publisher, and MUST NOT claim
+success when the document cannot be retrieved from any destination.
+
+NIP-07 MAY be a progressive enhancement, but the underlying HTTP pages SHOULD
+remain readable and the NIP-46 path usable without JavaScript.
 
 A loopback-only gopher menu MAY offer personal actions where identity derives
 from the connection origin. It MUST NOT be advertised or served to a remote

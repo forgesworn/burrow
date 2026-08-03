@@ -18,9 +18,10 @@ src/render.ts     Content -> RFC 1436 wire (dot-stuffing, CRLF, info tails)
 src/gemtext.ts    Content -> text/gemini
 src/server.ts     TCP gopher frontend (read-only, always)
 src/gemini.ts     TLS gemini frontend (/_gopherkind/search/<npub> input)
-src/http.ts       HTTP frontend for lynx; loopback operator and explicit TLS
-                  proxy identity; /publish uses shared publisher truth
-src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
+src/http.ts       HTTP frontend for lynx and graphical browsers; loopback,
+                  NIP-46 and NIP-07 identity; /publish shares publisher truth
+src/html.ts       Content -> lynx-friendly HTML (real forms, optional NIP-07)
+src/nip07.ts      NIP-98/session verification and the window.nostr enhancement
 src/robots.ts     one crawl policy, served on http and gemini
 src/personal.ts   /me menu: loopback-only read+write over gopher
 src/gopherclient.ts  gopher client for traditional gopherspace; nostr-aware
@@ -47,18 +48,22 @@ src/recovery.ts   per-relay hole inspection; human and versioned JSON reports
 src/signing.ts    remote CLI signer: GOPHERKIND_BUNKER > stored NIP-46 pairing
 src/commands.ts   CLI client: read, search, post, feed, pair, whoami
 src/cliview.ts    Content -> terminal text (plain and numbered-link forms)
-src/secretguard.ts blocks credential-shaped content before signing
+src/secretguard.ts blocks credential-shaped content before relay publication
 src/cli.ts        argument parsing only; logic lives in commands.ts
 ```
 
 Four surfaces, one router. The operator uses the CLI or lynx over HTTP
-(loopback is trusted as them); visitors use HTTP with a session cookie
-or Gemini with a client certificate; gopher is read-only for everyone.
+(loopback is trusted as them); visitors use HTTP with a NIP-46 or NIP-07
+session, or Gemini with a client certificate; gopher is read-only for everyone.
 Any new client feature lands in the CLI first and reuses the shared
 Content/MenuItem layer, so no surface is second-class.
 
-The HTTP frontend must stay JavaScript-free and work in lynx. If a
-feature needs scripting, it does not belong here.
+The HTTP frontend must keep working in lynx with plain HTML and real forms.
+One same-origin external script progressively enhances the ordinary back link
+with browser history and may use the standard `window.nostr` interface for
+NIP-07. The link falls back to Home, so navigation, reading and NIP-46 do not
+depend on JavaScript. Verify NIP-98 connection events and every browser-signed
+write on the server; a browser session must never borrow the bridge's signer.
 
 New frontends plug in at the Content/MenuItem layer; don't put
 protocol-specific rendering in the router.
@@ -81,10 +86,10 @@ protocol-specific rendering in the router.
   checksum-verified registry bootstrap in `docs/releasing.md`, releases go
   through forgesworn/anvil (OIDC trusted publishing; never publish routine
   releases from a workstation).
-- **The bridge never holds a user key.** Signing is always remote via
-  NIP-46. Sensitive disk state is the Gemini TLS key and `pairings.json`
-  (cert fingerprint -> bunker binding, mode 600); bookmarks are ordinary
-  local client state.
+- **The bridge never holds a user key.** Signing is remote via NIP-46 or stays
+  inside a NIP-07 browser extension. Sensitive disk state is the Gemini TLS
+  key and `pairings.json` (cert fingerprint -> bunker binding, mode 600);
+  bookmarks are ordinary local client state.
 - **Never accept a credential over gopher.** Plaintext, no auth. The
   `/me` menu is the one exception and only because it sends nothing:
   identity is the connection's origin (loopback). It must never be
@@ -108,6 +113,6 @@ protocol-specific rendering in the router.
 - Gopher+ and CGI/executable selectors.
 - Serving binaries or images (types 9, g, I). Text and menus only.
 - Custodial anything. No nsec input, no key generation for users, no
-  signing except by the user's own remote signer.
+  signing except by the user's chosen NIP-46 or NIP-07 signer.
 - DMs and zap wallets (would need NIP-44 decrypt loops and LNURL;
   revisit deliberately if ever).

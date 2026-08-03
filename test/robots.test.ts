@@ -13,7 +13,16 @@ import { makeStore, npub } from './helpers.ts'
 test('the crawl policy names the proxy and the account paths', () => {
   const body = robotsTxt()
   assert.match(body, /^User-agent: \*$/m)
-  for (const p of ['/gopher/', '/account', '/pair', '/post', '/publish', '/feed', '/delete']) {
+  for (const p of [
+    '/gopher/',
+    '/account',
+    '/pair',
+    '/nip07',
+    '/post',
+    '/publish',
+    '/feed',
+    '/delete',
+  ]) {
     assert.match(body, new RegExp(`^Disallow: ${p.replace('/', '\\/')}`, 'm'))
   }
   // a hole itself stays crawlable; that is the point of a bridge

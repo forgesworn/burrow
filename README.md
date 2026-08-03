@@ -348,8 +348,8 @@ of course also just speak gopher directly.
 ## The full experience in lynx
 
 lynx is not only a gopher client, it speaks HTTP, so the bridge serves
-a third frontend built for it: plain HTML, real forms, no JavaScript
-anywhere. Start `gopherkind serve` and point lynx at
+a third frontend built for it: plain HTML and real forms whose complete
+NIP-46 path needs no JavaScript. Start `gopherkind serve` and point lynx at
 `http://localhost:8070/`.
 
 Requests from loopback are treated as you, the operator, using the
@@ -363,8 +363,9 @@ HTTP and Gemini search lives at `/_gopherkind/search/<npub>`, outside
 the authored hole namespace. A document published at `/search` is
 therefore served normally rather than being intercepted by the bridge.
 
-Remote visitors can get the same pages, pair a signer through a form, and
-carry a session cookie when the listener sits behind TLS. A non-loopback bind
+Remote visitors can get the same pages, pair a NIP-46 signer through a form or
+connect a standard NIP-07 browser extension, and carry a session cookie when
+the listener sits behind TLS. A non-loopback bind
 requires `--http-behind-proxy`, an HTTPS `--http-url`, and
 `--no-local-trust`; the HTTP port must not be exposed directly. Identity is
 disabled automatically on an ordinary public bind, so direct plaintext
@@ -480,6 +481,30 @@ rotate the secret too.
 `gopherkind post --dry-run` prints the signed event without sending it.
 Every command accepts `--relay` (repeatable) and `--state-dir`.
 
+## Signing in from a browser extension
+
+Open `/account` in Chrome or another graphical browser and gopherkind detects
+the standard `window.nostr` interface supplied by a NIP-07 extension. Choose
+**Connect browser extension** and approve the public-key and connection
+requests in the extension. Bark and other conforming providers use the
+same interface; gopherkind does not contain extension-specific integration.
+
+The connection request is a fresh NIP-98 event scoped to the exact bridge URL
+and HTTP method. The bridge verifies its id, signature, author, timestamp and
+scope, refuses replay, and then issues a short-lived HTTP-only session cookie.
+Posting, publishing and deletion are signed inside the extension. Only the
+public signed event crosses to gopherkind, which verifies the session author
+and exact event template before sending anything to relays. A NIP-07 session
+can never borrow the bridge's NIP-46 signer.
+
+Public browser identity requires the documented HTTPS reverse-proxy mode.
+Direct plaintext public HTTP deliberately stays read-only. The base pages,
+NIP-46 forms and all reading continue to work without JavaScript in lynx.
+
+Every HTTP page has a **back** link. In a graphical browser it follows real
+browser history, while a direct visit or a text browser safely falls back to
+Home.
+
 ## Signing in from a Gemini client
 
 The terminal and the HTTP frontend cover most needs. The Gemini
@@ -528,10 +553,10 @@ Gemini input is one URL line and a Gemini request URL may not exceed
 to the medium; gopherspace was never the place for essays with inline
 video.
 
-One clarification for bark users: bark is a NIP-07 browser extension,
-and Lagrange isn't a browser, so bark can't inject here. But the
-Heartwood bunker behind bark pairs with gopherkind directly. Same signer,
-different front door.
+One clarification for Bark users: in Chrome, Bark injects the standard
+`window.nostr` provider and the NIP-07 button uses it directly. Lagrange is
+not a browser, so Bark cannot inject there; pair the Heartwood bunker behind
+Bark over NIP-46 instead. Same signer, different front door.
 
 Gopher stays read-only forever. The protocol has no authentication
 and no encryption, so any credential sent over it would be public.

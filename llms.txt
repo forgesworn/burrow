@@ -56,12 +56,16 @@
   (nostrconnect cross-device), `/post` (kind 1 via remote signer),
   `/feed` (kind 3 follows as a menu), `/unpair`. Gopher is read-only
   by design; the protocol cannot carry credentials safely.
-- http frontend (default port 8070, aimed at lynx: plain HTML, real
-  forms, no JavaScript): same hole paths plus `/go`, `/account`,
-  `/pair`, `/post`, `/feed`, `/delete`, `/_gopherkind/search/<npub>?q=`. Loopback
+- http frontend (default port 8070, plain HTML and real forms with an optional
+  standard NIP-07 `window.nostr` enhancement): same hole paths plus `/go`,
+  `/account`, `/pair`, `/nip07/connect`, `/post`, `/publish`, `/feed`, `/delete`,
+  `/_gopherkind/search/<npub>?q=`. Loopback
   requests are trusted as the operator and use the CLI's remote signer, so
-  local browsing needs no login. For remote sessions, bind to loopback behind
-  TLS and pass `--no-local-trust`; identity is disabled on a public bind.
+  local browsing needs no login. Remote HTTPS sessions may pair NIP-46 or use
+  NIP-98 plus a NIP-07 browser extension; every browser-signed write is verified
+  server-side. The ordinary back link uses browser history when JavaScript is
+  available and otherwise links home. Bind to loopback behind TLS and pass
+  `--no-local-trust`; identity is disabled on a public bind.
 
 ## CLI
 

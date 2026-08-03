@@ -46,8 +46,10 @@ test('html shell keeps navigation and form controls within a mobile viewport', (
   assert.match(out, /<meta name="viewport" content="width=device-width,initial-scale=1">/)
   assert.match(out, /\*\{box-sizing:border-box\}/)
   assert.match(out, /nav\{display:flex;flex-wrap:wrap;/)
-  assert.match(out, /textarea,input\{[^}]*max-width:100%\}/)
+  assert.match(out, /textarea,input,button,select\{[^}]*max-width:100%\}/)
   assert.match(out, /textarea\{width:100%;resize:vertical\}/)
+  assert.match(out, /<nav><a href="\/" data-history-back>back<\/a><a href="\/">home<\/a>/)
+  assert.match(out, /<script src="\/browser\.js" defer><\/script>/)
 })
 
 test('gemtext fences art but leaves prose alone', () => {

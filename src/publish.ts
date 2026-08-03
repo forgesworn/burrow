@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { Event, EventTemplate, Filter } from 'nostr-tools'
 import { SimplePool } from 'nostr-tools/pool'
 import { npubEncode } from 'nostr-tools/nip19'
+import { verifyEvent } from 'nostr-tools/pure'
 import {
   DOC_KIND,
   DELETE_KIND,
@@ -281,12 +282,7 @@ async function verifyPublished(
 // read-back guarantees as directory publishing. The web frontend uses this
 // rather than its HoleStore so an easy authoring path does not quietly weaken
 // the publisher's NIP-65 or settlement-truth behaviour.
-export async function publishDocument(
-  doc: PlannedDoc,
-  relays: string[],
-  signer: CliSigner,
-  opts: { pool?: PublishPool; now?: number } = {},
-): Promise<PublishedDocumentReport> {
+function validateBrowserDocument(doc: PlannedDoc): void {
   const leak = findSecret(doc.content)
   if (leak) {
     throw new Error(
@@ -300,14 +296,31 @@ export async function publishDocument(
   if (Buffer.byteLength(doc.content, 'utf8') > 60 * 1024) {
     throw new Error(`${doc.path} is larger than the 60 KB relay-safe authoring limit`)
   }
+  // Validate the remaining exact-path and title rules before asking any
+  // signer or relay to handle this document.
+  docToTemplate(doc, 0)
+}
 
-  const pubkey = await signer.pubkey()
-  const event = await signer.sign(docToTemplate(doc, opts.now ?? Math.floor(Date.now() / 1000)))
-  if (event.pubkey !== pubkey) throw new Error('signer returned the wrong author')
+export async function publishSignedDocument(
+  doc: PlannedDoc,
+  event: Event,
+  relays: string[],
+  opts: { pool?: PublishPool } = {},
+): Promise<PublishedDocumentReport> {
+  validateBrowserDocument(doc)
+  const expected = docToTemplate(doc, event.created_at)
+  if (
+    event.kind !== expected.kind ||
+    event.content !== expected.content ||
+    JSON.stringify(event.tags) !== JSON.stringify(expected.tags) ||
+    !verifyEvent(event)
+  ) {
+    throw new Error('signed document does not match the exact document requested')
+  }
 
   const pool = opts.pool ?? new SimplePool()
   try {
-    const plan = await relayPlan(pubkey, relays, pool)
+    const plan = await relayPlan(event.pubkey, relays, pool)
     if (plan.relayList !== null) await publishOne(pool, plan.relays, plan.relayList)
     const acceptedBy = await publishOne(pool, plan.relays, event)
     if (acceptedBy.length === 0) throw new Error('document was rejected by every relay')
@@ -318,7 +331,7 @@ export async function publishDocument(
       throw new Error('document was accepted but is not readable from any relay')
     }
     return {
-      npub: npubEncode(pubkey),
+      npub: npubEncode(event.pubkey),
       path: doc.path,
       eventId: event.id,
       relays: plan.relays,
@@ -328,6 +341,19 @@ export async function publishDocument(
   } finally {
     pool.destroy()
   }
+}
+
+export async function publishDocument(
+  doc: PlannedDoc,
+  relays: string[],
+  signer: CliSigner,
+  opts: { pool?: PublishPool; now?: number } = {},
+): Promise<PublishedDocumentReport> {
+  validateBrowserDocument(doc)
+  const pubkey = await signer.pubkey()
+  const event = await signer.sign(docToTemplate(doc, opts.now ?? Math.floor(Date.now() / 1000)))
+  if (event.pubkey !== pubkey) throw new Error('signer returned the wrong author')
+  return publishSignedDocument(doc, event, relays, opts)
 }
 
 export async function publishHole(

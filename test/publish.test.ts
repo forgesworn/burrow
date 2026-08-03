@@ -9,6 +9,7 @@ import {
   parseDuration,
   planDeletion,
   publishDocument,
+  publishSignedDocument,
   publishHole,
   unpublishHole,
   type PublishPool,
@@ -212,6 +213,35 @@ test('single-document publishing keeps NIP-65 destinations and read-back truth',
     ),
   )
   assert.equal(pool.destroyed, true)
+})
+
+test('a browser-signed document keeps the same publication guarantees', async () => {
+  const secret = generateSecretKey()
+  const document = {
+    path: '/from-nip07.txt',
+    type: '0' as const,
+    title: 'From NIP-07',
+    content: 'signed in the browser\n',
+  }
+  const event = finalizeEvent(docToTemplate(document, 2_000), secret)
+  const pool = new FakePool(null)
+  const report = await publishSignedDocument(document, event, ['wss://configured.example'], {
+    pool,
+  })
+  assert.equal(report.eventId, event.id)
+  assert.deepEqual(report.acceptedBy, ['wss://configured.example'])
+  assert.deepEqual(report.readableFrom, ['wss://configured.example'])
+  assert.equal(pool.destroyed, true)
+
+  await assert.rejects(
+    publishSignedDocument(
+      { ...document, content: 'not what was signed' },
+      event,
+      ['wss://configured.example'],
+      { pool: new FakePool(null) },
+    ),
+    /does not match/,
+  )
 })
 
 test('single-document publishing refuses secrets and false relay acceptance', async () => {
