@@ -23,13 +23,17 @@ import {
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner } from './signing.ts'
+import { runBrowse } from './browse.ts'
+import { BookmarkStore } from './bookmarks.ts'
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 
 const USAGE = `usage:
   read and browse (no identity needed):
-    burrow read <npub[/path]>            print a hole document
-    burrow search <npub> <query>         search a hole
+    burrow                               interactive browser (also: burrow browse)
+    burrow browse [target]               browse from an npub or gopher:// url
+    burrow read <target>                 print a hole document or gopher page
+    burrow search <target> <query>       search a hole, or a gopher type 7 endpoint
     burrow feed [--limit 20]             notes from who you follow
 
   write (needs a signer, see below):
@@ -222,6 +226,20 @@ if (command === 'serve') {
   unpublishHole(values.all ? 'all' : positionals, values.relay ?? DEFAULT_RELAYS, secretFromEnv(), values['dry-run'])
     .then(() => process.exit(0))
     .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
+} else if (command === 'browse' || (command === undefined && process.stdin.isTTY === true)) {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: { ...COMMON, 'no-virtual': { type: 'boolean', default: false } },
+  })
+  runBrowse(positionals[0], {
+    relays: relaysOf(values),
+    pairings: pairingsOf(values),
+    bookmarks: new BookmarkStore(path.join(stateDirOf(values), 'bookmarks.json')),
+    virtual: !values['no-virtual'],
+  })
+    .then(() => process.exit(0))
+    .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'read') {
   const { values, positionals } = parseArgs({
     args: rest,
@@ -229,7 +247,7 @@ if (command === 'serve') {
     options: { ...COMMON, 'no-virtual': { type: 'boolean', default: false } },
   })
   const target = positionals[0]
-  if (target === undefined) fail('usage: burrow read <npub[/path]>')
+  if (target === undefined) fail('usage: burrow read <npub[/path] or gopher://...>')
   run(cmdRead(target, relaysOf(values), !values['no-virtual']))
 } else if (command === 'search') {
   const { values, positionals } = parseArgs({
@@ -239,7 +257,7 @@ if (command === 'serve') {
   })
   const target = positionals[0]
   const query = positionals.slice(1).join(' ')
-  if (target === undefined || query === '') fail('usage: burrow search <npub> <query>')
+  if (target === undefined || query === '') fail('usage: burrow search <target> <query>')
   run(cmdSearch(target, query, relaysOf(values), !values['no-virtual']))
 } else if (command === 'post') {
   const { values, positionals } = parseArgs({

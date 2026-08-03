@@ -56,6 +56,39 @@ test('gopher menus parse into menu items', () => {
   assert.equal(items[4]?.target.scheme, 'none')
 })
 
+test('gophermap links into nostr go native', async () => {
+  const { npub } = await import('./helpers.ts')
+  const body = [
+    `1A burrow bridge\t/${npub}/notes\tbridge.example\t7070`,
+    `hSomeone on nostr\tURL:nostr:${npub}\tbridge.example\t70`,
+    'hPlain web\tURL:https://example.com\tgopher.example\t70',
+    '1Plain dir\t/dir\tgopher.example\t70',
+    '.',
+  ].join('\r\n')
+  const items = parseGopherMenu(body)
+  assert.deepEqual(items[0]?.target, { scheme: 'hole', npub, path: '/notes' })
+  assert.deepEqual(items[1]?.target, { scheme: 'hole', npub, path: '/' })
+  assert.deepEqual(items[2]?.target, { scheme: 'web', url: 'https://example.com' })
+  assert.equal(items[3]?.target.scheme, 'gopher')
+})
+
+test('type 7 search sends selector tab query', async (t) => {
+  const seen: string[] = []
+  const server = net.createServer((socket) => {
+    socket.on('data', (chunk) => {
+      seen.push(chunk.toString('utf8'))
+      socket.end('0Result\t/hit.txt\tlocal.test\t70\r\n.\r\n')
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+  t.after(() => server.close())
+  const port = (server.address() as net.AddressInfo).port
+
+  const res = await browseGopher({ host: '127.0.0.1', port, type: '7', selector: '/search' }, 'hay')
+  assert.equal(res.kind, 'menu')
+  assert.deepEqual(seen, ['/search\thay\r\n'])
+})
+
 test('browses a local gopher server end to end', async (t) => {
   const server = net.createServer((socket) => {
     socket.on('data', (chunk) => {

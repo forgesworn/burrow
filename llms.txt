@@ -60,10 +60,23 @@
 ## CLI
 
 The CLI is a complete client; the Gemini frontend is for visitors who
-have no shell on the bridge host.
+have no shell on the bridge host. Install: `npx @forgesworn/burrow`
+(Node >= 24).
 
+- interactive browser: `burrow` (bare, on a TTY) or
+  `burrow browse [target]`. Numbered links, `back`/`up`/`reload`,
+  `mark`/`marks`/`unmark <n>` bookmarks (state dir `bookmarks.json`),
+  `history`, `go <target>`, `search <query>` (NIP-50 on holes, type 7
+  on gopher), `feed` as a navigable menu, `post <text>` via the
+  resolved signer, `$PAGER` for long documents. Targets: npub[/path],
+  `nostr:` entities (npub/nprofile/naddr), `gopher://` urls, bare
+  hostnames. A `gopher://` url whose selector starts with an npub is
+  recognised as a burrow bridge and browsed natively via relays;
+  gophermap lines with npub selectors or `nostr:` h-links likewise.
 - read (no identity needed): `burrow read <npub[/path]>`,
-  `burrow search <npub> <query>`
+  `burrow read gopher://host/T/selector`,
+  `burrow search <npub> <query>`,
+  `burrow search gopher://host/7/selector <query>` (e.g. Veronica-2)
 - write: `burrow post <text> [--dry-run]`, `burrow feed [--limit 20]`,
   `burrow delete <id|note1|nevent1> [--wide] [--reason x]` (NIP-09)
 - identity: `burrow pair <bunker://...>`, `burrow unpair`,
@@ -95,7 +108,13 @@ have no shell on the bridge host.
 - Source layout: `selector.ts` (parse) -> `router.ts` (resolve to
   protocol-neutral Content) -> `render.ts` (gopher) / `gemtext.ts`
   (gemini). `virtual.ts` builds virtual holes, `fetch.ts` talks to
-  relays, `publish.ts` is the CLI's write path.
+  relays, `publish.ts` is the CLI's write path. `target.ts` parses
+  client-side targets (npub/nostr:/gopher://), `gopherclient.ts`
+  fetches traditional gopherspace, `browse.ts` is the interactive
+  terminal client.
+- Published to npm as `@forgesworn/burrow` with a compiled `dist/`
+  (Node refuses type stripping under node_modules); development runs
+  straight from `src/` with no build step.
 
 ## Links
 

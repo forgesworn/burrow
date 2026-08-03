@@ -20,7 +20,15 @@ src/gemini.ts     TLS gemini frontend (/search is the input endpoint)
 src/http.ts       HTTP frontend for lynx; loopback = operator, no login
 src/html.ts       Content -> lynx-friendly HTML (no JS, real forms)
 src/personal.ts   /me menu: loopback-only read+write over gopher
-src/gopherclient.ts  gopher client + proxy for traditional gopherspace
+src/gopherclient.ts  gopher client for traditional gopherspace; nostr-aware
+                  gophermap parsing (npub selectors and nostr: h-links
+                  become native hole targets on every surface)
+src/target.ts     universal client addressing: npub / nostr: entity /
+                  gopher:// / bare host -> ClientTarget; proxy paths;
+                  bridge urls with npub selectors resolve native
+src/browse.ts     interactive terminal client: session, command parsing,
+                  feed and home menus, readline loop (kept thin)
+src/bookmarks.ts  bookmark store (JSON in the state dir)
 src/virtual.ts    kind 0/1/30023 -> virtual hole documents
 src/fetch.ts      relay access, TTL+LRU caches, NIP-50 search, feed queries
 src/identity.ts   cert fingerprint -> bunker pairing store (JSON, mode 600)
@@ -28,7 +36,7 @@ src/nip46client.ts NIP-46 wrapper: per-op signer, hard timeouts everywhere
 src/publish.ts    directory -> signed events; NIP-09 unpublish; NIP-40 expire
 src/signing.ts    CLI signer resolution: BURROW_NSEC > BURROW_BUNKER > stored
 src/commands.ts   CLI client: read, search, post, feed, pair, whoami
-src/cliview.ts    Content -> terminal text
+src/cliview.ts    Content -> terminal text (plain and numbered-link forms)
 src/secretguard.ts blocks credential-shaped content before signing
 src/cli.ts        argument parsing only; logic lives in commands.ts
 ```
@@ -52,9 +60,14 @@ protocol-specific rendering in the router.
   straight after, always wrapped in a hard timeout (nostr-tools has
   none of its own and a signer awaiting a human hangs forever
   otherwise). nostr-tools is pinned to exactly 2.23.9.
-- **No build step.** Runs directly on Node >= 24 type stripping, so
-  `erasableSyntaxOnly`: no enums, no parameter properties, type-only
-  imports. Tests are node:test, run with plain `node --test`.
+- **No build step in development.** Runs directly on Node >= 24 type
+  stripping, so `erasableSyntaxOnly`: no enums, no parameter
+  properties, type-only imports. Tests are node:test, run with plain
+  `node --test`. Publishing is the one exception: Node refuses type
+  stripping under node_modules, so `npm run build` compiles `dist/`
+  via tsconfig.build.json (rewriteRelativeImportExtensions) and the
+  npm bin points there. Releases go through forgesworn/anvil (OIDC
+  trusted publishing; never npm publish from a workstation).
 - **The bridge never holds a user key.** Signing is always remote via
   NIP-46. Disk state is exactly: the Gemini TLS cert and
   `pairings.json` (cert fingerprint -> bunker binding, mode 600).

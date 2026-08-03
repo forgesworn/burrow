@@ -1,9 +1,10 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { HoleStore } from './fetch.ts'
 import { PairingStore } from './identity.ts'
-import { parseSelector } from './selector.ts'
 import { resolveRoute } from './router.ts'
 import { renderForTerminal } from './cliview.ts'
+import { browseGopher } from './gopherclient.ts'
+import { parseClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
@@ -14,11 +15,15 @@ import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
 // feed. Reading needs no identity at all.
 
 export async function cmdRead(target: string, relays: string[], virtual: boolean): Promise<string> {
+  const parsed = parseClientTarget(target)
+  if (parsed.kind === 'gopher') return renderForTerminal(await browseGopher(parsed))
   const store = new HoleStore(relays)
   try {
-    const route = parseSelector(normaliseTarget(target))
-    if (route.kind === 'welcome') throw new Error('give an npub, e.g. burrow read npub1...')
-    const content = await resolveRoute(route, store, { virtual })
+    const content = await resolveRoute(
+      { kind: 'doc', pubkey: parsed.pubkey, npub: parsed.npub, path: parsed.path },
+      store,
+      { virtual },
+    )
     return renderForTerminal(content)
   } finally {
     store.close()
@@ -31,12 +36,19 @@ export async function cmdSearch(
   relays: string[],
   virtual: boolean,
 ): Promise<string> {
+  const parsed = parseClientTarget(target)
+  if (parsed.kind === 'gopher') {
+    if (parsed.type !== '7') {
+      throw new Error(
+        'gopher search needs a type 7 selector, e.g. gopher://gopher.floodgap.com/7/v2/vs',
+      )
+    }
+    return renderForTerminal(await browseGopher(parsed, query))
+  }
   const store = new HoleStore(relays)
   try {
-    const route = parseSelector(normaliseTarget(target))
-    if (route.kind !== 'doc') throw new Error('give an npub to search')
     const content = await resolveRoute(
-      { kind: 'search', pubkey: route.pubkey, npub: route.npub, path: '/', query },
+      { kind: 'search', pubkey: parsed.pubkey, npub: parsed.npub, path: '/', query },
       store,
       { virtual },
     )
@@ -229,19 +241,4 @@ export async function cmdWhoami(relays: string[], pairings: PairingStore): Promi
   } finally {
     store.close()
   }
-}
-
-// Accepts npub, npub/path, or a full gopher://host/1/npub/path selector.
-function normaliseTarget(target: string): string {
-  let t = target.trim()
-  if (t.startsWith('gopher://')) {
-    try {
-      const url = new URL(t)
-      t = url.pathname.length > 2 ? decodeURIComponent(url.pathname.slice(2)) : ''
-    } catch {
-      // leave as-is and let the selector parser complain
-    }
-  }
-  if (t.startsWith('nostr:')) t = t.slice(6)
-  return t.startsWith('/') ? t : `/${t}`
 }

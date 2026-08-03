@@ -14,6 +14,35 @@ disappears, point your client at another one and nothing is lost.
 Zaps, follows and web of trust come along for free, because it's all
 just Nostr underneath.
 
+## Why gopher and Nostr belong together
+
+Cameron Kaiser's essay on why gopher still matters (read it:
+`burrow read gopher://gopher.floodgap.com/0/gopher/relevance.txt`)
+lands on one idea: gopher divorces interface from information. Every
+hole is menus and text, navigated the same way, rendered by anything
+with a TCP stack. Sites stand on the strength of their content, not
+the glitz of their bling.
+
+Gopher's one structural weakness is that a hole is a host. The
+protocol never had a notion of authorship, so your writing lives and
+dies with a hostname and a power supply, and nothing in the wire
+format can prove who wrote what. That is precisely the shape of
+problem Nostr solves: identity is a keypair, documents are signed
+events, and relays mirror them without being asked nicely.
+
+The trade works in both directions. Nostr's clients are timelines,
+built for the scroll; long-form writing gets buried an hour after it
+is posted. Gopher is the opposite temperament: a reading room, where
+structure is mandatory and nothing fights for your attention. Kind
+31436 gives gopher documents that outlive their host and prove their
+author, and gives Nostr a calm, hierarchical surface that a 1991
+client can browse.
+
+And because every npub already renders as a virtual hole,
+gopherspace quietly grows by the entire Nostr userbase. Kaiser wrote
+that gopher and the web should coexist. Add Nostr, and all three are
+reading the same content.
+
 ## What you get
 
 Two things in one small repo: a publisher that turns a directory of
@@ -36,17 +65,21 @@ just publishing.
 Needs Node 24 or newer.
 
 ```sh
-npm install
+# Browse gopherspace and Nostr interactively, no install
+npx @forgesworn/burrow
 
 # Publish the example hole (signs with your key, sends to relays)
-BURROW_NSEC=nsec1... node src/cli.ts publish examples/hole
+BURROW_NSEC=nsec1... npx @forgesworn/burrow publish examples/hole
 
-# Serve gopherspace. Gopher on 7070, Gemini on 1965.
-node src/cli.ts serve
+# Serve gopherspace. Gopher on 7070, Gemini on 1965, HTTP on 8070.
+npx @forgesworn/burrow serve
 
 # Browse your hole, or anyone else's npub, published or not
 lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 ```
+
+From a clone, `npm install` once and use `node src/cli.ts` in place
+of `npx @forgesworn/burrow`; there is no build step.
 
 `publish` prints your hole's root selector when it finishes. Add
 `--dry-run` to inspect the signed events without sending anything,
@@ -87,6 +120,13 @@ Links can be same-hole paths, Nostr entities (`npub`, `nprofile`, or
 `gopher://` URL (kept on its real host), or a web URL (served as an
 `h` item). Pasting in an old gophermap mostly just works; the extra
 columns are ignored.
+
+Pages are editable after the fact. Kind 31436 events are addressable:
+the path is the `d` tag, so editing a file and running `publish`
+again replaces the document at that path everywhere, no dead links,
+no cache busting. The same applies to kind 30023 articles, which you
+can keep editing in any long-form Nostr client; every hole serves the
+latest version.
 
 ## Running a public bridge
 
@@ -194,15 +234,57 @@ Remote clients asking for `/me` get a polite type 3 error, and the
 welcome menu only advertises it locally. `--no-local-trust` turns it
 off entirely.
 
-## Using it from the terminal
+## The terminal client
 
 You do not need a Gemini client, a browser, or a certificate to use
-burrow. Reading needs no identity at all:
+burrow. Run it bare and you get an interactive browser in the VF-1
+tradition that speaks both gopherspace and Nostr:
+
+```
+$ burrow
+burrow
+======
+
+    a gopher client that speaks nostr
+
+    somewhere to start:
+[1] Floodgap, the heart of gopherspace
+[2] Why is gopher still relevant?
+[3] Veronica-2, search all of gopherspace (?)
+
+home> go npub1mgvlrnf...
+TheCryptoDonkey
+===============
+[1] Profile
+[2] Notes
+[3] Articles (long-form)
+[4] Follows
+[5] Followers
+[6] Search (?)
+npub1mgvlrnf...> 2
+```
+
+Type a number to follow a link, `back`, `up` and `reload` to move,
+`mark` to bookmark the page you are on. Links marked `(?)` prompt for
+a search query: Veronica-2 for gopherspace, NIP-50 for holes. A menu
+from Floodgap and a menu from an npub are the same thing to the
+browser, and when a traditional gophermap links into a burrow bridge
+(an npub selector, or a `nostr:` URL), the client follows it natively
+through your own relays instead of someone else's bridge.
+
+With a signer paired, `feed` renders notes from who you follow as a
+navigable menu, and `post <text>` signs and broadcasts a note without
+leaving the browser. Long documents go through `$PAGER`.
+
+One-shot commands cover both worlds too, and reading needs no
+identity at all:
 
 ```sh
 burrow read npub1...              # someone's hole, virtual or authored
 burrow read npub1.../notes        # their phlog
+burrow read gopher://gopher.floodgap.com/1/    # traditional gopherspace
 burrow search npub1... gopher     # search a hole
+burrow search gopher://gopher.floodgap.com/7/v2/vs nostr   # Veronica-2
 ```
 
 Writing needs a signer, resolved in this order: `BURROW_NSEC` (a local

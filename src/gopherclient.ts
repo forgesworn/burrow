@@ -2,47 +2,33 @@ import net from 'node:net'
 import type { Content } from './router.ts'
 import type { MenuItem } from './resolve.ts'
 import { info } from './resolve.ts'
+import {
+  holeFromSelector,
+  parseClientTarget,
+  parseProxyPath,
+  proxyPath,
+  type GopherTarget,
+} from './target.ts'
 
 // A real gopher client, so burrow can browse traditional gopherspace and
 // render it through any frontend. Menus from remote holes become the same
 // MenuItem list burrow uses everywhere, with links pointing back through
 // the proxy so navigation stays inside whichever client you are using.
 
-export interface GopherTarget {
-  host: string
-  port: number
-  type: string
-  selector: string
-}
-
-export function parseProxyPath(path: string): GopherTarget | null {
-  // /gopher/<host>[:port]/<type>/<selector...>
-  const m = /^\/gopher\/([^/]+)(?:\/([0-9a-zA-Z+]))?(?:\/(.*))?$/.exec(path)
-  if (!m) return null
-  const hostPart = m[1] as string
-  const [host, portRaw] = hostPart.split(':')
-  if (!host) return null
-  const port = portRaw ? Number(portRaw) : 70
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return null
-  return { host, port, type: m[2] ?? '1', selector: m[3] ?? '' }
-}
-
-export function proxyPath(t: GopherTarget): string {
-  const hostPart = t.port === 70 ? t.host : `${t.host}:${t.port}`
-  const selector = t.selector.replace(/^\//, '')
-  return `/gopher/${hostPart}/${t.type}${selector ? `/${selector}` : ''}`
-}
+export { parseProxyPath, proxyPath, type GopherTarget }
 
 export function fetchGopher(
   target: GopherTarget,
+  query?: string,
   timeoutMs = 10_000,
   maxBytes = 512 * 1024,
 ): Promise<string> {
+  const request = query === undefined ? target.selector : `${target.selector}\t${query}`
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let total = 0
     const socket = net.connect(target.port, target.host, () => {
-      socket.write(`${target.selector}\r\n`)
+      socket.write(`${request}\r\n`)
     })
     socket.setTimeout(timeoutMs, () => {
       socket.destroy()
@@ -62,6 +48,31 @@ export function fetchGopher(
   })
 }
 
+// A traditional gophermap can still point into Nostr: an h-line with a
+// nostr: URL, or a selector into a burrow bridge (leading npub). Both
+// become native hole links, so every surface follows them through your
+// own relays rather than someone else's bridge.
+function nostrAware(item: MenuItem): MenuItem {
+  const t = item.target
+  if (t.scheme === 'web' && t.url.startsWith('nostr:')) {
+    try {
+      const native = parseClientTarget(t.url)
+      if (native.kind === 'hole') {
+        return { ...item, target: { scheme: 'hole', npub: native.npub, path: native.path } }
+      }
+    } catch {
+      // not decodable; leave it as an inert web link
+    }
+  }
+  if (t.scheme === 'gopher') {
+    const native = holeFromSelector(t.selector)
+    if (native && native.kind === 'hole') {
+      return { ...item, target: { scheme: 'hole', npub: native.npub, path: native.path } }
+    }
+  }
+  return item
+}
+
 // Parse a served gophermap: type + display TAB selector TAB host TAB port.
 export function parseGopherMenu(body: string): MenuItem[] {
   const items: MenuItem[] = []
@@ -79,22 +90,26 @@ export function parseGopherMenu(body: string): MenuItem[] {
       continue
     }
     if (type === 'h' && selector.startsWith('URL:')) {
-      items.push({ type: 'h', display, target: { scheme: 'web', url: selector.slice(4) } })
+      items.push(
+        nostrAware({ type: 'h', display, target: { scheme: 'web', url: selector.slice(4) } }),
+      )
       continue
     }
-    items.push({
-      type,
-      display,
-      target: { scheme: 'gopher', host, port, itemType: type, selector },
-    })
+    items.push(
+      nostrAware({
+        type,
+        display,
+        target: { scheme: 'gopher', host, port, itemType: type, selector },
+      }),
+    )
   }
   return items
 }
 
-export async function browseGopher(target: GopherTarget): Promise<Content> {
+export async function browseGopher(target: GopherTarget, query?: string): Promise<Content> {
   let body: string
   try {
-    body = await fetchGopher(target)
+    body = await fetchGopher(target, query)
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : 'gopher fetch failed' }
   }
