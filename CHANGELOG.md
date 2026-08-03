@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (2026-08-03)
+
+### Bug Fixes
+
+- sha-pin the ci actions so releases can publish
+
+
+
 ## 0.5.0 (2026-08-03)
 
 A security and protocol pass. Anyone running a public bridge should take
