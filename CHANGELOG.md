@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0 (2026-08-03)
+
+### Breaking Changes
+
+- tighten gopherkind document protocol
+
+
+
 ## 1.0.0 (2026-08-03)
 
 ### Changed
