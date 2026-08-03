@@ -8,6 +8,13 @@ updates:
       # Pinned to exactly 2.23.9 on purpose: a later idle-close change kills
       # live subscriptions. Bump deliberately, never via an automated PR.
       - dependency-name: nostr-tools
+      # House style across forgesworn: TypeScript and Node type majors move
+      # deliberately, not on a bot's schedule. @types/node in particular must
+      # track the `engines` floor rather than run ahead of it.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:

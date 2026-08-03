@@ -2,14 +2,6 @@
 
 ## 1.0.0 (2026-08-03)
 
-### Breaking Changes
-
-- rename burrow to gopherkind
-
-
-
-## Unreleased
-
 ### Changed
 
 - **renamed from burrow to gopherkind.** The npm package is now the
@@ -119,9 +111,9 @@ First published release.
   targets, including Veronica-2 one-shots
 * `feed` as a navigable menu and `post` through a NIP-46 signer inside
   the interactive browser
-* intended for npm as a scoped package; in the event no release before
-  0.6.0 ever reached the registry, and the name later changed to the
-  unscoped `gopherkind`
+* intended for npm as a scoped package; in the event no release under the
+  old name ever reached the registry, and the package was later renamed to
+  the unscoped `gopherkind`
 
 ## [0.1.0] - 2026-08-03
 
