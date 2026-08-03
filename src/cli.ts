@@ -282,6 +282,7 @@ if (command === 'serve') {
       store,
       limiter: new RateLimiter(60, 2),
       publicUrl: publicHttpUrl,
+      trustedProxy: httpBehindProxy,
     })
     servers.push(http)
     http.listen(httpPort, values.host, () => {

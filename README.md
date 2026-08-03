@@ -248,11 +248,12 @@ gopherkind serve --host 0.0.0.0 --port 7070 --public-port 70 \
   --http-url https://gopher.example.org --http-behind-proxy
 ```
 
-The proxy must be the only route to port 8070, preserve `Host`, and set
-`X-Forwarded-Proto: https`. The bridge then emits canonical and social-preview
-metadata for the HTTPS origin. NIP-05 names work in the HTTP opener and as
-direct paths, but redirect to an npub URL so links are portable between
-bridges.
+The proxy must be the only route to port 8070, preserve `Host`, set
+`X-Forwarded-Proto: https`, and replace `X-Forwarded-For` with the single
+client address. The bridge then emits canonical and social-preview metadata
+for the HTTPS origin and rate-limits visitors separately. NIP-05 names work in
+the HTTP opener and as direct paths, but redirect to an npub URL so links are
+portable between bridges.
 
 Default relays are Damus, nos.lol and Primal; `--relay` (repeatable)
 replaces them. `--hostname` and `--public-port` control the address
