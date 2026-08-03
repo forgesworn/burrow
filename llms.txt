@@ -69,8 +69,8 @@ have no shell on the bridge host. Install: `npx @forgesworn/burrow`
   `history`, `go <target>`, `search <query>` (NIP-50 on holes, type 7
   on gopher), `feed` as a navigable menu, `post <text>` via the
   resolved signer, `$PAGER` for long documents. Targets: npub[/path],
-  `nostr:` entities (npub/nprofile/naddr), `gopher://` urls, bare
-  hostnames. A `gopher://` url whose selector starts with an npub is
+  `nostr:` entities (npub/nprofile/naddr), NIP-05 names
+  (someone@example.org[/path]), `gopher://` urls, bare hostnames. A `gopher://` url whose selector starts with an npub is
   recognised as a burrow bridge and browsed natively via relays;
   gophermap lines with npub selectors or `nostr:` h-links likewise.
 - read (no identity needed): `burrow read <npub[/path]>`,

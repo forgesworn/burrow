@@ -282,6 +282,7 @@ identity at all:
 ```sh
 burrow read npub1...              # someone's hole, virtual or authored
 burrow read npub1.../notes        # their phlog
+burrow read someone@example.org   # NIP-05 names work anywhere a target does
 burrow read gopher://gopher.floodgap.com/1/    # traditional gopherspace
 burrow search npub1... gopher     # search a hole
 burrow search gopher://gopher.floodgap.com/7/v2/vs nostr   # Veronica-2

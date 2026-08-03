@@ -1,4 +1,5 @@
 import * as nip19 from 'nostr-tools/nip19'
+import { queryProfile } from 'nostr-tools/nip05'
 import { BURROW_KIND, LONG_FORM_KIND } from './protocol.ts'
 
 // One parser for everything a client can point at: a Nostr hole (npub,
@@ -103,6 +104,40 @@ function gopherFromUrl(raw: string): ClientTarget {
   const native = holeFromSelector(selector)
   if (native) return native
   return { kind: 'gopher', host: url.hostname, port, type, selector }
+}
+
+// name@domain, optionally followed by a hole path. The name part is the
+// NIP-05 local-part grammar; the domain needs at least one dot.
+const NIP05_TARGET_RE = /^([\w.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+)(\/.*)?$/
+
+export type Nip05Resolver = (fullname: string) => Promise<string | null>
+
+async function defaultNip05Resolver(fullname: string): Promise<string | null> {
+  const profile = await queryProfile(fullname)
+  return profile?.pubkey ?? null
+}
+
+// Async form: everything parseClientTarget accepts, plus NIP-05 names
+// like someone@example.org[/path], resolved over HTTPS.
+export async function resolveClientTarget(
+  input: string,
+  resolver: Nip05Resolver = defaultNip05Resolver,
+): Promise<ClientTarget> {
+  const t = input.trim().replace(/^nostr:/, '')
+  const m = NIP05_TARGET_RE.exec(t)
+  if (m) {
+    const fullname = m[1] as string
+    let pubkey: string | null
+    try {
+      pubkey = await resolver(fullname)
+    } catch {
+      pubkey = null
+    }
+    if (pubkey === null) throw new TargetError(`could not resolve ${fullname} (NIP-05)`)
+    const npub = nip19.npubEncode(pubkey)
+    return { kind: 'hole', pubkey, npub, path: normalisePath(m[2] ?? '/') }
+  }
+  return parseClientTarget(input)
 }
 
 export function parseClientTarget(input: string): ClientTarget {

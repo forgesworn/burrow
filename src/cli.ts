@@ -35,6 +35,7 @@ const USAGE = `usage:
     burrow read <target>                 print a hole document or gopher page
     burrow search <target> <query>       search a hole, or a gopher type 7 endpoint
     burrow feed [--limit 20]             notes from who you follow
+    targets: npub[/path], nostr: entity, name@domain (NIP-05), gopher:// url
 
   write (needs a signer, see below):
     burrow post <text> [--dry-run]       sign and broadcast a kind 1 note

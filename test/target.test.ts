@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import * as nip19 from 'nostr-tools/nip19'
 import {
   parseClientTarget,
+  resolveClientTarget,
   refOf,
   describeTarget,
   upOf,
@@ -99,6 +100,40 @@ test('holeFromSelector only matches leading npubs', () => {
   if (hit?.kind === 'hole') assert.equal(hit.path, '/sub')
   assert.equal(holeFromSelector('/plain/path'), null)
   assert.equal(holeFromSelector('npub1notreal/sub'), null)
+})
+
+test('nip-05 names resolve to hole targets', async () => {
+  const resolver = async (fullname: string): Promise<string | null> =>
+    fullname === 'donkey@example.org' ? pubkey : null
+
+  assert.deepEqual(await resolveClientTarget('donkey@example.org', resolver), {
+    kind: 'hole',
+    pubkey,
+    npub,
+    path: '/',
+  })
+  assert.deepEqual(await resolveClientTarget('donkey@example.org/notes', resolver), {
+    kind: 'hole',
+    pubkey,
+    npub,
+    path: '/notes',
+  })
+  await assert.rejects(() => resolveClientTarget('nobody@example.org', resolver), TargetError)
+
+  // A throwing resolver reads as unresolvable, not a crash.
+  await assert.rejects(
+    () => resolveClientTarget('donkey@example.org', async () => { throw new Error('offline') }),
+    TargetError,
+  )
+
+  // Everything else falls through to the synchronous parser untouched.
+  assert.deepEqual(await resolveClientTarget(npub, resolver), {
+    kind: 'hole',
+    pubkey,
+    npub,
+    path: '/',
+  })
+  assert.equal((await resolveClientTarget('gopher.floodgap.com', resolver)).kind, 'gopher')
 })
 
 test('refs round-trip through the parser', () => {

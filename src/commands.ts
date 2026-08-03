@@ -4,7 +4,7 @@ import { PairingStore } from './identity.ts'
 import { resolveRoute } from './router.ts'
 import { renderForTerminal } from './cliview.ts'
 import { browseGopher } from './gopherclient.ts'
-import { parseClientTarget } from './target.ts'
+import { resolveClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
@@ -15,7 +15,7 @@ import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
 // feed. Reading needs no identity at all.
 
 export async function cmdRead(target: string, relays: string[], virtual: boolean): Promise<string> {
-  const parsed = parseClientTarget(target)
+  const parsed = await resolveClientTarget(target)
   if (parsed.kind === 'gopher') return renderForTerminal(await browseGopher(parsed))
   const store = new HoleStore(relays)
   try {
@@ -36,7 +36,7 @@ export async function cmdSearch(
   relays: string[],
   virtual: boolean,
 ): Promise<string> {
-  const parsed = parseClientTarget(target)
+  const parsed = await resolveClientTarget(target)
   if (parsed.kind === 'gopher') {
     if (parsed.type !== '7') {
       throw new Error(

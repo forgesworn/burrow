@@ -10,6 +10,7 @@ import { info } from './resolve.ts'
 import { browseGopher } from './gopherclient.ts'
 import {
   parseClientTarget,
+  resolveClientTarget,
   refOf,
   describeTarget,
   upOf,
@@ -111,7 +112,7 @@ export function homeContent(bookmarks: BookmarkStore): Content {
     items.push({ type: s.type, display: s.display, target: linkTargetOf(target) })
   }
   items.push(info(''))
-  items.push(info('go <npub or gopher url> visits anywhere; help lists commands.'))
+  items.push(info('go <npub, name@domain or gopher url> visits anywhere; help lists commands.'))
   return { kind: 'menu', title: 'burrow', items }
 }
 
@@ -300,7 +301,8 @@ export function parseBrowseCommand(line: string): BrowseCommand {
 
 export const HELP = `commands:
   1, 2, ...          follow a numbered link ((?) links prompt for a query)
-  go <target>        npub, nostr: entity, gopher:// url or bare hostname
+  go <target>        npub, nostr: entity, name@domain (NIP-05), gopher://
+                     url or bare hostname
   back, up, reload   navigate; up climbs towards the root
   search <query>     search this hole (nostr) or this type 7 endpoint (gopher)
   feed               notes from who you follow, as a menu
@@ -401,7 +403,7 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
   let startLoc: Location = { kind: 'home' }
   if (initial !== undefined) {
     try {
-      startLoc = parseClientTarget(initial)
+      startLoc = await resolveClientTarget(initial)
     } catch (err) {
       process.stdout.write(`${err instanceof Error ? err.message : String(err)}\n`)
     }
@@ -424,7 +426,7 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
           break
         }
         case 'go':
-          await show(parseClientTarget(command.target))
+          await show(await resolveClientTarget(command.target))
           break
         case 'back': {
           const prev = session.back()
