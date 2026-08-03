@@ -8,7 +8,8 @@ import { resolveClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
 import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, firstLine, isoDate } from './protocol.ts'
+import { NOTE_KIND, DELETE_KIND, BURROW_KIND, firstLine, isoDate } from './protocol.ts'
+import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
@@ -209,6 +210,42 @@ export async function cmdDelete(
       'Deletion is a request, not a guarantee: relays may ignore it and',
       'clients may keep a local copy. If the event contained a secret,',
       'rotate the secret as well.',
+      '',
+    ].join('\n')
+  } finally {
+    store.close()
+  }
+}
+
+// Tell Nostr clients that this bridge opens kind 31436 (NIP-89). Publishing
+// is opt-in the same way `post` is: `--dry-run` prints the event and stops.
+export async function cmdAnnounce(
+  opts: AnnounceOptions,
+  relays: string[],
+  pairings: PairingStore,
+  dryRun: boolean,
+): Promise<string> {
+  const template = handlerTemplate(opts, Math.floor(Date.now() / 1000))
+  if (dryRun) {
+    return `${JSON.stringify(template, null, 2)}\nnot signed or published (dry run)\n`
+  }
+  const signer = await resolveSigner(pairings)
+  const signed = await signer.sign(template)
+  const store = new HoleStore(relays)
+  try {
+    const accepted = await store.publish(signed)
+    const naddr = nip19.naddrEncode({
+      kind: HANDLER_KIND,
+      pubkey: signed.pubkey,
+      identifier: opts.identifier,
+    })
+    return [
+      `announced this bridge via ${signer.describe}`,
+      `accepted by ${accepted}/${relays.length} relays`,
+      `naddr: ${naddr}`,
+      '',
+      'Clients that support NIP-89 can now offer this bridge for kind',
+      `${BURROW_KIND}. Re-run announce whenever the bridge address changes.`,
       '',
     ].join('\n')
   } finally {

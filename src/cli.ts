@@ -20,6 +20,7 @@ import {
   cmdUnpair,
   cmdWhoami,
   cmdDelete,
+  cmdAnnounce,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner } from './signing.ts'
@@ -55,6 +56,10 @@ const USAGE = `usage:
                  [--cert f --key f] [--state-dir d]
                  [--pin npub1...]... [--no-virtual] [--no-identity]
       the http frontend is the one to point lynx at for the full client.
+    burrow announce --hostname bridge.example [--http-url https://bridge.example]
+                    [--gopher-port 70] [--gemini-port 1965] [--no-gemini]
+                    [--name n] [--about a] [--dry-run]
+      tells nostr clients this bridge opens kind 31436 (NIP-89).
 
   every command takes [--relay wss://...]... and [--state-dir d].
 
@@ -340,6 +345,42 @@ if (command === 'serve') {
   const uri = positionals[0]
   if (uri === undefined) fail('usage: burrow pair <bunker://... or user@domain>')
   run(cmdPair(uri, pairingsOf(values)))
+} else if (command === 'announce') {
+  const { values } = parseArgs({
+    args: rest,
+    options: {
+      ...COMMON,
+      hostname: { type: 'string' },
+      name: { type: 'string' },
+      about: { type: 'string' },
+      'gopher-port': { type: 'string', default: '70' },
+      'gemini-port': { type: 'string', default: '1965' },
+      'no-gemini': { type: 'boolean', default: false },
+      'http-url': { type: 'string' },
+      identifier: { type: 'string', default: 'burrow-bridge' },
+      'dry-run': { type: 'boolean', default: false },
+    },
+  })
+  const hostname = values.hostname
+  if (hostname === undefined) {
+    fail('usage: burrow announce --hostname bridge.example [--http-url https://bridge.example]')
+  }
+  run(
+    cmdAnnounce(
+      {
+        name: values.name ?? `burrow bridge at ${hostname}`,
+        about: values.about ?? 'Serves kind 31436 gopherholes over gopher, gemini and http.',
+        hostname,
+        gopherPort: Number(values['gopher-port']),
+        geminiPort: values['no-gemini'] ? null : Number(values['gemini-port']),
+        httpUrl: values['http-url'] ?? null,
+        identifier: values.identifier,
+      },
+      relaysOf(values),
+      pairingsOf(values),
+      values['dry-run'],
+    ),
+  )
 } else if (command === 'unpair') {
   const { values } = parseArgs({ args: rest, options: COMMON })
   process.stdout.write(cmdUnpair(pairingsOf(values)))
