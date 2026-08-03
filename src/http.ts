@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError } from './selector.ts'
 import { resolveRoute } from './router.ts'
@@ -36,13 +36,59 @@ export interface HttpOptions {
 interface Session {
   pairing: Pairing
   expires: number
+  csrf: string
 }
 
 const sessions = new Map<string, Session>()
 const SESSION_MS = 12 * 60 * 60 * 1000
 
 function isLoopback(addr: string | undefined): boolean {
-  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+  if (addr === undefined) return false
+  const bare = addr.replace(/^::ffff:/, '')
+  return bare === '::1' || bare === '127.0.0.1' || /^127\./.test(bare)
+}
+
+// The operator surface is reachable only when the request both originates
+// on loopback and presents a loopback Host header. A cross-site page can
+// force a loopback connection (127.0.0.1) but a DNS-rebound one carries a
+// foreign Host, so requiring both closes rebinding to the operator.
+function isLoopbackHost(hostHeader: string | undefined): boolean {
+  if (hostHeader === undefined) return true
+  const host = hostHeader.replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase()
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || /^127\./.test(host)
+}
+
+// Reject a state-changing request whose Origin is not our own. Lynx and the
+// CLI send no Origin; a cross-site browser attack always does.
+function originOk(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin
+  if (origin === undefined || origin === 'null') return true
+  try {
+    return new URL(origin).host === req.headers.host
+  } catch {
+    return false
+  }
+}
+
+const SECURITY_HEADERS: Record<string, string> = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'x-frame-options': 'DENY',
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'",
+  'cache-control': 'no-store',
+}
+
+function sweepSessions(now: number): void {
+  for (const [token, s] of sessions) if (s.expires < now) sessions.delete(token)
+}
+
+// Mark the session cookie Secure when the request arrived over TLS, whether
+// directly or via a proxy that sets x-forwarded-proto, so the token is never
+// sent back in clear once TLS is in play.
+function secureFlag(req: http.IncomingMessage): string {
+  const encrypted = (req.socket as { encrypted?: boolean }).encrypted === true
+  const forwarded = req.headers['x-forwarded-proto'] === 'https'
+  return encrypted || forwarded ? ' Secure;' : ''
 }
 
 function sessionFrom(cookieHeader: string | undefined): Session | null {
@@ -60,10 +106,11 @@ function sessionFrom(cookieHeader: string | undefined): Session | null {
 interface Viewer {
   signer: CliSigner | null
   label: string
+  csrf: string
 }
 
-function viewerFor(req: http.IncomingMessage, opts: HttpOptions): Viewer {
-  if (!opts.identity) return { signer: null, label: '' }
+function viewerFor(req: http.IncomingMessage, opts: HttpOptions, operatorCsrf: string): Viewer {
+  if (!opts.identity) return { signer: null, label: '', csrf: '' }
   const session = sessionFrom(req.headers.cookie)
   if (session) {
     const client = new Nip46Client()
@@ -75,24 +122,42 @@ function viewerFor(req: http.IncomingMessage, opts: HttpOptions): Viewer {
         sign: (tpl) => client.sign(pairing, tpl),
       },
       label: 'session',
+      csrf: session.csrf,
     }
   }
   // Loopback is the operator: same trust the CLI already gives them, so
-  // browsing from your own machine needs no login. BURROW_BUNKER is not
-  // consulted here because it would re-pair on every request.
-  if (opts.localTrust !== false && isLoopback(req.socket.remoteAddress)) {
+  // browsing from your own machine needs no login. Requires a loopback Host
+  // too, so a DNS-rebound page cannot borrow the operator's signer.
+  // BURROW_BUNKER is not consulted here because it would re-pair every request.
+  if (
+    opts.localTrust !== false &&
+    isLoopback(req.socket.remoteAddress) &&
+    isLoopbackHost(req.headers.host)
+  ) {
     const nsec = process.env['BURROW_NSEC']
     if (nsec !== undefined) {
       try {
-        return { signer: localSigner(nsec), label: 'local' }
+        return { signer: localSigner(nsec), label: 'local', csrf: operatorCsrf }
       } catch {
         // bad key in env; fall through to the stored pairing
       }
     }
     const stored = storedSigner(opts.pairings)
-    if (stored) return { signer: stored, label: 'local' }
+    if (stored) return { signer: stored, label: 'local', csrf: operatorCsrf }
   }
-  return { signer: null, label: '' }
+  return { signer: null, label: '', csrf: '' }
+}
+
+function csrfField(viewer: Viewer): string {
+  return `<input type="hidden" name="csrf" value="${esc(viewer.csrf)}">`
+}
+
+function csrfOk(req: http.IncomingMessage, body: Record<string, string>, viewer: Viewer): boolean {
+  if (!originOk(req)) return false
+  const given = body['csrf'] ?? ''
+  const expected = viewer.csrf
+  if (expected === '' || given.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected))
 }
 
 function readBody(req: http.IncomingMessage): Promise<Record<string, string>> {
@@ -117,13 +182,17 @@ function readBody(req: http.IncomingMessage): Promise<Record<string, string>> {
 export function createHttpServer(opts: HttpOptions): http.Server {
   const store = opts.store ?? new HoleStore(opts.relays)
   const limiter = opts.limiter ?? new RateLimiter(60, 2)
+  // One server-lifetime token authorises the loopback operator's forms. It
+  // is embedded in the operator's own pages (which a cross-site attacker
+  // cannot read) and required on every state-changing POST.
+  const operatorCsrf = randomBytes(24).toString('base64url')
   return http.createServer((req, res) => {
     if (!limiter.allow(req.socket.remoteAddress ?? 'unknown')) {
-      res.writeHead(429, { 'content-type': 'text/plain' })
+      res.writeHead(429, { 'content-type': 'text/plain', ...SECURITY_HEADERS })
       res.end('slow down\n')
       return
     }
-    handle(req, opts, store)
+    handle(req, opts, store, operatorCsrf)
       .catch((err: unknown) => ({
         status: 500,
         headers: {},
@@ -134,7 +203,11 @@ export function createHttpServer(opts: HttpOptions): http.Server {
         ),
       }))
       .then((r) => {
-        res.writeHead(r.status, { 'content-type': 'text/html; charset=utf-8', ...r.headers })
+        res.writeHead(r.status, {
+          'content-type': 'text/html; charset=utf-8',
+          ...SECURITY_HEADERS,
+          ...r.headers,
+        })
         res.end(r.body)
       })
   })
@@ -161,10 +234,16 @@ async function handle(
   req: http.IncomingMessage,
   opts: HttpOptions,
   store: HoleStore,
+  operatorCsrf: string,
 ): Promise<Reply> {
+  let path: string
+  try {
+    path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname)
+  } catch {
+    return html(400, page('Bad request', '<h1>Bad request</h1><p>malformed url</p>', false))
+  }
   const url = new URL(req.url ?? '/', 'http://localhost')
-  const path = decodeURIComponent(url.pathname)
-  const viewer = viewerFor(req, opts)
+  const viewer = viewerFor(req, opts, operatorCsrf)
   const signedIn = viewer.signer !== null
 
   if (path === '/') return html(200, await welcome(opts, store, signedIn))
@@ -252,6 +331,7 @@ async function handle(
     if (mine === route.pubkey) {
       extra =
         `\n<hr>\n<form method="post" action="/delete">` +
+        csrfField(viewer) +
         `<input type="hidden" name="id" value="${esc(noteId)}">` +
         '<p><input type="submit" value="Delete this note"></p></form>'
     }
@@ -336,7 +416,9 @@ async function accountPage(
     '<p><a href="/post">Write a note</a></p>',
   ]
   if (viewer.label === 'session') {
-    body.push('<form method="post" action="/unpair"><p><input type="submit" value="Sign out"></p></form>')
+    body.push(
+      `<form method="post" action="/unpair">${csrfField(viewer)}<p><input type="submit" value="Sign out"></p></form>`,
+    )
   }
   return html(200, page('Account', body.join('\n'), signedIn))
 }
@@ -348,24 +430,31 @@ async function pairPage(
 ): Promise<Reply> {
   if (!opts.identity) return redirect('/')
   if (req.method !== 'POST') return redirect('/account')
+  // Anonymous visitors have no per-viewer token yet, so the Origin check is
+  // the CSRF defence here: it stops a cross-site page pairing you to an
+  // attacker's signer.
+  if (!originOk(req)) return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
   const body = await readBody(req)
   const uri = (body['uri'] ?? '').trim()
   if (uri === '') return redirect('/account')
   try {
     const result = await new Nip46Client().pair(uri)
     const token = randomBytes(24).toString('base64url')
+    const now = Date.now()
+    sweepSessions(now)
     sessions.set(token, {
       pairing: {
         fingerprint: `http:${token.slice(0, 8)}`,
         userPubkey: result.userPubkey,
         clientSecretKey: result.clientSecretKey,
         bunker: result.bunker,
-        pairedAt: Math.floor(Date.now() / 1000),
+        pairedAt: Math.floor(now / 1000),
       },
-      expires: Date.now() + SESSION_MS,
+      expires: now + SESSION_MS,
+      csrf: randomBytes(24).toString('base64url'),
     })
     return redirect('/account', {
-      'set-cookie': `burrow=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}`,
+      'set-cookie': `burrow=${token}; HttpOnly; SameSite=Strict; Path=/;${secureFlag(req)} Max-Age=${SESSION_MS / 1000}`,
     })
   } catch (err) {
     return html(
@@ -382,6 +471,7 @@ async function pairPage(
 
 function unpairPage(req: http.IncomingMessage, signedIn: boolean): Reply {
   if (req.method !== 'POST') return redirect('/account')
+  if (!originOk(req)) return html(403, page('Blocked', '<h1>Blocked</h1><p>cross-site request refused</p>', signedIn))
   const raw = /(?:^|;\s*)burrow=([A-Za-z0-9_-]+)/.exec(req.headers.cookie ?? '')?.[1]
   if (raw) sessions.delete(raw)
   return html(
@@ -407,12 +497,14 @@ async function postPage(
     '<h1>Write a note</h1>',
     '<p>Public, signed by your signer, broadcast as a kind 1 event.</p>',
     '<form method="post" action="/post">',
+    csrfField(viewer),
     '<p><textarea name="text" rows="6" cols="60"></textarea></p>',
     '<p><input type="submit" value="Sign and post"></p></form>',
   ].join('\n')
   if (req.method !== 'POST') return html(200, page('Write a note', form, signedIn))
 
   const body = await readBody(req)
+  if (!csrfOk(req, body, viewer)) return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   const text = (body['text'] ?? '').trim()
   if (text === '') return html(200, page('Write a note', form, signedIn))
   const leak = findSecret(text)
@@ -478,11 +570,17 @@ async function deletePage(
   if (!viewer.signer) return redirect('/account')
   if (req.method !== 'POST') return redirect('/account')
   const body = await readBody(req)
+  if (!csrfOk(req, body, viewer)) return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   const id = (body['id'] ?? '').trim()
   if (!/^[0-9a-f]{64}$/.test(id)) return html(400, page('Bad request', '<p>bad event id</p>', signedIn))
   const mine = await viewer.signer.pubkey()
   const existing = await store.event(id)
-  if (existing && existing.pubkey !== mine) {
+  // Fail closed: only sign a deletion for an event we positively confirm is
+  // the operator's. A relay miss (existing === null) must not authorise it.
+  if (!existing) {
+    return html(404, page('Not found', '<h1>Not found</h1><p>That event was not found on these relays, so nothing was deleted.</p>', signedIn))
+  }
+  if (existing.pubkey !== mine) {
     return html(403, page('Not yours', '<h1>Not yours</h1><p>You can only delete your own events.</p>', signedIn))
   }
   const signed = await viewer.signer.sign({
@@ -490,7 +588,7 @@ async function deletePage(
     created_at: Math.floor(Date.now() / 1000),
     tags: [
       ['e', id],
-      ['k', String(existing?.kind ?? NOTE_KIND)],
+      ['k', String(existing.kind)],
     ],
     content: 'deleted by author',
   })

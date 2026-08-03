@@ -51,7 +51,8 @@ const USAGE = `usage:
   bridge:
     burrow serve [--port 7070] [--host 0.0.0.0] [--hostname name] [--public-port n]
                  [--gemini-port 1965] [--no-gemini] [--http-port 8070] [--no-http]
-                 [--no-local-trust] [--cert f --key f] [--state-dir d]
+                 [--no-local-trust] [--trust-loopback-anyway]
+                 [--cert f --key f] [--state-dir d]
                  [--pin npub1...]... [--no-virtual] [--no-identity]
       the http frontend is the one to point lynx at for the full client.
 
@@ -106,6 +107,7 @@ if (command === 'serve') {
       'http-port': { type: 'string', default: '8070' },
       'no-http': { type: 'boolean', default: false },
       'no-local-trust': { type: 'boolean', default: false },
+      'trust-loopback-anyway': { type: 'boolean', default: false },
     },
   })
   const port = Number(values.port)
@@ -119,7 +121,22 @@ if (command === 'serve') {
 
   const serveStateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
   const servePairings = new PairingStore(path.join(serveStateDir, 'pairings.json'))
-  const localTrust = !values['no-local-trust'] && !values['no-identity']
+  // Operator trust is granted on connection origin (loopback). Behind a
+  // reverse proxy every request originates on loopback, so trusting it when
+  // the bridge is bound to a public address would hand the operator's signer
+  // to every visitor. Only trust loopback when the bind is itself loopback,
+  // unless the operator explicitly overrides.
+  const bindIsLoopback =
+    values.host === '127.0.0.1' || values.host === '::1' || values.host === 'localhost'
+  const trustLoopback = bindIsLoopback || values['trust-loopback-anyway']
+  if (!bindIsLoopback && !values['no-local-trust'] && !values['trust-loopback-anyway']) {
+    console.log(
+      '  operator trust is OFF: bound to a non-loopback address. Behind a reverse\n' +
+        '  proxy, loopback trust would treat every visitor as you. Bind to 127.0.0.1,\n' +
+        '  or pass --trust-loopback-anyway if you understand the risk.',
+    )
+  }
+  const localTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
 
   const gopher = createGopherServer({
     relays,
@@ -176,7 +193,7 @@ if (command === 'serve') {
 
   if (!values['no-http']) {
     const httpPort = Number(values['http-port'])
-    const localTrust = !values['no-local-trust']
+    const httpLocalTrust = !values['no-local-trust'] && trustLoopback
     const stateDir = values['state-dir'] ?? path.join(os.homedir(), '.burrow')
     createHttpServer({
       relays,
@@ -184,12 +201,12 @@ if (command === 'serve') {
       virtual: virtualEnabled,
       identity: !values['no-identity'],
       pairings: new PairingStore(path.join(stateDir, 'pairings.json')),
-      localTrust,
+      localTrust: httpLocalTrust,
       store,
       limiter: new RateLimiter(60, 2),
     }).listen(httpPort, values.host, () => {
       console.log(`burrow: http on ${values.host}:${httpPort}  (lynx http://localhost:${httpPort}/)`)
-      if (localTrust) console.log('  loopback requests act as you, using your stored pairing')
+      if (httpLocalTrust) console.log('  loopback requests act as you, using your stored pairing')
       if (values.host !== '127.0.0.1' && values.host !== 'localhost') {
         console.log('  note: plain HTTP. Put it behind TLS before exposing it publicly.')
       }
