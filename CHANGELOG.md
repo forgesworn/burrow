@@ -1,14 +1,6 @@
 # Changelog
 
-## 2.0.0 (2026-08-03)
-
-### Breaking Changes
-
-- tighten gopherkind document protocol
-
-
-
-## 1.0.0 (2026-08-03)
+## 0.6.0 (2026-08-03)
 
 ### Changed
 
@@ -20,6 +12,20 @@
 - protocol vocabulary follows: a kind 31436 event is a **gopherkind
   document** and `type 1` content is a **kindmap** (was `burrowmap`). The
   wire format is unchanged; only the names in SPEC.md moved
+- the proposed kind is now deliberately narrow: strict event metadata, exact
+  path identity, deterministic kindmap parsing, and NIP-01 replacement before
+  validation and NIP-40 expiry. A malformed or expired winner does not reveal
+  an older revision
+- bridge-only behaviour now lives in a separate profile. Article permalinks
+  use naddr, time pagination uses timestamp-and-id cursors, and Gemini/HTTP
+  search no longer shadows an authored `/search` document
+
+### Added
+
+- a language-neutral conformance fixture covering document validity, paths,
+  kindmaps, replacement/expiry and RFC 1436 text rendering
+- regression coverage for exact URL decoding, same-second pagination,
+  addressable article replacement and line-oriented frontend injection
 
 ## 0.5.1 (2026-08-03)
 
