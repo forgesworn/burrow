@@ -20,7 +20,7 @@ export interface RemoteSigner {
   sign(pairing: Pairing, template: EventTemplate, timeoutMs?: number): Promise<Event>
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(
       () => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)}s`)),

@@ -42,7 +42,13 @@ export async function resolveRoute(
   const ev = await store.doc(route.pubkey, route.path)
   if (ev) return contentFromDoc(ev, route.npub)
 
-  if (opts.virtual) {
+  // Single-item permalinks (a note or an article) resolve even when the
+  // generated virtual hole is disabled, because burrowmap links and the
+  // post-success link point straight at them; --no-virtual only turns off
+  // the generated index pages (root, profile, notes, follows, followers).
+  const m = virtual.matchVirtualPath(route.path)
+  const isItem = m !== null && (m.kind === 'note' || m.kind === 'article')
+  if (opts.virtual || isItem) {
     const v = await resolveVirtual(route, store)
     if (v) return v
   }
