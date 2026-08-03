@@ -39,7 +39,7 @@ test('naddr of a long-form article resolves to the virtual articles path', () =>
   const otherNpub = nip19.npubEncode(pk)
   const naddr = nip19.naddrEncode({ pubkey: pk, kind: 30023, identifier: 'my-post' })
   const out = renderMenu(parseKindmap(`1Blog\t${naddr}`), owner, bridge)
-  assert.equal(out, `0Blog\t/${otherNpub}/articles/my-post\tbridge.test\t7070\r\n.\r\n`)
+  assert.equal(out, `0Blog\t/${otherNpub}/articles/${naddr}\tbridge.test\t7070\r\n.\r\n`)
 })
 
 test('npub link resolves to the other hole root', () => {

@@ -1,32 +1,37 @@
 # NIP submission pack (not yet submitted)
 
-Everything needed to propose kind `31436` as a NIP, staged and ready. Nothing
-here has been published. Do not run any of it without a decision to submit.
+This is the pre-flight pack for proposing kind `31436`. Nothing here has been
+submitted or announced. The proposal is deliberately not ready to open until
+the independent-client gate below is met.
 
 `SPEC.md` is the submission text: it already opens with the `draft` `optional`
 line the nips repo expects, uses RFC 2119 throughout and carries test vectors.
-It is deliberately **not** duplicated into this directory. A second copy of 340
-lines of normative text would drift from the implementation within a release,
-and the implementation is what the vectors test.
+A portable superset of the vectors lives in
+`test/fixtures/kind31436-v1.json`.
+That fixture is also included in the npm package for a second client to consume
+without copying this implementation. Its portable field definitions and the
+evidence expected from that client are in `docs/conformance.md`.
+Bridge behaviour is intentionally excluded and documented in
+`docs/bridge-profile.md` instead.
 
 ## Before submitting
 
-- [ ] Run the `nostr-nip-review` skill over `SPEC.md` as a pre-flight.
-- [ ] Confirm `31436` is still unclaimed in the nips repo kind table and in
-      recent open PRs (kinds are first-come and collisions are silent).
-- [ ] Decide the naming. `SPEC.md` heads "Gopherkind: gopherspace over Nostr"
-      and calls a 31436 event a **gopherkind document**, which shares a name
-      with the reference implementation. NIPs normally name the mechanism, not
-      the software. Two coherent options, and this needs deciding *before*
-      submission because it is the one thing that is expensive to change after:
-      - **Keep it.** "gopherkind" reads as a compound of gopher + Nostr kind,
-        not obviously as a product. Precedent exists (nsite).
-      - **Neutralise it.** Title **"Gopherholes over Nostr"**, call the event a
-        **gopherhole document**, keep `kindmap` for the grammar, and name
-        gopherkind once as the reference implementation.
-- [ ] Have a second implementation, or at least a second reader. The test
-      vectors in the appendix exist so someone else can validate against this
-      one; that is the strongest thing a kind proposal can show up with.
+- [x] Confirmed on 2026-08-03 that `31436` is absent from the nips repo kind
+      table and from open or closed PRs returned by GitHub search. Re-check
+      immediately before submission because kinds are first-come.
+- [x] Keep the protocol name **Gopherkind documents**. It describes the kind,
+      while the reference implementation is named `gopherkind`.
+- [ ] Have a second client implement the event and kindmap grammar independently
+      and run the published fixtures. Multiple frontends sharing this repository's
+      parser and router still count as one implementation for this gate.
+
+Record the independent-client evidence here before opening the PR:
+
+- implementation repository and exact commit;
+- language/runtime and confirmation that the parser was not copied or
+  mechanically translated from this implementation;
+- fixture version, test command and complete passing output;
+- any disagreement found, with the resulting specification or fixture change.
 
 ## The kind table row
 
@@ -39,7 +44,7 @@ among the addressable (`30000`-`39999`) kinds:
 
 ## The PR
 
-Title: `NIP-XX: Gopherholes over Nostr (kind 31436)`
+Title: `NIP-XX: Gopherkind documents (kind 31436)`
 
 Body:
 
@@ -53,10 +58,11 @@ Body:
 > first-class documents. Rationale for not reusing nsite or kind 30023 is in
 > the spec.
 >
-> Reference implementation, test vectors and four interoperating frontends
-> (gopher, Gemini, HTTP, CLI): https://github.com/forgesworn/gopherkind
+> Reference implementation, executable test vectors, and its gopher, Gemini,
+> HTTP and CLI frontends: https://github.com/forgesworn/gopherkind
 
-Files: one new `XX.md` (the contents of `SPEC.md`) plus the README row.
+Files: one new `XX.md` containing `SPEC.md`, plus the README row. The bridge
+profile is application documentation and is not part of the NIP PR.
 
 ## Announcing the draft
 

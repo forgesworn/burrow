@@ -88,12 +88,44 @@ test('http frontend', async (t) => {
     assert.match(await res.text(), /Not found/)
   })
 
+  await t.test('URL paths distinguish a space from a literal percent escape', async (t2) => {
+    const base = await start(t2)
+    const space = await (await fetch(`${base}/${npub}/a%20b`)).text()
+    const percent = await (await fetch(`${base}/${npub}/a%2520b`)).text()
+    assert.match(space, /space path/)
+    assert.doesNotMatch(space, /literal percent path/)
+    assert.match(percent, /literal percent path/)
+  })
+
+  await t.test('raw dot segments are rejected instead of URL-normalised', async (t2) => {
+    const base = await start(t2)
+    const address = new URL(base)
+    for (const path of [`/${npub}/a/../about.txt`, `/${npub}/a/%2e%2e/about.txt`]) {
+      const result = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = http.request(
+          { host: address.hostname, port: Number(address.port), path },
+          (res) => {
+            let body = ''
+            res.on('data', (chunk) => (body += chunk))
+            res.on('end', () => resolve({ status: res.statusCode ?? 0, body }))
+          },
+        )
+        req.on('error', reject)
+        req.end()
+      })
+      assert.equal(result.status, 404)
+      assert.doesNotMatch(result.body, /kind 31436/)
+    }
+  })
+
   await t.test('search form and results', async (t2) => {
     const base = await start(t2)
-    const empty = await (await fetch(`${base}/${npub}/search`)).text()
+    const empty = await (await fetch(`${base}/_gopherkind/search/${npub}`)).text()
     assert.match(empty, /<form method="get"/)
-    const results = await (await fetch(`${base}/${npub}/search?q=gopherspace`)).text()
+    const results = await (await fetch(`${base}/_gopherkind/search/${npub}?q=gopherspace`)).text()
     assert.match(results, new RegExp(`href="/${npub}/notes/${note.id}"`))
+    const authored = await (await fetch(`${base}/${npub}/search`)).text()
+    assert.match(authored, /not an endpoint/)
   })
 
   await t.test('loopback with GOPHERKIND_NSEC is signed in automatically', async (t2) => {

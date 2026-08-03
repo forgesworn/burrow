@@ -1,6 +1,6 @@
 import * as nip19 from 'nostr-tools/nip19'
 import type { MapLine } from './linemap.ts'
-import { DOC_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { DOC_KIND, LONG_FORM_KIND, isValidDocPath } from './protocol.ts'
 import { safeRelayUrls } from './netguard.ts'
 
 // Protocol-neutral link resolution: kindmap lines become MenuItems with
@@ -36,7 +36,7 @@ export function info(display: string): MenuItem {
 const SAFE_URL = /^(?:https?|gopher|gemini|nostr):/i
 
 export function isSafeWebUrl(url: string): boolean {
-  return SAFE_URL.test(url.trim())
+  return SAFE_URL.test(url)
 }
 
 // Spread form, so a target with no usable hint is byte-identical to one
@@ -59,11 +59,6 @@ export function relayHints(items: MenuItem[]): Map<string, string[]> {
   return out
 }
 
-function normalisePath(p: string): string {
-  const cleaned = `/${p.replace(/^\/+/, '')}`.replace(/\/+$/, '')
-  return cleaned === '' ? '/' : cleaned
-}
-
 export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
   const { type, display } = line
   if (line.link === undefined || type === 'i') return info(display)
@@ -71,7 +66,10 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
 
   // Same-hole absolute path.
   if (link.startsWith('/')) {
-    return { type, display, target: { scheme: 'hole', npub: ownerNpub, path: normalisePath(link) } }
+    if (!isValidDocPath(link)) {
+      return { type: 'i', display, target: { scheme: 'invalid', reason: 'invalid path' } }
+    }
+    return { type, display, target: { scheme: 'hole', npub: ownerNpub, path: link } }
   }
 
   // Nostr entities: another hole's document, an npub (their hole root), or
@@ -93,20 +91,22 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
         const npub = nip19.npubEncode(pubkey)
         const relays = safeRelayUrls(decoded.data.relays)
         if (kind === DOC_KIND) {
+          if (!isValidDocPath(identifier)) throw new Error('invalid document path')
           return {
             type,
             display,
-            target: { scheme: 'hole', npub, path: normalisePath(identifier), ...hints(relays) },
+            target: { scheme: 'hole', npub, path: identifier, ...hints(relays) },
           }
         }
         if (kind === LONG_FORM_KIND) {
+          const article = nip19.naddrEncode({ kind, pubkey, identifier })
           return {
             type: '0',
             display,
             target: {
               scheme: 'hole',
               npub,
-              path: `/articles/${identifier}`,
+              path: `/articles/${article}`,
               ...hints(relays),
             },
           }
@@ -119,7 +119,7 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
   }
 
   // Legacy gopherspace, served with its real host.
-  if (link.startsWith('gopher://')) {
+  if (/^gopher:\/\//i.test(link)) {
     try {
       const url = new URL(link)
       const port = url.port === '' ? 70 : Number(url.port)
@@ -135,8 +135,14 @@ export function resolveMapLine(line: MapLine, ownerNpub: string): MenuItem {
     }
   }
 
-  if (/^https?:\/\//.test(link)) {
-    return { type, display, target: { scheme: 'web', url: link } }
+  if (/^(?:https?|gemini):\/\//i.test(link)) {
+    try {
+      const url = new URL(link)
+      if (!['http:', 'https:', 'gemini:'].includes(url.protocol)) throw new Error('bad scheme')
+      return { type, display, target: { scheme: 'web', url: link } }
+    } catch {
+      return { type: 'i', display, target: { scheme: 'invalid', reason: 'bad external url' } }
+    }
   }
 
   return { type: 'i', display, target: { scheme: 'invalid', reason: 'unrecognised link' } }

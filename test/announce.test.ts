@@ -23,7 +23,6 @@ test('a handler announcement claims kind 31436 on every surface', () => {
   assert.equal(tmpl.created_at, 1700000000)
   assert.deepEqual(tagsOf(tmpl, 'd'), [['d', 'gopherkind-bridge']])
   assert.deepEqual(tagsOf(tmpl, 'k'), [['k', String(DOC_KIND)]])
-  assert.equal(tagsOf(tmpl, 'alt').length, 1)
   // NIP-89's <bech32> placeholder must survive verbatim on every url
   for (const t of [...tagsOf(tmpl, 'web'), ...tagsOf(tmpl, 'gopher'), ...tagsOf(tmpl, 'gemini')]) {
     assert.ok(t[1]?.includes('<bech32>'), `${t[0]} url should carry the placeholder`)

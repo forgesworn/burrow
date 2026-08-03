@@ -56,8 +56,6 @@ export function handlerTemplate(opts: AnnounceOptions, now: number): EventTempla
   const tags: string[][] = [
     ['d', opts.identifier],
     ['k', String(DOC_KIND)],
-    // NIP-31: something for a client with no handler support to show.
-    ['alt', `gopherkind bridge for kind ${DOC_KIND} gopherholes`],
   ]
 
   // A bridge resolves any of these entity forms, so announce the ones a

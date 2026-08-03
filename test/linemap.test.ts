@@ -26,8 +26,19 @@ test('extra tab fields from pasted gophermaps are ignored', () => {
   assert.deepEqual(line, { type: '1', display: 'Phlog', link: '/phlog' })
 })
 
-test('trailing blank lines dropped, interior ones kept', () => {
-  assert.equal(parseKindmap('ihello\n\n').length, 1)
+test('one terminal record is dropped, deliberate blank lines are kept', () => {
+  assert.equal(parseKindmap('ihello\n\n').length, 2)
   assert.equal(parseKindmap('ihello\n').length, 1)
   assert.equal(parseKindmap('ihello\n\nix\n').length, 3)
+})
+
+test('links remain byte-exact and invalid linked records become info', () => {
+  assert.deepEqual(parseKindmap('0Space\t/a b ')[0], {
+    type: '0',
+    display: 'Space',
+    link: '/a b ',
+  })
+  assert.deepEqual(parseKindmap(' Broken\t/path')[0], { type: 'i', display: ' Broken' })
+  assert.deepEqual(parseKindmap('1Broken\t')[0], { type: 'i', display: 'Broken' })
+  assert.deepEqual(parseKindmap('1Bad\t/path\rcontrol')[0], { type: 'i', display: 'Bad' })
 })

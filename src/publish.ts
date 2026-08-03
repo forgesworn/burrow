@@ -4,7 +4,16 @@ import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import type { Event, EventTemplate } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { SimplePool } from 'nostr-tools/pool'
-import { DOC_KIND, DELETE_KIND, docPath, isExpired } from './protocol.ts'
+import {
+  DOC_KIND,
+  DELETE_KIND,
+  docPath,
+  hasControlCharacters,
+  isExpired,
+  isValidDocPath,
+  isWellFormedUnicode,
+  parseDocument,
+} from './protocol.ts'
 import { findSecret } from './secretguard.ts'
 
 export interface PlannedDoc {
@@ -26,7 +35,7 @@ export function planDirectory(root: string): PlannedDoc[] {
   for (const entry of entries) {
     if (!entry.isFile()) continue
     const rel = path.relative(abs, path.join(entry.parentPath, entry.name))
-    const posix = rel.split(path.sep).join('/')
+    const posix = rel.split(path.sep).join('/').normalize('NFC')
     if (posix.split('/').some((seg) => seg.startsWith('.'))) continue
     const content = readFileSync(path.join(abs, rel), 'utf8')
     const base = posix.split('/').pop() ?? ''
@@ -58,13 +67,14 @@ export function docToTemplate(
   createdAt: number,
   expireSeconds?: number,
 ): EventTemplate {
+  if (!isValidDocPath(doc.path)) throw new Error(`invalid document path: ${doc.path}`)
+  if (!isWellFormedUnicode(doc.title) || hasControlCharacters(doc.title)) {
+    throw new Error(`invalid document title at ${doc.path}`)
+  }
   const tags = [
     ['d', doc.path],
     ['type', doc.type],
     ['title', doc.title],
-    // NIP-31: a human-readable fallback so generic Nostr clients that do not
-    // understand kind 31436 can still render something meaningful.
-    ['alt', `gopherhole ${doc.type === '1' ? 'menu' : 'document'} at ${doc.path}`],
   ]
   if (expireSeconds !== undefined) tags.push(['expiration', String(createdAt + expireSeconds)])
   return { kind: DOC_KIND, created_at: createdAt, tags, content: doc.content }
@@ -113,6 +123,12 @@ export async function publishHole(
   // an oversized document. Warn rather than fail, so a big page still tries.
   const SIZE_WARN = 60 * 1024
   for (const doc of docs) {
+    if (Buffer.byteLength(doc.path, 'utf8') > 190) {
+      console.error(
+        `warning: ${doc.path} is longer than 190 UTF-8 bytes; ` +
+          'some RFC 1436 clients may reject its selector.',
+      )
+    }
     if (Buffer.byteLength(doc.content, 'utf8') > SIZE_WARN) {
       console.error(
         `warning: ${doc.path} is ${Math.round(Buffer.byteLength(doc.content, 'utf8') / 1024)} KB; ` +
@@ -180,11 +196,18 @@ export async function unpublishHole(
     const now = Math.floor(Date.now() / 1000)
     const byPath = new Map<string, Event>()
     for (const ev of events) {
-      if (isExpired(ev, now)) continue
-      const p = docPath(ev)
-      const prev = byPath.get(p)
-      if (!prev || prev.created_at < ev.created_at) byPath.set(p, ev)
+      const doc = parseDocument(ev)
+      if (!doc) continue
+      const prev = byPath.get(doc.path)
+      if (
+        !prev ||
+        prev.created_at < ev.created_at ||
+        (prev.created_at === ev.created_at && ev.id < prev.id)
+      ) {
+        byPath.set(doc.path, ev)
+      }
     }
+    for (const [path, ev] of byPath) if (isExpired(ev, now)) byPath.delete(path)
     let targets: Event[]
     if (paths === 'all') {
       targets = [...byPath.values()]

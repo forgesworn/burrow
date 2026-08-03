@@ -37,6 +37,9 @@
     "examples",
     "README.md",
     "SPEC.md",
+    "docs/bridge-profile.md",
+    "docs/conformance.md",
+    "test/fixtures/kind31436-v1.json",
     "llms.txt"
   ],
   "publishConfig": {

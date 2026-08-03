@@ -1,6 +1,6 @@
 import * as nip19 from 'nostr-tools/nip19'
 import { queryProfile } from 'nostr-tools/nip05'
-import { DOC_KIND, LONG_FORM_KIND } from './protocol.ts'
+import { DOC_KIND, LONG_FORM_KIND, isValidDocPath } from './protocol.ts'
 import { safeRelayUrls } from './netguard.ts'
 
 // One parser for everything a client can point at: a Nostr hole (npub,
@@ -56,9 +56,9 @@ export function proxyPath(t: GopherTarget): string {
 }
 
 function normalisePath(p: string): string {
-  const cleaned = `/${p.replace(/^\/+/, '')}`.replace(/\/+$/, '')
-  if (cleaned.split('/').some((s) => s === '..')) throw new TargetError('bad path')
-  return cleaned === '' ? '/' : cleaned
+  const path = p === '' ? '/' : p
+  if (!isValidDocPath(path)) throw new TargetError('bad path')
+  return path
 }
 
 // Spread form, so a target with no usable hint stays byte-identical to one
@@ -96,7 +96,8 @@ function holeFromBech(bech: string, path: string): ClientTarget {
       return { kind: 'hole', pubkey, npub, path: normalisePath(identifier), ...hints(relays) }
     }
     if (kind === LONG_FORM_KIND) {
-      return { kind: 'hole', pubkey, npub, path: `/articles/${identifier}`, ...hints(relays) }
+      const article = nip19.naddrEncode({ kind, pubkey, identifier })
+      return { kind: 'hole', pubkey, npub, path: `/articles/${article}`, ...hints(relays) }
     }
     throw new TargetError(`naddr kind ${kind} is not browsable`)
   }
@@ -106,7 +107,7 @@ function holeFromBech(bech: string, path: string): ClientTarget {
 // A selector that leads with an npub is a gopherkind hole wherever it is
 // found, including inside a traditional gophermap pointing at a bridge.
 export function holeFromSelector(selector: string): ClientTarget | null {
-  const trimmed = selector.replace(/^\/+/, '')
+  const trimmed = selector.startsWith('/') ? selector.slice(1) : selector
   const [head, ...rest] = trimmed.split('/')
   if (head === undefined || !NPUB_RE.test(head)) return null
   try {

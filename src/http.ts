@@ -42,6 +42,26 @@ interface Session {
 
 const sessions = new Map<string, Session>()
 const SESSION_MS = 12 * 60 * 60 * 1000
+const SEARCH_PREFIX = '/_gopherkind/search/'
+
+function decodePath(pathname: string): string {
+  return pathname
+    .split('/')
+    .map((segment) => {
+      const decoded = decodeURIComponent(segment)
+      if (decoded.includes('/')) throw new Error('encoded path separator')
+      return decoded
+    })
+    .join('/')
+}
+
+function requestPath(target: string): string {
+  const query = target.indexOf('?')
+  const fragment = target.indexOf('#')
+  const ends = [query, fragment].filter((index) => index !== -1)
+  const end = ends.length === 0 ? target.length : Math.min(...ends)
+  return target.slice(0, end) || '/'
+}
 
 function isLoopback(addr: string | undefined): boolean {
   if (addr === undefined) return false
@@ -243,7 +263,7 @@ async function handle(
 ): Promise<Reply> {
   let path: string
   try {
-    path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname)
+    path = decodePath(requestPath(req.url ?? '/'))
   } catch {
     return html(400, page('Bad request', '<h1>Bad request</h1><p>malformed url</p>', false))
   }
@@ -306,33 +326,50 @@ async function handle(
     return html(content.kind === 'error' ? 502 : 200, page(rendered.title, rendered.body, signedIn))
   }
 
-  // Everything else is hole content: /<npub>[/path], plus /<npub>/search
-  const isSearch = path.endsWith('/search')
-  const basePath = isSearch ? path.slice(0, -'/search'.length) || '/' : path
-  let route: Route
-  try {
-    route = parseSelector(basePath)
-  } catch (err) {
-    const msg = err instanceof SelectorError ? err.message : 'bad address'
-    return html(404, page('Not found', `<h1>Not found</h1><p>${esc(msg)}</p>`, signedIn))
-  }
-  if (route.kind !== 'doc') return redirect('/')
-
-  if (isSearch) {
+  if (path.startsWith(SEARCH_PREFIX)) {
+    const npub = path.slice(SEARCH_PREFIX.length)
+    if (npub === '' || npub.includes('/')) {
+      return html(404, page('Not found', '<h1>Not found</h1><p>bad search address</p>', signedIn))
+    }
+    let searchOwner: Route
+    try {
+      searchOwner = parseSelector(`/${npub}`)
+    } catch (err) {
+      const msg = err instanceof SelectorError ? err.message : 'bad address'
+      return html(404, page('Not found', `<h1>Not found</h1><p>${esc(msg)}</p>`, signedIn))
+    }
+    if (searchOwner.kind !== 'doc') return redirect('/')
     const q = url.searchParams.get('q') ?? ''
+    const action = `${SEARCH_PREFIX}${searchOwner.npub}`
     const form =
-      `<h1>Search</h1>\n<form method="get" action="${esc(`/${route.npub}/search`)}">` +
+      `<h1>Search</h1>\n<form method="get" action="${esc(action)}">` +
       `<p><input type="text" name="q" value="${esc(q)}" size="40"></p>` +
       '<p><input type="submit" value="Search"></p></form>'
     if (q === '') return html(200, page('Search', form, signedIn))
     const content = await resolveRoute(
-      { kind: 'search', pubkey: route.pubkey, npub: route.npub, path: '/', query: q },
+      {
+        kind: 'search',
+        pubkey: searchOwner.pubkey,
+        npub: searchOwner.npub,
+        path: '/',
+        query: q,
+      },
       store,
       { virtual: opts.virtual },
     )
     const rendered = renderContentHtml(content)
     return html(200, page(rendered.title, `${form}\n<hr>\n${rendered.body}`, signedIn))
   }
+
+  // Everything else is authored or virtual hole content: /<npub>[/path].
+  let route: Route
+  try {
+    route = parseSelector(path)
+  } catch (err) {
+    const msg = err instanceof SelectorError ? err.message : 'bad address'
+    return html(404, page('Not found', `<h1>Not found</h1><p>${esc(msg)}</p>`, signedIn))
+  }
+  if (route.kind !== 'doc') return redirect('/')
 
   const content = await resolveRoute(route, store, { virtual: opts.virtual })
   const rendered = renderContentHtml(content)

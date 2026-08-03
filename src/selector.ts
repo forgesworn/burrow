@@ -1,4 +1,5 @@
 import * as nip19 from 'nostr-tools/nip19'
+import { isValidDocPath } from './protocol.ts'
 
 export type Route =
   | { kind: 'welcome' }
@@ -12,15 +13,14 @@ export class SelectorError extends Error {}
 // probes `\t+` and `\t$` are ignored).
 export function parseSelector(raw: string): Route {
   const parts = raw.split('\t')
-  const sel = (parts[0] ?? '').trim()
-  const extra = (parts[1] ?? '').trim()
+  const sel = parts[0] ?? ''
+  const extra = parts[1] ?? ''
   const query = extra.startsWith('+') || extra.startsWith('$') ? '' : extra
 
-  const trimmed = sel.replace(/^\/+/, '')
-  if (trimmed === '') return { kind: 'welcome' }
-
-  const segments = trimmed.split('/')
-  const bech = segments[0] ?? ''
+  if (sel === '' || sel === '/') return { kind: 'welcome' }
+  const addressed = sel.startsWith('/') ? sel.slice(1) : sel
+  const slash = addressed.indexOf('/')
+  const bech = slash === -1 ? addressed : addressed.slice(0, slash)
   let pubkey: string
   try {
     const decoded = nip19.decode(bech)
@@ -30,9 +30,8 @@ export function parseSelector(raw: string): Route {
     throw new SelectorError(`not a gopherhole: ${bech}`)
   }
 
-  const rest = segments.slice(1)
-  if (rest.some((s) => s === '..')) throw new SelectorError('bad path')
-  const path = `/${rest.join('/')}`.replace(/\/+$/, '') || '/'
+  const path = slash === -1 ? '/' : addressed.slice(slash)
+  if (!isValidDocPath(path)) throw new SelectorError('bad path')
 
   if (query !== '') return { kind: 'search', pubkey, npub: bech, path, query }
   return { kind: 'doc', pubkey, npub: bech, path }

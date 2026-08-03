@@ -10,9 +10,36 @@ export const pubkey = getPublicKey(sk)
 export const npub = nip19.npubEncode(pubkey)
 
 export const holeDir = path.join(import.meta.dirname, '..', 'examples', 'hole')
-export const authored = planDirectory(holeDir).map((d) =>
+const directoryDocs = planDirectory(holeDir).map((d) =>
   finalizeEvent(docToTemplate(d, 1_754_000_000), sk),
 )
+export const searchDoc = finalizeEvent(
+  docToTemplate(
+    {
+      path: '/search',
+      type: '0',
+      title: 'An authored search document',
+      content: 'not an endpoint\n',
+    },
+    1_754_000_001,
+  ),
+  sk,
+)
+export const spaceDoc = finalizeEvent(
+  docToTemplate(
+    { path: '/a b', type: '0', title: 'Space', content: 'space path\n' },
+    1_754_000_002,
+  ),
+  sk,
+)
+export const percentDoc = finalizeEvent(
+  docToTemplate(
+    { path: '/a%20b', type: '0', title: 'Percent', content: 'literal percent path\n' },
+    1_754_000_003,
+  ),
+  sk,
+)
+export const authored = [...directoryDocs, searchDoc, spaceDoc, percentDoc]
 const byPath = new Map(authored.map((ev) => [docPath(ev), ev]))
 
 export const note = finalizeEvent(

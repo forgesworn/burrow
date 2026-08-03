@@ -1,6 +1,7 @@
 import type { Event } from 'nostr-tools'
+import * as nip19 from 'nostr-tools/nip19'
 import type { MapLine } from './linemap.ts'
-import { tagValue, isoDate, firstLine } from './protocol.ts'
+import { tagValue, isoDate, firstLine, LONG_FORM_KIND } from './protocol.ts'
 export { firstLine }
 
 // Virtual holes: any npub browses as a gopherhole even when it has never
@@ -14,6 +15,11 @@ export interface Profile {
   nip05?: string
   lud16?: string
   website?: string
+}
+
+export interface TimeCursor {
+  createdAt: number
+  id: string
 }
 
 export function parseProfile(ev: Event | null): Profile | null {
@@ -38,17 +44,17 @@ export function displayName(profile: Profile | null, npub: string): string {
   return profile?.name ?? `${npub.slice(0, 16)}...`
 }
 
-// A page of a generated stream. Gopher has no query string, so a cursor
-// lives in the path: `/notes/before/<unix>` for the time-ordered streams,
-// `/follows/from/<n>` for the flat people lists. Both are reserved: an
-// author's own document at that path still shadows the generated one.
+// A page of a generated stream. Gopher has no query string, so a composite
+// timestamp/id cursor lives in the path for time-ordered streams and an
+// offset lives there for flat people lists. Authored documents still shadow
+// every generated path.
 export type VirtualPath =
   | { kind: 'root' }
   | { kind: 'profile' }
-  | { kind: 'notes'; before?: number }
+  | { kind: 'notes'; before?: TimeCursor }
   | { kind: 'note'; id: string }
-  | { kind: 'articles'; before?: number }
-  | { kind: 'article'; d: string }
+  | { kind: 'articles'; before?: TimeCursor }
+  | { kind: 'article'; pubkey: string; d: string }
   | { kind: 'follows'; from?: number }
   | { kind: 'followers'; from?: number }
 
@@ -56,8 +62,23 @@ export type VirtualPath =
 export const PAGE = 20
 export const PEOPLE_PAGE = 200
 
-const BEFORE = /^before\/(\d{1,10})$/
+const BEFORE = /^before\/(\d{1,10})\/([0-9a-f]{64})$/
 const FROM = /^from\/(\d{1,7})$/
+
+function timeCursor(rest: string): TimeCursor | null {
+  const m = BEFORE.exec(rest)
+  return m ? { createdAt: Number(m[1]), id: m[2] as string } : null
+}
+
+function articlePath(rest: string): VirtualPath | null {
+  try {
+    const decoded = nip19.decode(rest)
+    if (decoded.type !== 'naddr' || decoded.data.kind !== LONG_FORM_KIND) return null
+    return { kind: 'article', pubkey: decoded.data.pubkey, d: decoded.data.identifier }
+  } catch {
+    return null
+  }
+}
 
 function peoplePage(kind: 'follows' | 'followers', rest: string): VirtualPath | null {
   const m = FROM.exec(rest)
@@ -77,25 +98,33 @@ export function matchVirtualPath(path: string): VirtualPath | null {
   if (path.startsWith('/notes/')) {
     const rest = path.slice('/notes/'.length)
     if (/^[0-9a-f]{64}$/.test(rest)) return { kind: 'note', id: rest }
-    const m = BEFORE.exec(rest)
-    return m ? { kind: 'notes', before: Number(m[1]) } : null
+    const before = timeCursor(rest)
+    return before ? { kind: 'notes', before } : null
   }
   if (path === '/articles') return { kind: 'articles' }
   if (path.startsWith('/articles/')) {
     const rest = path.slice('/articles/'.length)
-    const m = BEFORE.exec(rest)
-    return m ? { kind: 'articles', before: Number(m[1]) } : { kind: 'article', d: rest }
+    const before = timeCursor(rest)
+    return before ? { kind: 'articles', before } : articlePath(rest)
   }
   return null
 }
 
 // The navigation tail of a generated page: an older-page link when this one
 // filled up, and a way back to the top once the reader has paged down.
-export function pageLines(base: string, oldest: number | null, paged: boolean): MapLine[] {
+export function eventCursor(ev: Event | undefined): TimeCursor | null {
+  return ev ? { createdAt: ev.created_at, id: ev.id } : null
+}
+
+export function pageLines(base: string, cursor: TimeCursor | null, paged: boolean): MapLine[] {
   const lines: MapLine[] = []
-  if (oldest !== null || paged) lines.push({ type: 'i', display: '' })
-  if (oldest !== null) {
-    lines.push({ type: '1', display: 'Older', link: `${base}/before/${oldest}` })
+  if (cursor !== null || paged) lines.push({ type: 'i', display: '' })
+  if (cursor !== null) {
+    lines.push({
+      type: '1',
+      display: 'Older',
+      link: `${base}/before/${cursor.createdAt}/${cursor.id}`,
+    })
   }
   if (paged) lines.push({ type: '1', display: 'Back to the latest', link: base })
   return lines
@@ -197,13 +226,26 @@ function articleTitle(ev: Event): string {
   return tagValue(ev, 'title') ?? tagValue(ev, 'd') ?? 'untitled'
 }
 
+export function articleLink(ev: Event): string | null {
+  const identifier = tagValue(ev, 'd')
+  if (identifier === undefined) return null
+  const naddr = nip19.naddrEncode({ kind: LONG_FORM_KIND, pubkey: ev.pubkey, identifier })
+  return `/articles/${naddr}`
+}
+
 export function articlesMenuLines(articles: Event[]): MapLine[] {
   if (articles.length === 0) return [{ type: 'i', display: 'No articles found.' }]
-  return articles.map((ev) => ({
-    type: '0' as const,
-    display: `${isoDate(ev.created_at)}  ${articleTitle(ev)}`,
-    link: `/articles/${tagValue(ev, 'd') ?? ''}`,
-  }))
+  return articles.flatMap((ev) => {
+    const link = articleLink(ev)
+    if (link === null) return []
+    return [
+      {
+        type: '0' as const,
+        display: `${isoDate(ev.created_at)}  ${articleTitle(ev)}`,
+        link,
+      },
+    ]
+  })
 }
 
 export function articleText(ev: Event): string {

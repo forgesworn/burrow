@@ -11,8 +11,8 @@ them, and any bridge can serve them to any gopher client written since
 
 The hole belongs to your npub, not to a hostname. If a bridge
 disappears, point your client at another one and nothing is lost.
-Zaps, follows and web of trust come along for free, because it's all
-just Nostr underneath.
+Profiles, follows and the rest of the author's Nostr identity remain
+available to readers because the documents use that same pubkey.
 
 ## Why gopher and Nostr belong together
 
@@ -50,7 +50,9 @@ text files into signed events, and a bridge daemon that speaks gopher
 on one side (RFC 1436, default port 7070) and Gemini on the other
 (default 1965, TLS), both fed from the same events. Type 7 search
 works in gopher, the status 10 input flow in Gemini. NIP-40 expiry is
-enforced on read.
+enforced after replacement selection, so an expired latest revision
+makes the path absent rather than deliberately selecting older content
+when both revisions are visible.
 
 The part I like most: every npub is already a hole. If someone has
 never heard of gopherkind, the bridge builds their hole out of what they
@@ -106,7 +108,7 @@ TheCryptoDonkey
   Followers
       /npub1mgvlrnf.../followers
   Search
-      /npub1mgvlrnf.../search
+      /_gopherkind/search/npub1mgvlrnf...
 ```
 
 (npubs abbreviated above; the real output prints them in full.)
@@ -117,7 +119,7 @@ Long streams page rather than stopping dead, on every surface:
 $ npx @forgesworn/gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
 ...
   Older
-      /npub1mgvlrnf.../notes/before/1774317715
+      /npub1mgvlrnf.../notes/before/1774317715/7e4a...c912
 ```
 
 Follow that link and you get the next page, plus a way back to the
@@ -130,9 +132,15 @@ or `--expire 30d` for documents that should vanish on their own
 
 To take something down, `gopherkind unpublish /about.txt` (or `--all`)
 sends a NIP-09 deletion request. Honest caveat: relays are free to
-ignore those. If content genuinely must not outlive a date, publish
-it with `--expire` in the first place; the bridge refuses to serve
-expired documents either way.
+ignore those. For deliberately temporary material, use `--expire` from
+its first publication; the bridge refuses to serve an expired event it
+has received.
+
+One subtlety matters for revised documents: a relay may delete an expired
+latest event while still retaining an older revision. A reader arriving later
+cannot know that missing replacement existed. `--expire` is therefore not a
+durable tombstone for a path with older history; coordinate deletion is still
+needed if that distinction matters, and deletion itself remains best-effort.
 
 ## Writing a hole
 
@@ -169,6 +177,11 @@ again replaces the document at that path everywhere, no dead links,
 no cache busting. The same applies to kind 30023 articles, which you
 can keep editing in any long-form Nostr client; every hole serves the
 latest version.
+
+Paths are exact identifiers. A bridge does not trim trailing spaces,
+collapse slashes, case-fold, or Unicode-normalise a signed `d`. In a URL,
+`/a b` becomes `/a%20b`, while the different document `/a%20b` becomes
+`/a%2520b`.
 
 ## Running a public bridge
 
@@ -216,6 +229,11 @@ gopherkind announce --hostname gopher.example.org \
 That builds a NIP-89 handler announcement (kind 31990) saying this
 bridge opens kind 31436. Drop `--dry-run` to sign and publish it.
 
+The proposed event format is deliberately small: [SPEC.md](SPEC.md)
+defines kind `31436`, exact paths and kindmap. Virtual holes, pagination,
+search and frontend routing live separately in the
+[bridge profile](docs/bridge-profile.md).
+
 ## Navigating: follows, followers, feed
 
 Every hole has these paths, whether or not anyone published anything:
@@ -225,7 +243,7 @@ Every hole has these paths, whether or not anyone published anything:
 | `/` | root menu |
 | `/profile.txt` | kind 0 profile |
 | `/notes`, `/notes/<id>` | recent top-level notes |
-| `/articles`, `/articles/<d>` | NIP-23 long-form |
+| `/articles`, `/articles/<naddr>` | NIP-23 long-form |
 | `/follows` | who they follow, each linking to that person's hole |
 | `/followers` | who follows them (a sample of what relays carry) |
 
@@ -262,6 +280,10 @@ stored). No login, no cookies, no certificates: open lynx on your own
 machine and you are already signed in. You get menus and documents,
 search forms, your feed, a note composer, and a delete button on your
 own notes.
+
+HTTP and Gemini search lives at `/_gopherkind/search/<npub>`, outside
+the authored hole namespace. A document published at `/search` is
+therefore served normally rather than being intercepted by the bridge.
 
 Remote visitors get the same pages, pair a signer through a form, and
 carry a session cookie. That path is plain HTTP, so put it behind TLS
@@ -435,12 +457,13 @@ and no encryption, so any credential sent over it would be public.
 
 ## Protocol
 
-[SPEC.md](SPEC.md) has the event format, the kindmap grammar, the
-selector namespace, virtual hole paths and the Gemini mapping. The
-short version: one addressable event per document, `d` tag is the
-path, `type` tag is `0` or `1`, menus link by path or naddr instead
-of host and port. [llms.txt](llms.txt) is the condensed version for
-tools and language models.
+[SPEC.md](SPEC.md) has the proposed kind's event format, exact path rules,
+replacement semantics and kindmap grammar. The selector namespace, virtual
+views, pagination and frontend mapping are deliberately separate in the
+[bridge profile](docs/bridge-profile.md). The language-neutral fixture and its
+field definitions are in [the conformance guide](docs/conformance.md).
+[llms.txt](llms.txt) is the condensed implementation guide for tools and
+language models.
 
 Kind 31436 is not yet a NIP.
 [docs/nip-submission.md](docs/nip-submission.md) is the staged

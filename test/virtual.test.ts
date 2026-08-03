@@ -43,7 +43,27 @@ test('matchVirtualPath recognises the reserved paths', () => {
   })
   assert.equal(matchVirtualPath('/notes/nonsense'), null)
   assert.deepEqual(matchVirtualPath('/articles'), { kind: 'articles' })
-  assert.deepEqual(matchVirtualPath('/articles/my-post'), { kind: 'article', d: 'my-post' })
+  const article = nip19.naddrEncode({
+    kind: 30023,
+    pubkey: getPublicKey(sk),
+    identifier: 'my-post',
+  })
+  assert.deepEqual(matchVirtualPath(`/articles/${article}`), {
+    kind: 'article',
+    pubkey: getPublicKey(sk),
+    d: 'my-post',
+  })
+  const cursorShapedArticle = nip19.naddrEncode({
+    kind: 30023,
+    pubkey: getPublicKey(sk),
+    identifier: 'before/42',
+  })
+  assert.deepEqual(matchVirtualPath(`/articles/${cursorShapedArticle}`), {
+    kind: 'article',
+    pubkey: getPublicKey(sk),
+    d: 'before/42',
+  })
+  assert.equal(matchVirtualPath('/articles/my-post'), null)
   assert.equal(matchVirtualPath('/anything-else'), null)
 })
 
@@ -62,13 +82,17 @@ test('notesMenuLines links each note by id', () => {
   assert.deepEqual(notesMenuLines([]), [{ type: 'i', display: 'No notes found.' }])
 })
 
-test('articlesMenuLines uses title tag and d link', () => {
+test('articlesMenuLines uses title tag and an naddr permalink', () => {
   const article = ev(30023, 'body', [
     ['d', 'my-post'],
     ['title', 'My Post'],
   ])
   const [line] = articlesMenuLines([article])
-  assert.equal(line?.link, '/articles/my-post')
+  assert.match(line?.link ?? '', /^\/articles\/naddr1/)
+  const encoded = (line?.link ?? '').slice('/articles/'.length)
+  const decoded = nip19.decode(encoded)
+  assert.equal(decoded.type, 'naddr')
+  if (decoded.type === 'naddr') assert.equal(decoded.data.identifier, 'my-post')
   assert.match(line?.display ?? '', /My Post/)
 })
 

@@ -55,8 +55,14 @@ test('docToTemplate carries d, type and title tags', () => {
     ['d', '/x.txt'],
     ['type', '0'],
     ['title', 'x.txt'],
-    ['alt', 'gopherhole document at /x.txt'],
   ])
+})
+
+test('docToTemplate refuses invalid identifiers and titles', () => {
+  assert.throws(() => docToTemplate({ path: '/a/', type: '0', title: 'a', content: '' }, 1234))
+  assert.throws(() =>
+    docToTemplate({ path: '/a', type: '0', title: 'bad\nname', content: '' }, 1234),
+  )
 })
 
 test('parseDuration understands s/m/h/d/w, rejects junk', () => {

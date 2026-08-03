@@ -1,15 +1,13 @@
-# Gopherkind: gopherspace over Nostr
+# Gopherkind documents
 
 `draft` `optional`
 
-Kind `31436` (after RFC 1436, the Gopher protocol specification) defines a
-**gopherkind document**: one node of a gopherhole, published as an addressable
-Nostr event. A set of these events under one pubkey is a **hole**. Any
-bridge can serve any hole to any RFC 1436 gopher client (and, optionally,
-any Gemini client); holes have no home server and survive as long as any
-relay the author writes to carries them.
+Kind `31436`, numbered after RFC 1436, defines one text document at one
+absolute path. A collection of these addressable events under one pubkey can
+be presented as a gopherhole, but this NIP defines the events rather than any
+particular bridge or frontend.
 
-The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used per
+The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as defined in
 RFC 2119.
 
 ## Event format
@@ -20,323 +18,186 @@ RFC 2119.
   "tags": [
     ["d", "/phlog/2026-08-02.txt"],
     ["type", "0"],
-    ["title", "First post"],
-    ["alt", "gopherhole document at /phlog/2026-08-02.txt"]
+    ["title", "First post"]
   ],
   "content": "..."
 }
 ```
 
-- `d` (required): the document's absolute path within the hole. Grammar and
-  normalisation are specified under **Paths** below. The hole's root menu
-  MUST use `/`.
-- `type` (required): the gopher item type of this document, `0` (text file)
-  or `1` (menu). Publishers MUST include it. Bridges MUST treat a missing or
-  unrecognised value as `0`. `type` is a full tag name rather than a
-  single-letter indexed tag because it is never used in a relay filter.
-- `title` (optional): display name, used in menus and search results. Same
-  character restrictions as a path segment (no control characters).
-- `alt` (optional, NIP-31): SHOULD be present so generic Nostr clients that
-  do not understand kind 31436 can render a fallback.
-- `expiration` (optional, NIP-40): see **Replacement and expiry** below.
+A valid event has:
 
-Content of a `type 0` document is plain UTF-8 text. Publishers SHOULD keep a
-single event under a relay's size limit (commonly 64-256 KB); a document
-larger than a bridge's relays accept will simply not be served.
+- exactly one `d` tag, whose second element is a valid path;
+- exactly one `type` tag, whose second element is `0` or `1`;
+- zero or one `title` tag. Its second element MUST consist of well-formed
+  Unicode scalar values and MUST NOT contain a control character. A missing
+  title means the path is used as the display name.
 
-### Paths
+Further elements in those tags and unrecognised tags are ignored. An event
+that does not meet these requirements is not a gopherkind document and MUST
+NOT be served or listed. In particular, a missing `d` MUST NOT be interpreted
+as the root document.
 
-A path is `/`, or one or more segments each preceded by `/`. Each segment:
+For type `0`, `content` is plain UTF-8 text. For type `1`, `content` is a
+kindmap as defined below. Publishers SHOULD keep each event within the size
+accepted by their relays.
 
-- is non-empty (no `//`), and is not `.` or `..`;
-- contains any UTF-8 **except** `/` and control characters
-  (U+0000-U+001F and U+007F).
+## Paths
 
-Paths are case-sensitive and compared byte for byte; authors SHOULD use NFC
-and lower case. There is no trailing slash except the root itself. Because a
-gopher selector is `/<npub><path>` and RFC 1436 recommends selectors of at
-most 255 bytes, a path SHOULD be at most 190 bytes.
+A valid path is `/`, or one or more segments each preceded by `/`. Each
+segment:
 
-`d` stores the raw, unencoded path. A gopher bridge carries it in the
-selector as raw bytes; a Gemini bridge percent-encodes it in the URL and
-decodes it on receipt. So `/a b` and `/a%20b` denote the **same** document.
+- is non-empty;
+- is not `.` or `..`;
+- contains no `/`;
+- consists of well-formed Unicode scalar values (no unpaired surrogate);
+- contains no Unicode control character in U+0000-U+001F or
+  U+007F-U+009F.
 
-Bridges MUST NOT serve, list or link a document whose `d` or `title`
-contains a control character; such an event is treated as absent. This
-prevents a hostile event from injecting extra records into a gopher menu or
-`=>` links into gemtext.
+Only the root path ends in `/`. Paths are compared as their exact UTF-8 byte
+sequences. Consumers MUST NOT case-fold, Unicode-normalise, percent-decode or
+otherwise rewrite the `d` value before comparison. Publishers SHOULD produce
+NFC paths, but consumers do not enforce that recommendation. There is no
+lower-case recommendation because paths are case-sensitive.
 
-### Replacement and expiry
+The `d` tag stores the raw path, not a URL-encoded form. Consequently `/a b`
+and `/a%20b` are different documents. A URL frontend encodes each path
+segment once, so their URL paths are `/a%20b` and `/a%2520b` respectively,
+and decodes each received segment once.
 
-Kind 31436 is addressable: the newest event for a given `(pubkey, d)` is the
-document. On equal `created_at`, the event with the lowest id wins (NIP-01),
-so every bridge resolves the same one.
+An RFC 1436 selector is commonly limited to 255 bytes. When the selector also
+contains an `npub`, publishers SHOULD keep the path at or below 190 UTF-8
+bytes so it remains usable through a gopher bridge.
 
-A bridge MUST NOT serve an expired event (NIP-40). If the newest event at a
-path has expired, the bridge MUST behave as though it does not exist; an
-older, unexpired event at that path then becomes the document again (this
-mirrors a NIP-40 relay deleting the expired event). Authors who want a
-document to vanish rather than revert MUST publish every revision with the
-`expiration`, or NIP-09-delete the older revisions.
+## Replacement, expiry and deletion
 
-## Kindmap (menu content)
+Kind `31436` is addressable. For a given `(pubkey, d)`, consumers first select
+from all kind `31436` events they received for that NIP-01 coordinate the event
+with the greatest `created_at`; on a tie the event with the lowest id wins.
+Only then is the winning event validated as a gopherkind document. If it is
+invalid, the path is absent. A consumer MUST NOT reveal an older valid revision
+after a malformed winner, because a relay may already have discarded that
+older event under NIP-01.
 
-Content of a `type 1` document is a **kindmap**: a gophermap with the
-host and port columns removed, because documents have no host. One item
-per line:
+Expiry is likewise applied only after that winner has been selected and
+validated. If the winning event has a NIP-40 `expiration` at or before the
+current time, the path is absent. A consumer MUST NOT fall back to an older
+revision: relays may already have discarded it, and fallback would make the
+result depend on the relays queried.
 
+NIP-40 permits a relay to delete an expired winner. If that relay retained an
+older revision, a later consumer cannot infer that an unseen replacement once
+existed. Expiration therefore does not provide durable tombstone semantics for
+an addressable coordinate. Publishers that require a path to remain absent
+must arrange deletion of the coordinate's earlier revisions rather than rely
+on a single expiring replacement, and must retain the usual caveat that NIP-09
+deletion requests can be ignored by relays.
+
+A NIP-09 deletion request for a document SHOULD include:
+
+- an `a` tag containing `31436:<pubkey>:<path>`;
+- a `k` tag containing `31436`;
+- an `e` tag for a known current event MAY also be included.
+
+Deletion remains a request to relays and is not guaranteed.
+
+## Kindmap
+
+Type `1` content is a **kindmap**, a host-independent menu source. Records are
+separated by LF; a CR immediately before an LF is removed. One final empty
+record caused by a terminating LF is discarded, while deliberate blank
+records are retained. Empty content contains no records.
+
+A record without a tab is information text. A leading literal `i` is removed
+from such a record; it is otherwise displayed in full.
+
+A record containing a tab has this form:
+
+```text
+<item-type><display><TAB><link>
 ```
-<itemtype><display>\t<link>
-```
 
-Lines without a tab are info text (`i`); a leading `i` is optional there.
-Extra tab-separated fields are ignored. Note that a pasted classic gophermap
-does not fully degrade: its selectors are reinterpreted as paths in *this*
-hole, so lines that pointed at other hosts must be rewritten as full
-`gopher://` URLs, and a selector without a leading `/` becomes info text.
-`<link>` is one of:
+The first tab separates the heading from the link. The first character of the
+heading is the item type and the rest is the display text. The link ends at
+the next tab, if present; further fields are ignored so a pasted RFC 1436
+gophermap has deterministic behaviour.
+
+The item type MUST be one printable ASCII character from `!` through `~`.
+Unknown printable item types are retained. A type `i` record or a record with
+an empty link is information text and its link is ignored.
+
+Display text and links MUST NOT contain control characters. A syntactically
+invalid record MUST be rendered as information text using only its heading,
+with control characters replaced by spaces; it MUST NOT produce a link.
+Consumers MUST likewise neutralise tabs and CR/LF in every field emitted to a
+line-oriented frontend.
+
+The defined link forms are:
 
 | Link form | Meaning |
 |---|---|
-| `/path` | document in the same hole |
-| `naddr1...` (kind 31436) | document in another hole |
-| `naddr1...` (kind 30023) | a long-form article, served at `/articles/<d>` of its author's hole |
-| `npub1...` / `nprofile1...` | another hole's root menu |
-| `gopher://host[:port]/T/selector` | legacy gopherspace, served as-is |
-| `http://...` or `https://...` | web link, served as an `h`/`URL:` item |
+| `/path` | A valid path in the same author's document set |
+| `naddr1...` for kind `31436` | A document in another author's set |
+| `npub1...` or `nprofile1...` | Another author's root document |
+| `gopher://host[:port]/T/selector` | An RFC 1436 resource |
+| `http://...`, `https://...` or `gemini://...` | An external URL |
 
-All Nostr entity links MAY carry a `nostr:` prefix. Bridges SHOULD use the
-relay hints carried in an `nprofile` or `naddr` when fetching the linked
-hole or document (see **Relay discovery**). The item type of a link line is
-whatever the author wrote; authors SHOULD use the type of the target (`0`
-text, `1` menu, `7` search, `h` web), and a bridge MUST emit that type
-unchanged.
+Nostr entity links MAY have a `nostr:` prefix. NIP-19 relay hints SHOULD be
+used when resolving an `nprofile` or `naddr`. A same-author path or decoded
+kind `31436` identifier that is not a valid path is an invalid link.
 
-A `7` line linking to `/` exposes full-text search over the hole. The path
-of a same-hole `7` link is currently ignored: every hole search is
-whole-hole. Non-`/` paths on a `7` line are reserved for future scoping.
-
-Only `http:`, `https:`, `gopher:`, `gemini:` and `nostr:` are valid link
-schemes; a bridge MUST NOT render any other scheme (e.g. `javascript:` or
-`data:`) as a link.
-
-## Relay discovery
-
-A hole's events live on the relays the author writes to, which a bridge may
-not carry. A bridge SHOULD implement NIP-65 outbox reads: resolve the hole
-owner's kind 10002 relay list, and include a bounded number of the owner's
-write relays (e.g. up to 4) when querying that hole's events, falling back
-to the bridge's own relay set when no list is found. A bridge that queries
-only its own relays will serve an empty or virtual hole for any author it
-does not share a relay with.
-
-A bridge SHOULD also honour the relay hints carried in an `nprofile` or
-`naddr` link. A gopher selector has nowhere to carry a hint into the next
-request, so a bridge that renders such a link SHOULD remember the hint for
-that author and apply it when the visitor follows the link. Hints come from
-documents the bridge did not write, so a bridge MUST treat them as
-untrusted: accept only `ws:`/`wss:` URLs, reject addresses in internal
-ranges, and bound how many are used per author (e.g. 4). Hints widen the
-relay set; a bridge MUST NOT drop its own relays in favour of them.
-
-## Bridge behaviour (gopher)
-
-A bridge is a TCP server speaking RFC 1436 on one side and Nostr on the
-other. Selector namespace:
-
-| Selector | Serves |
-|---|---|
-| *(empty)* | bridge welcome menu |
-| `/<npub>` | that hole's root menu (`d` = `/`) |
-| `/<npub>/<path>` | document with `d` = `/<path>` |
-| `/<npub>` + tab + query | full-text search over the hole (type 7) |
-
-Gopher+ is not supported; a bridge MUST ignore trailing probe fields
-(a query beginning `+` or `$`).
-
-For each request the bridge fetches the newest matching non-expired event
-and renders:
-
-- `type 1`: each kindmap line becomes a full gophermap line. Same-hole
-  and naddr links point at the bridge itself (`/<npub><path>` selectors);
-  `gopher://` links keep their original host and port; web links become
-  `h` items with `URL:` selectors. Info lines get the conventional dummy
-  columns (`-`, `error.host`, `1`). A bridge MUST neutralise tab and CR/LF
-  in every emitted field.
-- `type 0`: content is emitted CRLF-terminated, dot-stuffed, ending with
-  a lone `.` line, per RFC 1436.
-
-## Virtual holes
-
-Every npub is a hole, whether or not it ever published a kind 31436
-event. When no authored document matches a path, bridges SHOULD serve
-these reserved paths generated from the events every Nostr user already
-has:
-
-| Path | Generated from |
-|---|---|
-| `/` | kind 0 profile: name, about, links to the paths below |
-| `/profile.txt` | kind 0 profile as plain text |
-| `/notes` | menu of recent top-level kind 1 notes |
-| `/notes/<event-id>` | one note as plain text |
-| `/articles` | menu of NIP-23 (kind 30023) long-form articles |
-| `/articles/<d>` | one article as plain text |
-| `/follows` | kind 3 contacts, each linking to that pubkey's hole |
-| `/followers` | authors of kind 3 events tagging this pubkey |
-| `/notes/before/<unix>` | the next page of older notes |
-| `/articles/before/<unix>` | the next page of older articles |
-| `/follows/from/<n>` | the people list continued from offset `n` |
-| `/followers/from/<n>` | the same for followers |
-
-A generated stream is longer than one menu, so bridges SHOULD page rather
-than truncate. The two cursor forms are `before/<unix>`, an **exclusive**
-bound on `created_at` for the time-ordered streams, and `from/<n>`, a
-zero-based offset into the flat people lists. A bridge that fills a page
-SHOULD offer a link to the next one, and a bridge on a later page SHOULD
-offer a way back to the first. An exclusive time bound means a second event
-sharing the boundary second is passed over; that is preferred to a cursor
-that can loop. `before/<digits>` and `from/<digits>` are reserved under
-those four paths, on the same terms as every other virtual path: an authored
-document at the same `d` still shadows the generated page.
-
-`/followers` is necessarily a sample: relays only know the contact lists
-they carry, and a carried list may be stale. A bridge that does cap a list
-rather than page it MUST say so in the menu. NIP-05 identifiers in a profile
-SHOULD be labelled unverified unless the bridge has verified them.
-
-The single-item permalinks `/notes/<event-id>` and `/articles/<d>` refer to
-events that exist regardless of the generated hole, so a bridge SHOULD serve
-them whenever the underlying event exists, even if it has otherwise disabled
-virtual holes. Disabling virtual holes turns off only the generated index
-pages (root, profile, notes, articles, follows, followers).
-
-Authored documents always shadow virtual paths, so authors can take over
-any of them (including `/`) simply by publishing.
-
-## Search
-
-Type 7 requests search the whole hole: authored documents plus (where
-virtual holes are enabled) notes and articles. Bridges SHOULD query
-NIP-50 `search` on their relays and merge those results with a
-client-side match over fetched events, deduplicated by path.
-
-## Gemini frontend (informative)
-
-A bridge MAY additionally serve the same holes over the Gemini protocol.
-URL mapping is identical to the selector namespace (`gemini://bridge/`,
-`/<npub>`, `/<npub>/<path>`), with menus rendered as `text/gemini` (hole
-links relative and percent-encoded, `gopher://` links absolute) and text
-documents as `text/plain`. `/<npub>/search` is reserved: without a query it
-answers status `10` (input); with one it serves the search results menu.
-Authors SHOULD NOT publish a document at `/search`, which the reserved
-endpoint shadows over Gemini.
-
-A bridge on Gemini or HTTP SHOULD serve `/robots.txt` and SHOULD disallow
-its gopherspace proxy and its per-visitor account paths there. A bridge is a
-window onto relays, not an origin: an indexed proxy turns one bridge into a
-crawler's route into all of gopherspace, and the account paths hold nothing
-worth indexing. Hole documents themselves SHOULD stay crawlable.
-
-A Gemini request URL MUST NOT exceed 1024 bytes, so a note submitted through
-the status 10 flow is limited to a few hundred characters once percent-
-encoded, not a full kilobyte of text.
-
-## Identity (Gemini only, informative)
-
-Bridges MAY offer a signed-in client over Gemini using client
-certificates as sessions. The certificate's SHA-256 fingerprint is
-bound to a NIP-46 bunker; the user's key never exists on the bridge,
-which holds only its own per-pairing client key for talking to the
-bunker.
-
-| Endpoint | Behaviour |
-|---|---|
-| `/account` | status 60 without a cert; pairing status and actions with one |
-| `/pair` | status 10 input; accepts a `bunker://` URI or NIP-05 bunker address |
-| `/pair/connect` | shows a bridge-generated `nostrconnect://` URI for cross-device approval |
-| `/pair/status` | polls the pending cross-device connection |
-| `/post` | status 10 input; builds a kind 1 event, has the bunker sign it, publishes |
-| `/feed` | recent top-level notes from the user's kind 3 follows, as a menu |
-| `/unpair` | removes the certificate binding |
-
-A bridge MAY likewise offer a personal menu to loopback gopher clients under
-a reserved prefix (`/me` here), where identity is the connection's origin
-rather than anything transmitted. Such a menu MUST NOT be advertised or
-served to a non-loopback client, and destructive actions SHOULD require a
-typed confirmation word.
-
-## Unpublishing
-
-Removing a document is a NIP-09 deletion request: kind 5 with an `e` tag
-for the event, an `a` tag `31436:<pubkey>:<path>`, and a `k` tag
-`31436`. Relays are free to ignore it; ephemeral content SHOULD use
-NIP-40 `expiration` instead, which compliant bridges enforce.
+Only the forms above produce links. In particular, a consumer MUST NOT turn
+an unrecognised scheme such as `javascript:` or `data:` into a clickable or
+otherwise actionable target. Authors SHOULD use the target's conventional
+gopher item type: `0` for text, `1` for a menu, and `h` for an external URL.
+A gopher renderer emits an external URL as an `h` item with a `URL:` selector.
 
 ## Security considerations
 
-- Gopher is plaintext with no authentication, so a bridge MUST NOT accept
-  any credential over it; anything sent would be public. The loopback
-  personal menu is the sole exception, and only because it transmits no
-  credential.
-- Every NIP-46 signer conversation MUST be bounded by a timeout, and SHOULD
-  use a short-lived subscription per operation rather than a persistent one,
-  so a powered-off signer cannot wedge a request.
-- `d` and `title` are attacker-controlled; bridges MUST reject control
-  characters in them (see **Paths**) so they cannot forge wire records.
-- A bridge that proxies arbitrary `gopher://` targets on behalf of a remote
-  client SHOULD refuse loopback, private and link-local destinations, and
-  MUST NOT pass a CR or LF from a client into a gopher request line.
+Paths, titles, kindmaps and linked relay hints are attacker-controlled.
+Consumers must apply the validation above before producing gophermap or
+gemtext lines. Networked readers should bound relay hints and reject relay or
+proxy targets that resolve to loopback, private or link-local addresses.
+
+Gopher is plaintext and unauthenticated. A bridge MUST NOT accept credentials
+or treat a remote gopher connection as an authenticated user.
 
 ## Rationale
 
-- Hole death is gopherspace's endemic disease: holes die when hobbyist
-  boxes die. Events on relays have no box to die.
-- Every document is signed; a hole is an identity (npub), not an address.
-  Zaps, follows and web-of-trust compose for free.
-- The bridge is stateless and interchangeable. Anyone can run one; all
-  bridges serve all holes.
-- Virtual holes bootstrap content: the day a bridge comes up, every
-  Nostr profile, phlog-shaped note stream and long-form article is
-  already in gopherspace.
+Each document is signed and addressed by an author's pubkey and a path rather
+than by one server. The content remains inline on relays, so a text-only hole
+does not depend on an HTTP origin or a separate blob store.
 
-### Why a new kind, not an existing one
+The nsite event family also describes pubkey-owned paths, but carries hashes
+for Blossom-hosted arbitrary assets. Gopherkind deliberately carries UTF-8
+text inline and gives menus a small, host-independent grammar. Kind `30023`
+is for long-form Markdown articles rather than arbitrary path-addressed text
+and menus.
 
-- **Why not nsite?** The nsite family (static websites over Nostr) has the
-  same shape - a pubkey-owned tree of addressable events keyed by an
-  absolute path - but its events carry Blossom blob hashes and deliver
-  arbitrary binary assets over HTTP. A gopherkind document carries its UTF-8
-  text inline, so a whole hole is relay-resident with no Blossom dependency,
-  which is the entire survivability claim; it adds gopher item-type
-  semantics and treats menus as first-class documents. The two compose: a
-  kindmap `h` line can point at an nsite.
-- **Why not kind 30023 with a tag?** Markdown articles and gophermaps are
-  different content grammars, and text or menus at arbitrary paths are not
-  articles. gopherkind reuses 30023 for what it is (long-form articles under
-  `/articles`) rather than overloading it.
+Virtual documents, social views, search, pagination, relay policy, Gemini and
+HTTP URL spaces, and signer-backed account features are application behaviour
+and are deliberately outside this NIP.
 
-Binary content (images, downloads) is deliberately out of scope: it is
-delegated to nsite/Blossom or to legacy `gopher://` links, keeping a hole
-fully relay-resident.
+## Test vectors
 
-## Appendix: test vectors
+Path identity:
 
-Selector to route:
+| `d` value | URL path segment | Result |
+|---|---|---|
+| `/a b` | `/a%20b` | valid document |
+| `/a%20b` | `/a%2520b` | different valid document |
+| `/a//b` | n/a | invalid event |
+| `/a/../b` | n/a | invalid event |
+| `/a/` | n/a | invalid event |
 
-| Selector | Route |
+Kindmap parsing:
+
+| Input record | Parsed result |
 |---|---|
-| *(empty)* | welcome |
-| `/npub1.../about.txt` | doc, path `/about.txt` |
-| `/npub1..` + tab + `hay` | search, query `hay` |
-| `/npub1../..` | error (rejected: `..` segment) |
+| `0About<TAB>/about.txt` | type `0`, display `About`, link `/about.txt` |
+| `hello` | information text `hello` |
+| `ihello` | information text `hello` |
+| `1Home<TAB>/<TAB>old.example<TAB>70` | type `1`, display `Home`, link `/` |
+| `1Broken<TAB>` | information text `Broken` |
 
-Kindmap line to gopher wire (owner npub `N`, bridge `b.test:70`):
-
-| Kindmap line | Wire line |
-|---|---|
-| `0About\t/about.txt` | `0About\t/N/about.txt\tb.test\t70` |
-| `1Home\t/` | `1Home\t/N\tb.test\t70` |
-| plain `hello` | `ihello\t-\terror.host\t1` |
-| `hSite\thttps://example.com` | `hSite\tURL:https://example.com\tb.test\t70` |
-
-A `type 0` body `"hello\n.hidden\n"` renders on the wire as
-`hello\r\n..hidden\r\n.\r\n` (dot-stuffed, dot-terminated).
+A type `0` body `"hello\n.hidden\n"` is rendered over gopher as
+`hello\r\n..hidden\r\n.\r\n`.
