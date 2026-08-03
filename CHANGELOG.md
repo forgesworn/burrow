@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 (2026-08-03)
+
+### Features
+
+- interactive browser, universal targets, nostr-aware gophermaps
+- personal gopher menu, follows and followers, gopherspace proxy
+- http frontend for lynx plus nip-09 delete
+- full cli client (read, search, post, feed, pair)
+- gemini client identity via client certs and nip-46 signing
+- virtual holes, gemini frontend, richer links, hardening, unpublish
+- gopher-over-nostr bridge and publisher, kind 31436
+
+### Bug Fixes
+
+- preserve ascii art alignment in menus
+- refuse to sign or publish credential-shaped content
+
+
+
 ## [0.2.0] - 2026-08-03
 
 First published release.
