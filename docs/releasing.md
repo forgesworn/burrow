@@ -8,7 +8,7 @@ This path works without npm registry credentials.
 ```sh
 npm version 0.8.0 --no-git-tag-version
 # update CHANGELOG.md, review and merge
-git tag -s v0.8.0 -m 'gopherkind 0.8.0'
+git tag -a v0.8.0 -m 'gopherkind 0.8.0'
 git push origin v0.8.0
 gh release create v0.8.0 --verify-tag --generate-notes
 ```

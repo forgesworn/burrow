@@ -92,6 +92,16 @@ lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 From a clone, `npm install` once and use `node src/cli.ts` in place
 of `gopherkind`; day-to-day source development needs no build step.
 
+The public reference bridge is available on all three frontends:
+
+- Gopher: `gopher://144.126.230.165/`
+- Gemini: `gemini://144.126.230.165/`
+- HTTP: <http://144.126.230.165:8070/>
+
+The HTTP endpoint is deliberately read-only because it is served directly
+over plaintext. The bridge is one route to relay-held events, not a promise
+of uptime or relay retention.
+
 Nothing needs to be published for that to work. Point it at any npub
 and a hole is already there, generated from the events that account
 already has:
