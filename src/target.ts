@@ -24,21 +24,32 @@ export class TargetError extends Error {}
 const NPUB_RE = /^npub1[023456789acdefghjklmnpqrstuvwxyz]{58}$/
 
 export function parseProxyPath(path: string): GopherTarget | null {
-  // /gopher/<host>[:port]/<type>/<selector...>
-  const m = /^\/gopher\/([^/]+)(?:\/([0-9a-zA-Z+]))?(?:\/(.*))?$/.exec(path)
+  // /gopher/<host>[:port]/<type><selector...>, where the selector keeps its
+  // own leading slash so it round-trips to the origin server byte for byte.
+  const m = /^\/gopher\/([^/]+)(?:\/([0-9a-zA-Z+]))?(\/.*)?$/.exec(path)
   if (!m) return null
   const hostPart = m[1] as string
   const [host, portRaw] = hostPart.split(':')
   if (!host) return null
   const port = portRaw ? Number(portRaw) : 70
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null
-  return { host, port, type: m[2] ?? '1', selector: m[3] ?? '' }
+  // A bare "/" is the root selector, i.e. empty.
+  const raw = m[3] ?? ''
+  return { host, port, type: m[2] ?? '1', selector: raw === '/' ? '' : raw }
 }
 
 export function proxyPath(t: GopherTarget): string {
   const hostPart = t.port === 70 ? t.host : `${t.host}:${t.port}`
-  const selector = t.selector.replace(/^\//, '')
-  return `/gopher/${hostPart}/${t.type}${selector ? `/${selector}` : ''}`
+  // Preserve the selector's leading slash; many gopher servers treat /world
+  // and world as different selectors and 404 on the wrong one. A lone "/" is
+  // the root, same as empty.
+  const selector =
+    t.selector === '' || t.selector === '/'
+      ? ''
+      : t.selector.startsWith('/')
+        ? t.selector
+        : `/${t.selector}`
+  return `/gopher/${hostPart}/${t.type}${selector}`
 }
 
 function normalisePath(p: string): string {

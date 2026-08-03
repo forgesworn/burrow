@@ -138,13 +138,30 @@ if (command === 'serve') {
   }
   const localTrust = !values['no-local-trust'] && !values['no-identity'] && trustLoopback
 
+  // Resolve the operator's signer once and reuse it: resolveSigner may pair a
+  // BURROW_BUNKER, and re-pairing on every /me request would fire a fresh
+  // approval prompt at the signer each time. Reset on failure so a transient
+  // error doesn't wedge it permanently.
+  let cachedSigner: ReturnType<typeof resolveSigner> | undefined
+  const signerFactory = localTrust
+    ? async () => {
+        if (cachedSigner === undefined) cachedSigner = resolveSigner(servePairings)
+        try {
+          return await cachedSigner
+        } catch (err) {
+          cachedSigner = undefined
+          throw err
+        }
+      }
+    : undefined
+
   const gopher = createGopherServer({
     relays,
     bridge: { host: advertisedHost, port: advertisedPort },
     pins,
     virtual: virtualEnabled,
     localTrust,
-    signerFactory: localTrust ? () => resolveSigner(servePairings) : undefined,
+    signerFactory,
     store,
     limiter,
   })

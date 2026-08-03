@@ -92,6 +92,10 @@ export function createGeminiServer(opts: GeminiOptions): tls.Server {
           ? { fingerprint: peer.fingerprint256 }
           : null
       socket.setTimeout(90_000, () => socket.destroy())
+      // Absolute deadline in addition to the idle timeout, so a slow byte
+      // drip cannot pin a TLS session open forever.
+      const deadline = setTimeout(() => socket.destroy(), 30_000)
+      socket.on('close', () => clearTimeout(deadline))
       socket.on('error', () => socket.destroy())
       let buf = ''
       let handled = false

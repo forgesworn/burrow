@@ -320,8 +320,10 @@ function pageOut(text: string): void {
     process.stdout.write(text)
     return
   }
-  const pager = process.env['PAGER'] ?? 'less'
-  const result = spawnSync(pager, { input: text, stdio: ['pipe', 'inherit', 'inherit'], shell: true })
+  // Split PAGER into command + args rather than running it through a shell,
+  // so an odd PAGER value cannot become shell code.
+  const [pager = 'less', ...pagerArgs] = (process.env['PAGER'] ?? 'less').split(/\s+/)
+  const result = spawnSync(pager, pagerArgs, { input: text, stdio: ['pipe', 'inherit', 'inherit'] })
   if (result.error) process.stdout.write(text)
 }
 

@@ -90,7 +90,7 @@ test('a bridge url with an npub selector goes native', () => {
     host: 'example.org',
     port: 70,
     type: '0',
-    selector: 'file.txt',
+    selector: '/file.txt',
   })
 })
 

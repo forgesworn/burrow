@@ -8,13 +8,13 @@ test('proxy paths round-trip', () => {
     host: 'example.org',
     port: 70,
     type: '1',
-    selector: 'foo/bar',
+    selector: '/foo/bar',
   })
   assert.deepEqual(parseProxyPath('/gopher/example.org:7070/0/x'), {
     host: 'example.org',
     port: 7070,
     type: '0',
-    selector: 'x',
+    selector: '/x',
   })
   assert.deepEqual(parseProxyPath('/gopher/example.org'), {
     host: 'example.org',
@@ -30,6 +30,9 @@ test('proxy paths round-trip', () => {
     proxyPath({ host: 'a.org', port: 7070, type: '0', selector: '' }),
     '/gopher/a.org:7070/0',
   )
+  // the selector round-trips through the proxy with its leading slash intact
+  const rt = parseProxyPath(proxyPath({ host: 'a.org', port: 70, type: '1', selector: '/world' }))
+  assert.equal(rt?.selector, '/world')
 })
 
 test('gopher menus parse into menu items', () => {
