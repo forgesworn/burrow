@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0 (2026-08-03)
+
+### Features
+
+- add nip-89 handler announcement (burrow announce)
+- page the generated note, article and people streams
+- serve robots.txt on the http and gemini frontends
+- honour nip-19 relay hints on hole links
+- nip-65 outbox reads, decouple item permalinks, cover fetch and nip46
+
+### Bug Fixes
+
+- share one PairingStore across the serve frontends
+- refuse internal relay addresses in the nip-46 pairing flow
+- preserve proxy selector slash, cache /me signer, harden sockets
+- lock disk secrets, bound gemini pending, key rate limit by /64
+- block unsafe link schemes, enforce nip-40 on all reads, determinism
+- harden http frontend against csrf, dns rebinding, plaintext leaks
+- close gopher proxy SSRF and CRLF injection
+- personal /me menu links, gopher/gemtext injection
+
+
+
 ## Unreleased
 
 ### Fixed
