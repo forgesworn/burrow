@@ -44,6 +44,12 @@
 - tests for `fetch.ts`, `nip46client.ts`, `netguard.ts`, the CLI, and the
   SPEC test vectors
 
+## 0.4.0 (2026-08-03)
+
+### Features
+
+- open nip-05 names as holes (someone@example.org)
+
 ## 0.3.0 (2026-08-03)
 
 ### Features
