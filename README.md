@@ -81,6 +81,48 @@ lynx gopher://127.0.0.1:7070/1/npub1yourkey...
 From a clone, `npm install` once and use `node src/cli.ts` in place
 of `npx @forgesworn/burrow`; there is no build step.
 
+Nothing needs to be published for that to work. Point it at any npub
+and a hole is already there, generated from the events that account
+already has:
+
+```
+$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+TheCryptoDonkey
+===============
+
+  TheCryptoDonkey
+  a virtual burrow generated from Nostr events
+
+  Bitcoin, freedom, decentralisation, liberty advocate.
+
+  Profile
+      /npub1mgvlrnf.../profile.txt
+  Notes
+      /npub1mgvlrnf.../notes
+  Articles (long-form)
+      /npub1mgvlrnf.../articles
+  Follows
+      /npub1mgvlrnf.../follows
+  Followers
+      /npub1mgvlrnf.../followers
+  Search
+      /npub1mgvlrnf.../search
+```
+
+(npubs abbreviated above; the real output prints them in full.)
+
+Long streams page rather than stopping dead, on every surface:
+
+```
+$ npx @forgesworn/burrow read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2/notes
+...
+  Older
+      /npub1mgvlrnf.../notes/before/1774317715
+```
+
+Follow that link and you get the next page, plus a way back to the
+top. Same on gopher, Gemini and in lynx.
+
 `publish` prints your hole's root selector when it finishes. Add
 `--dry-run` to inspect the signed events without sending anything,
 or `--expire 30d` for documents that should vanish on their own
