@@ -11,6 +11,7 @@ import {
   articlesMenuLines,
   profileText,
   articleText,
+  atomFeed,
 } from '../src/virtual.ts'
 
 const sk = generateSecretKey()
@@ -37,11 +38,19 @@ test('matchVirtualPath recognises the reserved paths', () => {
   assert.deepEqual(matchVirtualPath('/'), { kind: 'root' })
   assert.deepEqual(matchVirtualPath('/profile.txt'), { kind: 'profile' })
   assert.deepEqual(matchVirtualPath('/notes'), { kind: 'notes' })
+  assert.deepEqual(matchVirtualPath('/replies'), { kind: 'replies' })
+  assert.deepEqual(matchVirtualPath('/mentions'), { kind: 'mentions' })
+  assert.deepEqual(matchVirtualPath('/feed.xml'), { kind: 'feed' })
   assert.deepEqual(matchVirtualPath(`/notes/${'a'.repeat(64)}`), {
     kind: 'note',
     id: 'a'.repeat(64),
   })
   assert.equal(matchVirtualPath('/notes/nonsense'), null)
+  assert.deepEqual(matchVirtualPath(`/threads/${'b'.repeat(64)}`), {
+    kind: 'thread',
+    id: 'b'.repeat(64),
+  })
+  assert.equal(matchVirtualPath('/threads/nope'), null)
   assert.deepEqual(matchVirtualPath('/articles'), { kind: 'articles' })
   const article = nip19.naddrEncode({
     kind: 30023,
@@ -79,7 +88,23 @@ test('notesMenuLines links each note by id', () => {
   assert.equal(line?.type, '0')
   assert.equal(line?.link, `/notes/${note.id}`)
   assert.match(line?.display ?? '', /first line/)
+  assert.equal(notesMenuLines([note])[1]?.link, `/threads/${note.id}`)
   assert.deepEqual(notesMenuLines([]), [{ type: 'i', display: 'No notes found.' }])
+})
+
+test('Atom feed has stable Nostr identifiers and escapes event content', () => {
+  const note = ev(1, 'nuts & bolts <still text>')
+  const article = ev(30023, 'long body', [
+    ['d', 'long'],
+    ['title', 'Long & useful'],
+  ])
+  const feed = atomFeed({ name: 'Don & Co' }, npub, [note], [article])
+  assert.match(feed, /^<\?xml version="1\.0" encoding="utf-8"\?>/)
+  assert.match(feed, new RegExp(`<id>nostr:${npub}</id>`))
+  assert.match(feed, /<title>Don &amp; Co<\/title>/)
+  assert.match(feed, /nuts &amp; bolts &lt;still text&gt;/)
+  assert.match(feed, /href="nostr:nevent1/)
+  assert.match(feed, /href="nostr:naddr1/)
 })
 
 test('articlesMenuLines uses title tag and an naddr permalink', () => {

@@ -376,6 +376,9 @@ async function handle(
   if (route.kind !== 'doc') return redirect('/')
 
   const content = await resolveRoute(route, store, { virtual: opts.virtual })
+  if (content.kind === 'text' && content.mediaType !== undefined) {
+    return html(200, content.body, { 'content-type': content.mediaType })
+  }
   const rendered = renderContentHtml(content)
   let extra = ''
   // Offer deletion on your own notes.
@@ -400,7 +403,7 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
   const body = [
     '<h1>gopherkind</h1>',
     '<p>Gopherholes served from Nostr relays. Every hole is a set of',
-    'signed Nostr events; relays mirror it, any bridge serves it.</p>',
+    'signed Nostr events. Any bridge that can retrieve a relay copy can serve it.</p>',
     '<p>Any npub works, published or not: profiles, notes and long-form',
     'articles are served as a virtual hole.</p>',
     '<form method="get" action="/go"><p>Open a hole: ',

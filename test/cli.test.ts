@@ -29,6 +29,9 @@ test('cli usage and argument validation (source)', () => {
   assert.notEqual(run(srcCli, ['search', 'npub1abc']).status, 0)
   // publish with no directory fails
   assert.notEqual(run(srcCli, ['publish']).status, 0)
+  // recovery commands require their targets and export destination
+  assert.notEqual(run(srcCli, ['inspect']).status, 0)
+  assert.notEqual(run(srcCli, ['export', 'npub1abc']).status, 0)
   // an unknown command prints usage and fails
   const bogus = run(srcCli, ['definitely-not-a-command'])
   assert.notEqual(bogus.status, 0)

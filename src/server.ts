@@ -140,7 +140,7 @@ async function welcome(
     out += infoLine('')
   }
   out += infoLine('Every hole here is a set of signed Nostr events (kind 31436).')
-  out += infoLine('No hosting, no server to die: relays mirror the content.')
+  out += infoLine('No single host owns the hole; it is readable while relays retain copies.')
   out += infoLine('')
   out += infoLine('Browse a hole by selector:  /<npub>')
   out += infoLine('Any npub works: profiles, notes and long-form articles are')

@@ -30,3 +30,7 @@ An independent implementation passes the gate when it consumes this JSON
 directly, agrees with every expected value, and records its implementation and
 test command in the NIP submission evidence. Copying this repository's parser
 or translating it line for line does not count as independent implementation.
+
+The first independent implementation is
+[`forgesworn/gopherkind-protocol-py`](https://github.com/forgesworn/gopherkind-protocol-py),
+pinned in the submission evidence to the commit that passes fixture version 1.

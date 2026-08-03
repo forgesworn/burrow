@@ -1,4 +1,5 @@
 import * as nip19 from 'nostr-tools/nip19'
+import path from 'node:path'
 import { HoleStore } from './fetch.ts'
 import type { PairingStore } from './identity.ts'
 import { resolveRoute } from './router.ts'
@@ -10,6 +11,7 @@ import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signi
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, DELETE_KIND, DOC_KIND, firstLine, isoDate } from './protocol.ts'
 import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
+import { formatHoleInspection, inspectHole, writeHoleExport } from './recovery.ts'
 
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
@@ -59,6 +61,39 @@ export async function cmdSearch(
   } finally {
     store.close()
   }
+}
+
+export async function cmdExport(
+  target: string,
+  outputDir: string,
+  relays: string[],
+  force: boolean,
+): Promise<string> {
+  const parsed = await resolveClientTarget(target)
+  if (parsed.kind === 'gopher') throw new Error('export needs an npub, nprofile or NIP-05 name')
+  if (parsed.path !== '/') throw new Error('export takes a hole root, not an individual path')
+  const store = new HoleStore(relays)
+  if (parsed.relays) store.addRelayHints(parsed.pubkey, parsed.relays)
+  try {
+    const manifest = writeHoleExport(await store.hole(parsed.pubkey), parsed.pubkey, outputDir, {
+      force,
+    })
+    return [
+      `exported ${manifest.documents.length} document(s) for ${manifest.npub}`,
+      `snapshot: ${path.resolve(outputDir)}`,
+      `recover:  gopherkind publish ${path.resolve(outputDir)}`,
+      '',
+    ].join('\n')
+  } finally {
+    store.close()
+  }
+}
+
+export async function cmdInspect(target: string, relays: string[]): Promise<string> {
+  const parsed = await resolveClientTarget(target)
+  if (parsed.kind === 'gopher') throw new Error('inspect needs an npub, nprofile or NIP-05 name')
+  if (parsed.path !== '/') throw new Error('inspect takes a hole root, not an individual path')
+  return formatHoleInspection(await inspectHole(parsed.pubkey, relays, parsed.relays ?? []))
 }
 
 export async function cmdPost(

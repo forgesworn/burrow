@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import type { Event, EventTemplate, Filter } from 'nostr-tools'
 import { SimplePool } from 'nostr-tools/pool'
@@ -27,6 +27,109 @@ export interface PlannedDoc {
   content: string
 }
 
+export const RECOVERY_MANIFEST = '.gopherkind.json'
+
+interface RecoveryManifestEntry {
+  file: string
+  path: string
+  type: '0' | '1'
+  title: string
+}
+
+interface RecoveryManifest {
+  format: 'gopherkind-hole-export'
+  version: 1
+  documents: RecoveryManifestEntry[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function manifestEntry(value: unknown, index: number): RecoveryManifestEntry {
+  if (!isRecord(value)) throw new Error(`${RECOVERY_MANIFEST}: document ${index} is not an object`)
+  const { file, path: docPath, type, title } = value
+  if (
+    typeof file !== 'string' ||
+    file === '' ||
+    !isWellFormedUnicode(file) ||
+    hasControlCharacters(file)
+  ) {
+    throw new Error(`${RECOVERY_MANIFEST}: document ${index} has no file`)
+  }
+  if (
+    file.startsWith('/') ||
+    file.includes('\\') ||
+    file.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
+    throw new Error(`${RECOVERY_MANIFEST}: unsafe file path: ${file}`)
+  }
+  if (typeof docPath !== 'string' || !isValidDocPath(docPath)) {
+    throw new Error(`${RECOVERY_MANIFEST}: invalid document path: ${String(docPath)}`)
+  }
+  if (type !== '0' && type !== '1') {
+    throw new Error(`${RECOVERY_MANIFEST}: invalid type for ${docPath}`)
+  }
+  if (typeof title !== 'string' || !isWellFormedUnicode(title) || hasControlCharacters(title)) {
+    throw new Error(`${RECOVERY_MANIFEST}: invalid title for ${docPath}`)
+  }
+  return { file, path: docPath, type, title }
+}
+
+function readRecoveryManifest(abs: string): RecoveryManifest | null {
+  const filename = path.join(abs, RECOVERY_MANIFEST)
+  if (!existsSync(filename)) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(filename, 'utf8'))
+  } catch (err) {
+    throw new Error(`${RECOVERY_MANIFEST}: ${err instanceof Error ? err.message : 'invalid JSON'}`)
+  }
+  if (
+    !isRecord(parsed) ||
+    parsed.format !== 'gopherkind-hole-export' ||
+    parsed.version !== 1 ||
+    !Array.isArray(parsed.documents)
+  ) {
+    throw new Error(`${RECOVERY_MANIFEST}: unsupported or malformed export manifest`)
+  }
+  return {
+    format: 'gopherkind-hole-export',
+    version: 1,
+    documents: parsed.documents.map(manifestEntry),
+  }
+}
+
+function planRecoveryDirectory(abs: string, manifest: RecoveryManifest): PlannedDoc[] {
+  const realRoot = realpathSync(abs)
+  const seenFiles = new Set<string>()
+  return manifest.documents.map((entry) => {
+    if (seenFiles.has(entry.file)) {
+      throw new Error(`${RECOVERY_MANIFEST}: duplicate file: ${entry.file}`)
+    }
+    seenFiles.add(entry.file)
+    const filename = path.resolve(abs, entry.file)
+    const relative = path.relative(abs, filename)
+    if (relative === '' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error(`${RECOVERY_MANIFEST}: unsafe file path: ${entry.file}`)
+    }
+    if (!existsSync(filename) || !lstatSync(filename).isFile()) {
+      throw new Error(`${RECOVERY_MANIFEST}: missing document file: ${entry.file}`)
+    }
+    const realFile = realpathSync(filename)
+    const realRelative = path.relative(realRoot, realFile)
+    if (realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) {
+      throw new Error(`${RECOVERY_MANIFEST}: document file leaves export directory: ${entry.file}`)
+    }
+    return {
+      path: entry.path,
+      type: entry.type,
+      title: entry.title,
+      content: readFileSync(filename, 'utf8'),
+    }
+  })
+}
+
 // `index.map` (or classic `gophermap`) becomes the menu for its directory;
 // any other `*.map` file becomes a menu at its own path; everything else is
 // a type 0 text document. Dotfiles are skipped.
@@ -34,27 +137,35 @@ const MENU_NAMES = new Set(['index.map', 'gophermap'])
 
 export function planDirectory(root: string): PlannedDoc[] {
   const abs = path.resolve(root)
-  const docs: PlannedDoc[] = []
-  const entries = readdirSync(abs, { recursive: true, withFileTypes: true })
-  for (const entry of entries) {
-    if (!entry.isFile()) continue
-    const rel = path.relative(abs, path.join(entry.parentPath, entry.name))
-    const posix = rel.split(path.sep).join('/').normalize('NFC')
-    if (posix.split('/').some((seg) => seg.startsWith('.'))) continue
-    const content = readFileSync(path.join(abs, rel), 'utf8')
-    const base = posix.split('/').pop() ?? ''
-    if (MENU_NAMES.has(base)) {
-      const dir = posix.split('/').slice(0, -1).join('/')
-      docs.push({
-        path: dir === '' ? '/' : `/${dir}`,
-        type: '1',
-        title: dir === '' ? 'root' : dir,
-        content,
-      })
-    } else if (base.endsWith('.map')) {
-      docs.push({ path: `/${posix.slice(0, -4)}`, type: '1', title: base.slice(0, -4), content })
-    } else {
-      docs.push({ path: `/${posix}`, type: '0', title: base, content })
+  const manifest = readRecoveryManifest(abs)
+  const docs: PlannedDoc[] = manifest === null ? [] : planRecoveryDirectory(abs, manifest)
+  if (manifest === null) {
+    const entries = readdirSync(abs, { recursive: true, withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isFile()) continue
+      const rel = path.relative(abs, path.join(entry.parentPath, entry.name))
+      const posix = rel.split(path.sep).join('/').normalize('NFC')
+      if (posix.split('/').some((seg) => seg.startsWith('.'))) continue
+      const content = readFileSync(path.join(abs, rel), 'utf8')
+      const base = posix.split('/').pop() ?? ''
+      if (MENU_NAMES.has(base)) {
+        const dir = posix.split('/').slice(0, -1).join('/')
+        docs.push({
+          path: dir === '' ? '/' : `/${dir}`,
+          type: '1',
+          title: dir === '' ? 'root' : dir,
+          content,
+        })
+      } else if (base.endsWith('.map')) {
+        docs.push({
+          path: `/${posix.slice(0, -4)}`,
+          type: '1',
+          title: base.slice(0, -4),
+          content,
+        })
+      } else {
+        docs.push({ path: `/${posix}`, type: '0', title: base, content })
+      }
     }
   }
   docs.sort((a, b) => a.path.localeCompare(b.path))

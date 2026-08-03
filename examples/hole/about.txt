@@ -1,4 +1,4 @@
 This hole is a set of Nostr events, kind 31436.
-No server hosts it; relays mirror it.
+No single hostname owns it; chosen relays can retain copies.
 
 Edit examples/hole and republish to change it.

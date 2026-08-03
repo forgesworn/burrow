@@ -22,6 +22,8 @@ import {
   cmdWhoami,
   cmdDelete,
   cmdAnnounce,
+  cmdExport,
+  cmdInspect,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner } from './signing.ts'
@@ -36,6 +38,8 @@ const USAGE = `usage:
     gopherkind browse [target]           browse from an npub or gopher:// url
     gopherkind read <target>             print a hole document or gopher page
     gopherkind search <target> <query>   search a hole, or a gopher type 7 endpoint
+    gopherkind inspect <npub>            show current documents visible on each relay
+    gopherkind export <npub> <dir>       save a lossless, re-publishable snapshot
     gopherkind feed [--limit 20]         notes from who you follow
     targets: npub[/path], nostr: entity, name@domain (NIP-05), gopher:// url
 
@@ -357,6 +361,27 @@ if (command === 'serve') {
   const query = positionals.slice(1).join(' ')
   if (target === undefined || query === '') fail('usage: gopherkind search <target> <query>')
   run(cmdSearch(target, query, relaysOf(values), !values['no-virtual']))
+} else if (command === 'inspect') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: COMMON,
+  })
+  const target = positionals[0]
+  if (target === undefined) fail('usage: gopherkind inspect <npub|nprofile|name@domain>')
+  run(cmdInspect(target, relaysOf(values)))
+} else if (command === 'export') {
+  const { values, positionals } = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options: { ...COMMON, force: { type: 'boolean', default: false } },
+  })
+  const target = positionals[0]
+  const outputDir = positionals[1]
+  if (target === undefined || outputDir === undefined) {
+    fail('usage: gopherkind export <npub|nprofile|name@domain> <dir> [--force]')
+  }
+  run(cmdExport(target, outputDir, relaysOf(values), values.force))
 } else if (command === 'post') {
   const { values, positionals } = parseArgs({
     args: rest,

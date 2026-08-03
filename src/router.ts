@@ -2,7 +2,7 @@ import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { parseKindmap } from './linemap.ts'
 import { resolveMapLines, relayHints, info, type MenuItem } from './resolve.ts'
-import type { HoleStore } from './fetch.ts'
+import type { HoleStore, ThreadView } from './fetch.ts'
 import type { Route } from './selector.ts'
 import {
   DOC_KIND,
@@ -23,7 +23,7 @@ import * as virtual from './virtual.ts'
 
 export type Content =
   | { kind: 'menu'; title: string; items: MenuItem[] }
-  | { kind: 'text'; title: string; body: string }
+  | { kind: 'text'; title: string; body: string; mediaType?: string }
   | { kind: 'error'; message: string }
 
 export interface RouterOptions {
@@ -47,7 +47,7 @@ export async function resolveRoute(
   // post-success link point straight at them; --no-virtual only turns off
   // the generated index pages (root, profile, notes, follows, followers).
   const m = virtual.matchVirtualPath(route.path)
-  const isItem = m !== null && (m.kind === 'note' || m.kind === 'article')
+  const isItem = m !== null && (m.kind === 'note' || m.kind === 'article' || m.kind === 'thread')
   if (opts.virtual || isItem) {
     const v = await resolveVirtual(route, store)
     if (v) return v
@@ -117,9 +117,49 @@ async function resolveVirtual(
       }
     }
     case 'note': {
-      const ev = await store.event(m.id)
-      if (!ev || ev.pubkey !== route.pubkey || ev.kind !== NOTE_KIND) return null
+      const ev = await store.note(route.pubkey, m.id)
+      if (!ev) return null
       return { kind: 'text', title: 'Note', body: virtual.noteText(ev) }
+    }
+    case 'replies':
+    case 'mentions': {
+      const events =
+        m.kind === 'replies'
+          ? await store.replies(route.pubkey, m.before)
+          : await store.mentions(route.pubkey, m.before)
+      const profiles = await store.profilesBatch(events.map((event) => event.pubkey))
+      const cursor = events.length === virtual.PAGE ? virtual.eventCursor(events.at(-1)) : null
+      const base = m.kind === 'replies' ? '/replies' : '/mentions'
+      const title = `${m.kind === 'replies' ? 'Replies' : 'Mentions'}${m.before ? ' (older)' : ''}`
+      return {
+        kind: 'menu',
+        title,
+        items: [
+          ...interactionItems(events, profiles, m.kind),
+          ...resolveMapLines(virtual.pageLines(base, cursor, m.before !== undefined), route.npub),
+        ],
+      }
+    }
+    case 'thread': {
+      const thread = await store.thread(route.pubkey, m.id)
+      if (thread === null) return null
+      const events = [thread.focus, ...thread.ancestors, ...thread.replies]
+      const profiles = await store.profilesBatch(events.map((event) => event.pubkey))
+      return { kind: 'menu', title: 'Thread', items: threadItems(thread, profiles) }
+    }
+    case 'feed': {
+      const [profileEvent, notes, articles] = await Promise.all([
+        store.profile(route.pubkey),
+        store.notes(route.pubkey),
+        store.articles(route.pubkey),
+      ])
+      const profile = virtual.parseProfile(profileEvent)
+      return {
+        kind: 'text',
+        title: `${virtual.displayName(profile, route.npub)} Atom feed`,
+        body: virtual.atomFeed(profile, route.npub, notes, articles),
+        mediaType: 'application/atom+xml; charset=utf-8',
+      }
     }
     case 'follows':
     case 'followers': {
@@ -177,6 +217,53 @@ async function resolveVirtual(
       return { kind: 'text', title: tagValue(ev, 'title') ?? m.d, body: virtual.articleText(ev) }
     }
   }
+}
+
+function eventAuthor(event: Event, profiles: Map<string, Event>): { npub: string; name: string } {
+  const npub = nip19.npubEncode(event.pubkey)
+  const profile = virtual.parseProfile(profiles.get(event.pubkey) ?? null)
+  return { npub, name: virtual.displayName(profile, npub) }
+}
+
+function interactionItems(
+  events: Event[],
+  profiles: Map<string, Event>,
+  kind: 'replies' | 'mentions',
+): MenuItem[] {
+  if (events.length === 0) return [info(`No ${kind} found on these relays.`)]
+  return events.map((event) => {
+    const author = eventAuthor(event, profiles)
+    return {
+      type: '1',
+      display: `${isoDate(event.created_at)}  ${author.name}: ${firstLine(event.content)}`,
+      target: { scheme: 'hole', npub: author.npub, path: `/threads/${event.id}` },
+    }
+  })
+}
+
+function threadItems(thread: ThreadView, profiles: Map<string, Event>): MenuItem[] {
+  const items: MenuItem[] = []
+  const addEvent = (label: string, event: Event, plain = false): void => {
+    const author = eventAuthor(event, profiles)
+    items.push(info(label))
+    items.push(info(`${isoDate(event.created_at)}  ${author.name}`))
+    for (const line of virtual.wrap(event.content)) items.push(info(`  ${line}`))
+    items.push({
+      type: plain ? '0' : '1',
+      display: plain ? 'Plain note' : 'Open this part of the thread',
+      target: {
+        scheme: 'hole',
+        npub: author.npub,
+        path: plain ? `/notes/${event.id}` : `/threads/${event.id}`,
+      },
+    })
+    items.push(info(''))
+  }
+  for (const event of thread.ancestors) addEvent('Earlier', event)
+  addEvent('Focused note', thread.focus, true)
+  for (const event of thread.replies) addEvent('Reply', event)
+  if (thread.replies.length === 0) items.push(info('No replies found on these relays.'))
+  return items
 }
 
 async function search(

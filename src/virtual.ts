@@ -53,6 +53,10 @@ export type VirtualPath =
   | { kind: 'profile' }
   | { kind: 'notes'; before?: TimeCursor }
   | { kind: 'note'; id: string }
+  | { kind: 'replies'; before?: TimeCursor }
+  | { kind: 'mentions'; before?: TimeCursor }
+  | { kind: 'thread'; id: string }
+  | { kind: 'feed' }
   | { kind: 'articles'; before?: TimeCursor }
   | { kind: 'article'; pubkey: string; d: string }
   | { kind: 'follows'; from?: number }
@@ -101,6 +105,21 @@ export function matchVirtualPath(path: string): VirtualPath | null {
     const before = timeCursor(rest)
     return before ? { kind: 'notes', before } : null
   }
+  if (path === '/replies') return { kind: 'replies' }
+  if (path.startsWith('/replies/')) {
+    const before = timeCursor(path.slice('/replies/'.length))
+    return before ? { kind: 'replies', before } : null
+  }
+  if (path === '/mentions') return { kind: 'mentions' }
+  if (path.startsWith('/mentions/')) {
+    const before = timeCursor(path.slice('/mentions/'.length))
+    return before ? { kind: 'mentions', before } : null
+  }
+  if (path.startsWith('/threads/')) {
+    const id = path.slice('/threads/'.length)
+    return /^[0-9a-f]{64}$/.test(id) ? { kind: 'thread', id } : null
+  }
+  if (path === '/feed.xml') return { kind: 'feed' }
   if (path === '/articles') return { kind: 'articles' }
   if (path.startsWith('/articles/')) {
     const rest = path.slice('/articles/'.length)
@@ -178,7 +197,10 @@ export function virtualRootLines(profile: Profile | null, npub: string): MapLine
   }
   lines.push({ type: '0', display: 'Profile', link: '/profile.txt' })
   lines.push({ type: '1', display: 'Notes', link: '/notes' })
+  lines.push({ type: '1', display: 'Replies', link: '/replies' })
+  lines.push({ type: '1', display: 'Mentions', link: '/mentions' })
   lines.push({ type: '1', display: 'Articles (long-form)', link: '/articles' })
+  lines.push({ type: '0', display: 'Atom feed', link: '/feed.xml' })
   lines.push({ type: '1', display: 'Follows', link: '/follows' })
   lines.push({ type: '1', display: 'Followers', link: '/followers' })
   lines.push({ type: '7', display: 'Search', link: '/' })
@@ -211,15 +233,101 @@ export function profileText(profile: Profile | null, npub: string): string {
 
 export function notesMenuLines(notes: Event[]): MapLine[] {
   if (notes.length === 0) return [{ type: 'i', display: 'No notes found.' }]
-  return notes.map((ev) => ({
-    type: '0' as const,
-    display: `${isoDate(ev.created_at)}  ${firstLine(ev.content)}`,
-    link: `/notes/${ev.id}`,
-  }))
+  return notes.flatMap((ev) => [
+    {
+      type: '0' as const,
+      display: `${isoDate(ev.created_at)}  ${firstLine(ev.content)}`,
+      link: `/notes/${ev.id}`,
+    },
+    {
+      type: '1' as const,
+      display: '    thread and replies',
+      link: `/threads/${ev.id}`,
+    },
+  ])
 }
 
 export function noteText(ev: Event): string {
   return `${[`date: ${isoDate(ev.created_at)}`, `id:   ${ev.id}`, '', ev.content].join('\n')}\n`
+}
+
+function xmlText(value: string): string {
+  const safe = [...value]
+    .map((character) => {
+      const code = character.codePointAt(0) as number
+      const valid =
+        code === 0x9 ||
+        code === 0xa ||
+        code === 0xd ||
+        (code >= 0x20 && code <= 0xd7ff) ||
+        (code >= 0xe000 && code <= 0xfffd) ||
+        (code >= 0x10000 && code <= 0x10ffff)
+      return valid ? character : '\uFFFD'
+    })
+    .join('')
+  return safe
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
+function eventUri(event: Event): string | null {
+  if (event.kind === 1) {
+    return `nostr:${nip19.neventEncode({ id: event.id, author: event.pubkey })}`
+  }
+  if (event.kind === LONG_FORM_KIND) {
+    const identifier = tagValue(event, 'd')
+    if (identifier === undefined) return null
+    return `nostr:${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier })}`
+  }
+  return null
+}
+
+function atomTitle(event: Event): string {
+  return event.kind === LONG_FORM_KIND
+    ? articleTitle(event)
+    : firstLine(event.content, 120) || 'Note'
+}
+
+export function atomFeed(
+  profile: Profile | null,
+  npub: string,
+  notes: Event[],
+  articles: Event[],
+): string {
+  const entries = [...notes, ...articles]
+    .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+    .slice(0, 40)
+  const updated = new Date((entries[0]?.created_at ?? 0) * 1000).toISOString()
+  const lines = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<feed xmlns="http://www.w3.org/2005/Atom">',
+    `  <id>nostr:${xmlText(npub)}</id>`,
+    `  <title>${xmlText(displayName(profile, npub))}</title>`,
+    `  <updated>${updated}</updated>`,
+    `  <link rel="alternate" href="nostr:${xmlText(npub)}"/>`,
+    '  <author>',
+    `    <name>${xmlText(displayName(profile, npub))}</name>`,
+    `    <uri>nostr:${xmlText(npub)}</uri>`,
+    '  </author>',
+  ]
+  for (const event of entries) {
+    const uri = eventUri(event)
+    if (uri === null) continue
+    lines.push(
+      '  <entry>',
+      `    <id>${xmlText(uri)}</id>`,
+      `    <title>${xmlText(atomTitle(event))}</title>`,
+      `    <updated>${new Date(event.created_at * 1000).toISOString()}</updated>`,
+      `    <link rel="alternate" href="${xmlText(uri)}"/>`,
+      `    <content type="text">${xmlText(event.content)}</content>`,
+      '  </entry>',
+    )
+  }
+  lines.push('</feed>', '')
+  return lines.join('\n')
 }
 
 function articleTitle(ev: Event): string {

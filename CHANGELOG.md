@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.0 (2026-08-03)
+
+### Recovery and relay truth
+
+- add `gopherkind export` for lossless, editable snapshots whose manifest
+  round-trips exact document paths, types and titles back through `publish`
+- add `gopherkind inspect` to report current, stale, missing and unreachable
+  document copies per configured, hinted and NIP-65 author relay
+- replace absolute mirroring and durability claims with the actual boundary:
+  holes are hostname-independent while a relay still retains a readable copy
+- generate a correct IP subjectAltName for Gemini certificates when a public
+  bridge is advertised by IP rather than DNS
+
+### Reading
+
+- add generated `/replies` and `/mentions` views plus `/threads/<event-id>`
+  context pages using NIP-10 markers with the legacy unmarked fallback
+- fetch note permalinks from the author's discovered relay set instead of only
+  the bridge defaults
+- add `/feed.xml`, a bridge-independent Atom feed of recent notes and articles
+  using `nostr:` entry identifiers and the correct HTTP and Gemini media type
+
+### Protocol
+
+- publish the fixture-compatible independent Python implementation and record
+  its exact commit, checksum, command and passing result in the NIP submission
+  evidence
+
 ## 0.7.0 (2026-08-03)
 
 ### Security
