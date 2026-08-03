@@ -5,12 +5,14 @@ Gopherholes served from Nostr relays.
 Gopherspace has one endemic disease: holes die. The hobby box behind
 your favourite phlog loses power, the domain lapses, and fifteen years
 of writing are gone. gopherkind moves the hole off the box. Documents are
-signed Nostr events (kind `31436`, named for RFC 1436), relays mirror
-them, and any bridge can serve them to any gopher client written since
-1991. lynx, VF-1, Lagrange, an Amiga. All fine.
+signed Nostr events (kind `31436`, named for RFC 1436), published to relays
+the author chooses, and any bridge that can retrieve a copy can serve them to
+any gopher client written since 1991. lynx, VF-1, Lagrange, an Amiga. All fine.
 
-The hole belongs to your npub, not to a hostname. If a bridge
-disappears, point your client at another one and nothing is lost.
+The hole belongs to your npub, not to a hostname. If a bridge disappears,
+another bridge can serve the same signed events from the relays that still
+carry them. That removes the hostname as a single point of failure; it does
+not promise that relays will retain every event forever.
 Profiles, follows and the rest of the author's Nostr identity remain
 available to readers because the documents use that same pubkey.
 
@@ -28,15 +30,15 @@ protocol never had a notion of authorship, so your writing lives and
 dies with a hostname and a power supply, and nothing in the wire
 format can prove who wrote what. That is precisely the shape of
 problem Nostr solves: identity is a keypair, documents are signed
-events, and relays mirror them without being asked nicely.
+events, and the author can place copies on more than one relay.
 
 The trade works in both directions. Nostr's clients are timelines,
 built for the scroll; long-form writing gets buried an hour after it
 is posted. Gopher is the opposite temperament: a reading room, where
 structure is mandatory and nothing fights for your attention. Kind
-31436 gives gopher documents that outlive their host and prove their
-author, and gives Nostr a calm, hierarchical surface that a 1991
-client can browse.
+31436 gives gopher documents that are independent of one host, prove their
+author, and remain recoverable while a relay retains a copy. It gives Nostr a
+calm, hierarchical surface that a 1991 client can browse.
 
 And because every npub already renders as a virtual hole,
 gopherspace quietly grows by the entire Nostr userbase. Kaiser wrote
@@ -57,8 +59,9 @@ when both revisions are visible.
 The part I like most: every npub is already a hole. If someone has
 never heard of gopherkind, the bridge builds their hole out of what they
 have anyway. Kind 0 profile becomes `/profile.txt`, top-level notes
-become a phlog at `/notes`, NIP-23 long-form articles land under
-`/articles`. Point lynx at any npub and start reading. Authored
+become a phlog at `/notes`, replies and mentions get their own views,
+thread pages add context, NIP-23 long-form articles land under `/articles`,
+and `/feed.xml` is an Atom feed. Point lynx at any npub and start reading. Authored
 documents shadow the virtual paths, so taking over your own hole is
 just publishing.
 
@@ -141,6 +144,24 @@ union with the configured relays, spreads an existing signed relay list
 alongside the documents, and reads each document back from every destination.
 Acceptance and read-back are reported separately; a document rejected
 everywhere or not readable anywhere makes the command fail.
+
+`gopherkind inspect npub1...` performs the read side of that check again later.
+It shows how many current documents are readable from each configured,
+hinted and author write relay, including stale and missing paths. This is a
+snapshot of retrievability now, not a retention guarantee.
+
+To recover a hole into editable files:
+
+```sh
+gopherkind export npub1... ./recovered-hole
+gopherkind publish ./recovered-hole
+```
+
+The export includes `.gopherkind.json`, which maps each source file back to
+its exact path, item type and title. The manifest is authoritative when that
+directory is published, so coordinates which cannot be represented safely by
+filename conventions still round-trip. Export refuses a non-empty directory;
+use `--force` only when deliberately replacing an earlier snapshot.
 
 To take something down, `gopherkind unpublish /about.txt` (or `--all`)
 sends a NIP-09 deletion request. Honest caveat: relays are free to
@@ -267,7 +288,11 @@ Every hole has these paths, whether or not anyone published anything:
 | `/` | root menu |
 | `/profile.txt` | kind 0 profile |
 | `/notes`, `/notes/<id>` | recent top-level notes |
+| `/replies` | kind 1 replies which tag the hole owner |
+| `/mentions` | top-level kind 1 mentions which tag the hole owner |
+| `/threads/<id>` | note context and replies found on the bridge relays |
 | `/articles`, `/articles/<naddr>` | NIP-23 long-form |
+| `/feed.xml` | Atom feed of recent notes and articles, using `nostr:` IDs |
 | `/follows` | who they follow, each linking to that person's hole |
 | `/followers` | who follows them (a sample of what relays carry) |
 

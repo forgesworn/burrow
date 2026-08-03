@@ -46,6 +46,12 @@ export interface PoolLike {
   destroy(): void
 }
 
+export interface ThreadView {
+  focus: Event
+  ancestors: Event[]
+  replies: Event[]
+}
+
 // Fetches events from relays with bounded TTL caches so gopher clients
 // hammering menus don't hammer relays. One-shot queries only; no live
 // subscriptions.
@@ -57,6 +63,8 @@ export class HoleStore {
   private holeCache = new TtlLru<Event[]>(100, MINUTE)
   private profileCache = new TtlLru<Event | null>(200, 5 * MINUTE)
   private notesCache = new TtlLru<Event[]>(100, 2 * MINUTE)
+  private interactionsCache = new TtlLru<Event[]>(200, 2 * MINUTE)
+  private threadCache = new TtlLru<ThreadView | null>(200, 2 * MINUTE)
   private articlesCache = new TtlLru<Event[]>(100, 2 * MINUTE)
   private articleCache = new TtlLru<Event | null>(500, 2 * MINUTE)
   private eventCache = new TtlLru<Event | null>(500, 10 * MINUTE)
@@ -230,6 +238,46 @@ export class HoleStore {
     return value
   }
 
+  private async interactions(
+    pubkey: string,
+    kind: 'replies' | 'mentions',
+    before?: TimeCursor,
+  ): Promise<Event[]> {
+    const key = `${kind}|${pubkey}${before ? `|${before.createdAt}|${before.id}` : ''}`
+    const hit = this.interactionsCache.get(key)
+    if (hit !== undefined) return currentEvents(hit)
+    const events = await this.query(
+      {
+        kinds: [NOTE_KIND],
+        '#p': [pubkey],
+        limit: 500,
+        ...(before ? { until: before.createdAt } : {}),
+      },
+      6000,
+      await this.authorRelays(pubkey),
+    )
+    const wantsReplies = kind === 'replies'
+    const now = Math.floor(Date.now() / 1000)
+    const value = dedupeById(events)
+      .filter((event) => event.kind === NOTE_KIND)
+      .filter((event) => !isExpired(event, now))
+      .filter((event) => event.tags.some((tag) => tag[0] === 'p' && tag[1] === pubkey))
+      .filter((event) => event.tags.some((tag) => tag[0] === 'e') === wantsReplies)
+      .filter((event) => before === undefined || isAfterCursor(event, before))
+      .sort(eventOrder)
+      .slice(0, PAGE)
+    this.interactionsCache.set(key, value)
+    return value
+  }
+
+  async replies(pubkey: string, before?: TimeCursor): Promise<Event[]> {
+    return this.interactions(pubkey, 'replies', before)
+  }
+
+  async mentions(pubkey: string, before?: TimeCursor): Promise<Event[]> {
+    return this.interactions(pubkey, 'mentions', before)
+  }
+
   async articles(pubkey: string, before?: TimeCursor): Promise<Event[]> {
     const key = before === undefined ? pubkey : `${pubkey}|${before.createdAt}|${before.id}`
     const hit = this.articlesCache.get(key)
@@ -303,6 +351,83 @@ export class HoleStore {
     const value =
       candidate && !isExpired(candidate, Math.floor(Date.now() / 1000)) ? candidate : null
     this.eventCache.set(id, value)
+    return value
+  }
+
+  async note(pubkey: string, id: string): Promise<Event | null> {
+    const hit = this.eventCache.get(id)
+    if (hit !== undefined) {
+      const current = currentEvent(hit)
+      return current?.kind === NOTE_KIND && current.pubkey === pubkey ? current : null
+    }
+    const events = await this.query(
+      { ids: [id], kinds: [NOTE_KIND], authors: [pubkey] },
+      4000,
+      await this.authorRelays(pubkey),
+    )
+    const candidate = events.find(
+      (event) => event.id === id && event.kind === NOTE_KIND && event.pubkey === pubkey,
+    )
+    const value = candidate ? currentEvent(candidate) : null
+    this.eventCache.set(id, value)
+    return value
+  }
+
+  async thread(pubkey: string, id: string): Promise<ThreadView | null> {
+    const key = `${pubkey}|${id}`
+    const hit = this.threadCache.get(key)
+    if (hit !== undefined) {
+      if (hit === null) return null
+      return {
+        focus: hit.focus,
+        ancestors: currentEvents(hit.ancestors),
+        replies: currentEvents(hit.replies),
+      }
+    }
+    const focus = await this.note(pubkey, id)
+    if (focus === null) {
+      this.threadCache.set(key, null)
+      return null
+    }
+    const refs = threadReferences(focus)
+    const contextIds = [
+      ...new Set(
+        [refs.root, refs.parent].filter((value): value is string => value !== null && value !== id),
+      ),
+    ]
+    const replyRefs = [...new Set([refs.root ?? id, id])]
+    const relays = union(this.relays, await this.authorRelays(pubkey))
+    const [context, replies] = await Promise.all([
+      contextIds.length === 0
+        ? Promise.resolve([])
+        : this.query(
+            { ids: contextIds, kinds: [NOTE_KIND], limit: contextIds.length },
+            4000,
+            relays,
+          ),
+      this.query({ kinds: [NOTE_KIND], '#e': replyRefs, limit: 500 }, 6000, relays),
+    ])
+    const now = Math.floor(Date.now() / 1000)
+    const byId = new Map(
+      context
+        .filter((event) => contextIds.includes(event.id))
+        .filter((event) => event.kind === NOTE_KIND && !isExpired(event, now))
+        .map((event) => [event.id, event]),
+    )
+    const ancestors = contextIds
+      .map((contextId) => byId.get(contextId))
+      .filter((event): event is Event => event !== undefined)
+    const replyEvents = dedupeById(replies)
+      .filter((event) => event.kind === NOTE_KIND && event.id !== id)
+      .filter((event) => !isExpired(event, now))
+      .filter((event) =>
+        event.tags.some((tag) => tag[0] === 'e' && replyRefs.includes(tag[1] ?? '')),
+      )
+      .filter((event) => !contextIds.includes(event.id))
+      .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))
+      .slice(0, 100)
+    const value = { focus, ancestors, replies: replyEvents }
+    this.threadCache.set(key, value)
     return value
   }
 
@@ -505,6 +630,19 @@ function dedupeById(events: Event[]): Event[] {
   const byId = new Map<string, Event>()
   for (const ev of events) byId.set(ev.id, ev)
   return [...byId.values()]
+}
+
+function threadReferences(event: Event): { root: string | null; parent: string | null } {
+  const refs = event.tags.filter(
+    (tag) => tag[0] === 'e' && typeof tag[1] === 'string' && /^[0-9a-f]{64}$/.test(tag[1]),
+  )
+  const markedRoot = refs.find((tag) => tag[3] === 'root')?.[1] ?? null
+  const markedParent = refs.find((tag) => tag[3] === 'reply')?.[1] ?? null
+  const unmarked = refs.filter((tag) => tag[3] === undefined).map((tag) => tag[1] as string)
+  return {
+    root: markedRoot ?? unmarked[0] ?? null,
+    parent: markedParent ?? unmarked.at(-1) ?? null,
+  }
 }
 
 function union(a: string[], b: string[]): string[] {

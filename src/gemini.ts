@@ -422,7 +422,7 @@ function toGemini(content: Content): string {
     case 'menu':
       return `20 text/gemini; charset=utf-8\r\n${renderGemtextMenu(content.title, content.items)}`
     case 'text':
-      return `20 text/plain; charset=utf-8\r\n${content.body}`
+      return `20 ${content.mediaType ?? 'text/plain; charset=utf-8'}\r\n${content.body}`
     case 'error':
       return `51 ${content.message}\r\n`
   }
@@ -433,7 +433,8 @@ async function welcomePage(ctx: GeminiContext, store: HoleStore): Promise<string
     '# gopherkind',
     '',
     'Gopherholes served from Nostr relays. Every hole is a set of signed',
-    'Nostr events (kind 31436); relays mirror it, any bridge serves it.',
+    'Nostr events (kind 31436). Any bridge that can retrieve a relay copy',
+    'can serve it; relay retention is not guaranteed.',
     '',
     'Browse a hole at /<npub>. Any npub works: profiles, notes and',
     'long-form articles are served as a virtual hole even when nothing',

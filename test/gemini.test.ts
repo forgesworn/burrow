@@ -70,6 +70,12 @@ test('virtual note is served over gemini', async () => {
   assert.match(out, /braying about gopherspace/)
 })
 
+test('Atom feed keeps its media type over Gemini', async () => {
+  const out = await respondGemini(`gemini://localhost/${npub}/feed.xml`, ctx, store)
+  assert.match(out, /^20 application\/atom\+xml; charset=utf-8\r\n<\?xml/)
+  assert.match(out, /nostr:nevent1/)
+})
+
 test('errors use gemini status codes', async () => {
   assert.match(await respondGemini('gemini://localhost/nonsense', ctx, store), /^51 /)
   assert.match(await respondGemini(`gemini://localhost/${npub}/missing.txt`, ctx, store), /^51 /)
@@ -78,6 +84,19 @@ test('errors use gemini status codes', async () => {
 })
 
 const hasOpenssl = spawnSync('openssl', ['version'], { stdio: 'ignore' }).status === 0
+
+test('generated certificates use an IP SAN when the advertised host is an IP', {
+  skip: !hasOpenssl,
+}, (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-ip-cert-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const certs = ensureSelfSignedCert(dir, '192.0.2.10')
+  const details = spawnSync('openssl', ['x509', '-in', certs.cert, '-noout', '-text'], {
+    encoding: 'utf8',
+  })
+  assert.equal(details.status, 0)
+  assert.match(details.stdout, /IP Address:192\.0\.2\.10/)
+})
 
 test('tls round trip with a generated certificate', { skip: !hasOpenssl }, async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-cert-'))

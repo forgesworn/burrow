@@ -56,14 +56,29 @@ views from ordinary Nostr events:
 | `/profile.txt` | Kind `0` profile as text |
 | `/notes` | Recent top-level kind `1` notes |
 | `/notes/<event-id>` | One kind `1` note |
+| `/replies` | Kind `1` events which tag the owner and carry an `e` tag |
+| `/mentions` | Kind `1` events which tag the owner without an `e` tag |
+| `/threads/<event-id>` | A note, its marked or legacy ancestors, and available replies |
 | `/articles` | NIP-23 kind `30023` articles |
 | `/articles/<naddr>` | One NIP-23 article |
+| `/feed.xml` | Atom feed of recent notes and articles using `nostr:` identifiers |
 | `/follows` | The newest kind `3` contact list |
 | `/followers` | Authors whose newest available kind `3` tags this pubkey |
 
 An authored document always wins at the same path. Single-note and
-single-article links MAY remain available when generated index pages are
+single-article and thread links MAY remain available when generated index pages are
 disabled.
+
+Replies, mentions and thread replies are samples of the events carried by the
+bridge's relay set; they are not complete global counts. A reply has an `e`
+tag and a `p` tag for the hole owner. A mention has the `p` tag without an
+`e` tag. Thread ancestry follows NIP-10 `root` and `reply` markers, with the
+legacy first/last unmarked `e` convention as a fallback.
+
+The Atom document SHOULD use Nostr URIs for feed, entry and alternate-link
+identifiers so the feed does not acquire a dependency on the serving bridge's
+hostname. HTTP SHOULD return `application/atom+xml`; other text-oriented
+frontends MAY expose the same XML bytes as a text document.
 
 Article permalinks use an `naddr` as one path segment. They MUST NOT interpolate
 the article's free-form `d` directly into a path, because it may contain `/`
@@ -77,6 +92,8 @@ Time-ordered pages use a composite cursor containing the last event's
 
 ```text
 /notes/before/<unix>/<event-id>
+/replies/before/<unix>/<event-id>
+/mentions/before/<unix>/<event-id>
 /articles/before/<unix>/<event-id>
 ```
 

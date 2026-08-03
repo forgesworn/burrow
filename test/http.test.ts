@@ -94,6 +94,17 @@ test('http frontend', async (t) => {
     assert.match(await res.text(), /Not found/)
   })
 
+  await t.test('virtual holes expose a raw Atom feed', async (t2) => {
+    const base = await start(t2)
+    const res = await fetch(`${base}/${npub}/feed.xml`)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('content-type'), 'application/atom+xml; charset=utf-8')
+    const body = await res.text()
+    assert.match(body, /<feed xmlns="http:\/\/www\.w3\.org\/2005\/Atom">/)
+    assert.match(body, /nostr:nevent1/)
+    assert.doesNotMatch(body, /<!doctype html>/i)
+  })
+
   await t.test('URL paths distinguish a space from a literal percent escape', async (t2) => {
     const base = await start(t2)
     const space = await (await fetch(`${base}/${npub}/a%20b`)).text()

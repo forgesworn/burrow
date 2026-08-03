@@ -74,4 +74,24 @@ within the pre-1.0 series unless a release note explicitly says otherwise.
 
 Relay acceptance is not service health. After publishing, use the publisher's
 per-relay acceptance and read-back report as the evidence that documents are
-actually retrievable.
+actually retrievable. Re-run the read check later with:
+
+```sh
+gopherkind inspect npub1...
+```
+
+The inspection discovers the author's current NIP-65 write relays and reports
+current, stale and missing documents per relay. It proves what can be read at
+that moment, not future retention.
+
+Keep an editable recovery snapshot outside the bridge state directory:
+
+```sh
+gopherkind export npub1... /srv/backups/my-hole
+```
+
+The snapshot contains ordinary text and kindmap files plus a
+`.gopherkind.json` manifest. `gopherkind publish /srv/backups/my-hole`
+re-publishes the exact paths, types and titles. A later export refuses to
+overwrite a non-empty target unless `--force` is supplied; rotate or copy the
+previous snapshot before doing that.

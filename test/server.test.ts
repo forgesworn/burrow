@@ -78,6 +78,13 @@ test('gopher server end to end', async (t) => {
     assert.match(out, /braying about gopherspace/)
   })
 
+  await t.test('Atom feed is readable as a gopher text item', async () => {
+    const out = await request(port, `/${npub}/feed.xml`)
+    assert.match(out, /<feed xmlns="http:\/\/www\.w3\.org\/2005\/Atom">/)
+    assert.match(out, /nostr:nevent1/)
+    assert.ok(out.endsWith('\r\n.\r\n'))
+  })
+
   await t.test('virtual articles are served', async () => {
     const path = articleLink(article) as string
     const menu = await request(port, `/${npub}/articles`)

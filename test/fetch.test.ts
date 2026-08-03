@@ -216,3 +216,80 @@ test('query failures degrade to an empty result, not a throw', async () => {
   })
   assert.deepEqual(await store.notes(pk), [])
 })
+
+test('replies and mentions are separated and require a real p tag', async () => {
+  const rootId = 'a'.repeat(64)
+  const reply = ev({
+    kind: NOTE_KIND,
+    content: 'reply',
+    tags: [
+      ['p', pk],
+      ['e', rootId, '', 'reply'],
+    ],
+  })
+  const mention = ev({ kind: NOTE_KIND, content: 'mention', tags: [['p', pk]] })
+  const noise = ev({ kind: NOTE_KIND, content: 'noise', tags: [] })
+  const store = new HoleStore(
+    ['wss://bridge'],
+    fakePool((filter) => (filter['#p'] ? [noise, mention, reply] : [])),
+  )
+  assert.deepEqual(
+    (await store.replies(pk)).map((event) => event.id),
+    [reply.id],
+  )
+  assert.deepEqual(
+    (await store.mentions(pk)).map((event) => event.id),
+    [mention.id],
+  )
+})
+
+test('thread resolves marked ancestors and replies around an author note', async () => {
+  const root = ev({ kind: NOTE_KIND, created_at: now - 30, content: 'root' })
+  const parent = ev({
+    kind: NOTE_KIND,
+    created_at: now - 20,
+    content: 'parent',
+    tags: [['e', root.id, '', 'root']],
+  })
+  const focus = ev({
+    kind: NOTE_KIND,
+    created_at: now - 10,
+    content: 'focus',
+    tags: [
+      ['e', root.id, '', 'root'],
+      ['e', parent.id, '', 'reply'],
+    ],
+  })
+  const reply = ev({
+    kind: NOTE_KIND,
+    content: 'child',
+    tags: [
+      ['e', root.id, '', 'root'],
+      ['e', focus.id, '', 'reply'],
+    ],
+  })
+  const all = [root, parent, focus, reply]
+  const store = new HoleStore(
+    ['wss://bridge'],
+    fakePool((filter) => {
+      if (filter.kinds?.includes(RELAY_LIST_KIND)) return []
+      if (filter.ids) return all.filter((event) => filter.ids?.includes(event.id))
+      if (filter['#e']) {
+        return all.filter((event) =>
+          event.tags.some((tag) => tag[0] === 'e' && filter['#e']?.includes(tag[1] ?? '')),
+        )
+      }
+      return []
+    }),
+  )
+  const thread = await store.thread(pk, focus.id)
+  assert.equal(thread?.focus.id, focus.id)
+  assert.deepEqual(
+    thread?.ancestors.map((event) => event.id),
+    [root.id, parent.id],
+  )
+  assert.deepEqual(
+    thread?.replies.map((event) => event.id),
+    [reply.id],
+  )
+})

@@ -86,6 +86,11 @@ export function makeStore(published: unknown[] = []): HoleStore {
     article: async (pk: string, d: string) =>
       pk === pubkey && d === 'pallasite-lore' ? article : null,
     event: async (id: string) => (id === note.id ? note : null),
+    note: async (pk: string, id: string) => (pk === pubkey && id === note.id ? note : null),
+    replies: async () => [],
+    mentions: async () => [],
+    thread: async (pk: string, id: string) =>
+      pk === pubkey && id === note.id ? { focus: note, ancestors: [], replies: [] } : null,
     searchRelays: async () => [],
     contacts: async (pk: string) => (pk === pubkey ? [pubkey] : []),
     followers: async (pk: string) => (pk === pubkey ? [pubkey] : []),

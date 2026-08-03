@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, chmodSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { isIP } from 'node:net'
 import path from 'node:path'
 
 // Gemini expects TLS with long-lived self-signed certs (clients do TOFU).
@@ -29,7 +30,8 @@ export function ensureSelfSignedCert(dir: string, cn: string): { cert: string; k
   // A subjectAltName is required by newer Gemini clients, but -addext is not
   // in every openssl/LibreSSL build; fall back to a cert without it rather
   // than failing to serve Gemini at all.
-  let res = spawnSync('openssl', [...base, '-addext', `subjectAltName=DNS:${cn}`], {
+  const altName = isIP(cn) ? `IP:${cn}` : `DNS:${cn}`
+  let res = spawnSync('openssl', [...base, '-addext', `subjectAltName=${altName}`], {
     stdio: 'ignore',
   })
   if (res.status !== 0) res = spawnSync('openssl', base, { stdio: 'ignore' })
