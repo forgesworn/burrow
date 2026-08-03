@@ -40,7 +40,11 @@ export class HoleStore {
   private async query(filter: Filter, maxWait: number): Promise<Event[]> {
     try {
       await this.silenceNotices()
-      return await this.pool.querySync(this.relays, filter, { maxWait })
+      const events = await this.pool.querySync(this.relays, filter, { maxWait })
+      // Expired events (NIP-40) must never be served; drop them at the one
+      // choke point every read path goes through.
+      const now = Math.floor(Date.now() / 1000)
+      return events.filter((ev) => !isExpired(ev, now))
     } catch {
       return []
     }
@@ -80,7 +84,7 @@ export class HoleStore {
       if (isExpired(ev, now)) continue
       const path = docPath(ev)
       const prev = byPath.get(path)
-      if (!prev || prev.created_at < ev.created_at) byPath.set(path, ev)
+      if (!prev || isNewer(ev, prev)) byPath.set(path, ev)
     }
     const value = [...byPath.values()].sort((a, b) => docPath(a).localeCompare(docPath(b)))
     this.holeCache.set(pubkey, value)
@@ -118,7 +122,7 @@ export class HoleStore {
       if (isExpired(ev, now)) continue
       const d = tagValue(ev, 'd') ?? ''
       const prev = byD.get(d)
-      if (!prev || prev.created_at < ev.created_at) byD.set(d, ev)
+      if (!prev || isNewer(ev, prev)) byD.set(d, ev)
     }
     const value = [...byD.values()].sort((a, b) => b.created_at - a.created_at)
     this.articlesCache.set(pubkey, value)
@@ -140,7 +144,11 @@ export class HoleStore {
 
   async event(id: string): Promise<Event | null> {
     const hit = this.eventCache.get(id)
-    if (hit !== undefined) return hit
+    if (hit !== undefined) {
+      // A cached event can expire within its TTL; re-check on every hit.
+      if (hit && isExpired(hit, Math.floor(Date.now() / 1000))) return null
+      return hit
+    }
     const events = await this.query({ ids: [id] }, 4000)
     const value = events[0] ?? null
     this.eventCache.set(id, value)
@@ -166,7 +174,7 @@ export class HoleStore {
     const hit = this.contactsCache.get(pubkey)
     if (hit !== undefined) return hit
     const events = await this.query({ kinds: [CONTACTS_KIND], authors: [pubkey], limit: 1 }, 4000)
-    const newest = events.sort((a, b) => b.created_at - a.created_at)[0]
+    const newest = events.sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))[0]
     const value = newest
       ? [...new Set(newest.tags.filter((t) => t[0] === 'p' && t[1]).map((t) => t[1] as string))]
       : []
@@ -201,7 +209,7 @@ export class HoleStore {
       const byPk = new Map<string, Event>()
       for (const ev of events) {
         const prev = byPk.get(ev.pubkey)
-        if (!prev || prev.created_at < ev.created_at) byPk.set(ev.pubkey, ev)
+        if (!prev || isNewer(ev, prev)) byPk.set(ev.pubkey, ev)
       }
       for (const pk of missing) {
         const ev = byPk.get(pk) ?? null
@@ -214,7 +222,7 @@ export class HoleStore {
 
   async feedNotes(pubkeys: string[]): Promise<Event[]> {
     if (pubkeys.length === 0) return []
-    const key = `${pubkeys.length}|${pubkeys.slice(0, 8).join(',')}`
+    const key = pubkeySetKey(pubkeys)
     const hit = this.feedCache.get(key)
     if (hit !== undefined) return hit
     const events = await this.query({ kinds: [NOTE_KIND], authors: pubkeys, limit: 100 }, 6000)
@@ -236,14 +244,31 @@ export class HoleStore {
   }
 }
 
+// NIP-01: the newest event wins; on a created_at tie the lowest id wins, so
+// every bridge resolves a replaceable event to the same one.
+function isNewer(a: Event, b: Event): boolean {
+  if (a.created_at !== b.created_at) return a.created_at > b.created_at
+  return a.id < b.id
+}
+
 function latest(events: Event[]): Event | null {
   const now = Math.floor(Date.now() / 1000)
   let best: Event | null = null
   for (const ev of events) {
     if (isExpired(ev, now)) continue
-    if (!best || ev.created_at > best.created_at) best = ev
+    if (!best || isNewer(ev, best)) best = ev
   }
   return best
+}
+
+// Stable key for a set of follow pubkeys: order-independent, collision-free
+// across different sets (the previous length+first-8 key aliased them).
+function pubkeySetKey(pubkeys: string[]): string {
+  let h = 5381
+  for (const pk of [...pubkeys].sort()) {
+    for (let i = 0; i < pk.length; i++) h = ((h << 5) + h + pk.charCodeAt(i)) | 0
+  }
+  return `${pubkeys.length}:${(h >>> 0).toString(36)}`
 }
 
 function dedupeById(events: Event[]): Event[] {

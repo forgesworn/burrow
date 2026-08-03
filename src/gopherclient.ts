@@ -1,7 +1,7 @@
 import net from 'node:net'
 import type { Content } from './router.ts'
 import type { MenuItem } from './resolve.ts'
-import { info } from './resolve.ts'
+import { info, isSafeWebUrl } from './resolve.ts'
 import {
   holeFromSelector,
   parseClientTarget,
@@ -98,9 +98,14 @@ export function parseGopherMenu(body: string): MenuItem[] {
       continue
     }
     if (type === 'h' && selector.startsWith('URL:')) {
-      items.push(
-        nostrAware({ type: 'h', display, target: { scheme: 'web', url: selector.slice(4) } }),
-      )
+      const url = selector.slice(4)
+      if (isSafeWebUrl(url)) {
+        items.push(nostrAware({ type: 'h', display, target: { scheme: 'web', url } }))
+      } else {
+        // javascript:/data:/file: etc. from a hostile server: keep the text,
+        // drop the link.
+        items.push(info(display))
+      }
       continue
     }
     items.push(

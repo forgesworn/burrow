@@ -26,6 +26,15 @@ export function info(display: string): MenuItem {
   return { type: 'i', display, target: { scheme: 'none' } }
 }
 
+// Only these schemes may become a rendered link. Blocks javascript: and
+// data: URLs, which a hostile gopher server could otherwise plant in an
+// h/URL: line and have the HTML frontend emit as a live href.
+const SAFE_URL = /^(?:https?|gopher|gemini|nostr):/i
+
+export function isSafeWebUrl(url: string): boolean {
+  return SAFE_URL.test(url.trim())
+}
+
 function normalisePath(p: string): string {
   const cleaned = ('/' + p.replace(/^\/+/, '')).replace(/\/+$/, '')
   return cleaned === '' ? '/' : cleaned
