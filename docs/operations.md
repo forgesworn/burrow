@@ -5,8 +5,8 @@ to `127.0.0.1`. Exposing a bridge is an explicit operator decision.
 
 ## Public reference bridge
 
-The reference deployment runs release `v0.10.0` at commit
-`8222f9f7e819d29116d587c74799847ffd97c3a6`:
+The reference deployment runs release `v0.10.1` at commit
+`c579ce10d21e06b406da5d888d8c33bb4c1045a5`:
 
 - `gopher://gopherkind.com/`
 - `gemini://gopherkind.com/`
