@@ -29,9 +29,11 @@ export interface PlannedDoc {
 }
 
 export const RECOVERY_MANIFEST = '.gopherkind.json'
-// A 19 KiB request and its slightly larger signed response both remain below
-// the next NIP-44 padding step, leaving room inside a 32 KiB hardware frame.
-export const NIP46_SIGNING_REQUEST_LIMIT = 19 * 1024
+// Real ESP32 signing transports have rebooted on responses around 7 KiB even
+// though their nominal protocol frames are larger. A 1.5 KiB plaintext request
+// leaves comfortable room for NIP-44 padding and the signed response envelope
+// beneath the practical 4 KiB transport boundary.
+export const NIP46_SIGNING_REQUEST_LIMIT = 1536
 
 interface RecoveryManifestEntry {
   file: string
