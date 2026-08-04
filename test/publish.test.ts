@@ -7,7 +7,8 @@ import {
   planDirectory,
   docToTemplate,
   nip46SigningRequestBytes,
-  NIP46_SIGNING_REQUEST_LIMIT,
+  nip46SigningResponseBytes,
+  NIP46_SIGNING_PLAINTEXT_LIMIT,
   parseDuration,
   planDeletion,
   publishDocument,
@@ -94,8 +95,10 @@ test('NIP-46 signing request accounting includes the nested event JSON', () => {
     1000,
   )
   assert.ok(nip46SigningRequestBytes(template) > Buffer.byteLength(JSON.stringify(template)))
-  assert.equal(NIP46_SIGNING_REQUEST_LIMIT, 1536)
-  assert.ok(nip46SigningRequestBytes(template) < NIP46_SIGNING_REQUEST_LIMIT)
+  assert.equal(NIP46_SIGNING_PLAINTEXT_LIMIT, 20 * 1024)
+  assert.ok(nip46SigningRequestBytes(template) < NIP46_SIGNING_PLAINTEXT_LIMIT)
+  assert.ok(nip46SigningResponseBytes(template) > nip46SigningRequestBytes(template))
+  assert.ok(nip46SigningResponseBytes(template) < NIP46_SIGNING_PLAINTEXT_LIMIT)
 })
 
 test('planDeletion covers each document with e and a tags', () => {
@@ -304,11 +307,39 @@ test('single-document publishing rejects an oversized NIP-46 request before sign
   }
   await assert.rejects(
     publishDocument(
-      { path: '/', type: '1', title: 'root', content: 'x'.repeat(2 * 1024) },
+      { path: '/', type: '1', title: 'root', content: 'x'.repeat(21 * 1024) },
       ['wss://configured.example'],
       signer,
     ),
     /too large for a portable relay-and-hardware NIP-46 signer/,
+  )
+  assert.equal(signatures, 0)
+})
+
+test('single-document publishing reserves room for the signed NIP-46 response', async () => {
+  const empty = docToTemplate({ path: '/', type: '1', title: 'root', content: '' }, 1000)
+  const content = 'x'.repeat(NIP46_SIGNING_PLAINTEXT_LIMIT - nip46SigningRequestBytes(empty))
+  const template = docToTemplate({ path: '/', type: '1', title: 'root', content }, 1000)
+  assert.equal(nip46SigningRequestBytes(template), NIP46_SIGNING_PLAINTEXT_LIMIT)
+  assert.ok(nip46SigningResponseBytes(template) > NIP46_SIGNING_PLAINTEXT_LIMIT)
+
+  let signatures = 0
+  const signer: CliSigner = {
+    describe: 'counting remote signer',
+    pubkey: async () => '0'.repeat(64),
+    sign: async () => {
+      signatures += 1
+      throw new Error('signer must not be called')
+    },
+  }
+  await assert.rejects(
+    publishDocument(
+      { path: '/', type: '1', title: 'root', content },
+      ['wss://configured.example'],
+      signer,
+      { now: 1000 },
+    ),
+    /signed response .* limit 20480/,
   )
   assert.equal(signatures, 0)
 })

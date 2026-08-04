@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.1 (2026-08-04)
+
+### Fixed
+
+- restore rich ANSI menu artwork when both its signing request and signed
+  response fit the safe 20 KiB NIP-44 plaintext step, after eliminating the
+  hardware signer's large-frame and response-copy memory spikes; encrypted
+  envelopes remain below 32 KiB
+
 ## 0.12.0 (2026-08-04)
 
 ### Page management
