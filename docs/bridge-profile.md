@@ -142,6 +142,10 @@ authored and virtual pages SHOULD expose that npub path as their canonical URL
 and MAY emit equivalent social-preview metadata.
 
 Menus become gemtext or plain HTML, and type `0` documents remain plain text.
+An HTTP renderer MAY translate ANSI Select Graphic Rendition sequences in
+traditional Gopher content into inert inline styling. It MUST discard other
+terminal controls rather than exposing cursor movement, terminal hyperlinks
+or clipboard commands as active browser behaviour.
 Frontends SHOULD serve a robots policy which prevents a bridge's proxy and
 account routes from turning into a crawler gateway while allowing authored
 documents to be indexed.
