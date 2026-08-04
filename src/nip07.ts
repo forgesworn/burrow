@@ -126,6 +126,44 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
     })
   }
 
+  const enableTheme = () => {
+    const root = document.documentElement
+    const button = document.querySelector('[data-theme-toggle]')
+    if (!root || !button) return
+    const media = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)') : null
+    let stored = null
+    try {
+      stored = window.localStorage.getItem('gopherkind-theme')
+    } catch {
+      // A blocked storage API should not prevent the system theme from working.
+    }
+    if (stored === 'dark' || stored === 'light') root.dataset.theme = stored
+
+    const activeTheme = () => root.dataset.theme || (media && media.matches ? 'dark' : 'light')
+    const render = () => {
+      const active = activeTheme()
+      const next = active === 'dark' ? 'light' : 'dark'
+      button.textContent = next + ' mode'
+      button.setAttribute('aria-label', 'Switch to ' + next + ' mode')
+      button.hidden = false
+    }
+    button.addEventListener('click', () => {
+      const next = activeTheme() === 'dark' ? 'light' : 'dark'
+      root.dataset.theme = next
+      try {
+        window.localStorage.setItem('gopherkind-theme', next)
+      } catch {
+        // The explicit choice still applies for this page when storage is blocked.
+      }
+      render()
+    })
+    if (!stored && media && typeof media.addEventListener === 'function') {
+      media.addEventListener('change', render)
+    }
+    render()
+  }
+
   const signedTemplate = (form) => {
     const data = new FormData(form)
     const created_at = Math.floor(Date.now() / 1000)
@@ -244,6 +282,7 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
   }
 
   enableBackNavigation()
+  enableTheme()
   enableConnect()
   enableSigningForms()
 })()
