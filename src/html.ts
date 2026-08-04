@@ -217,24 +217,32 @@ export interface PageMeta {
 }
 
 const STYLE = `*{box-sizing:border-box}
-body{--terminal-fg:#eae6dc;--terminal-bg:#111;max-width:54em;margin:2em auto;padding:0 1em;
+:root{color-scheme:dark;--terminal-fg:#eae6dc;--terminal-bg:#111;--link:#8fd;
+--control-bg:#000;--control-border:#666;--rule:#444}
+:root[data-theme="light"]{color-scheme:light;--terminal-fg:#111;--terminal-bg:#fff;--link:#046;
+--control-bg:#fff;--control-border:#888;--rule:#bbb}
+:root[data-theme="dark"]{color-scheme:dark;--terminal-fg:#eae6dc;--terminal-bg:#111;--link:#8fd;
+--control-bg:#000;--control-border:#666;--rule:#444}
+body{max-width:54em;margin:2em auto;padding:0 1em;
 font-family:monospace;font-size:1rem;line-height:1.5;background:var(--terminal-bg);
 color:var(--terminal-fg);overflow-wrap:anywhere}
-a{color:#8fd}h1,h2{font-weight:normal}
+a{color:var(--link)}h1,h2{font-weight:normal}
 nav{display:flex;flex-wrap:wrap;gap:.25em 1em}
+nav button{font:inherit;color:var(--link);background:transparent;border:0;padding:0;text-decoration:underline;cursor:pointer}
 pre{white-space:pre;overflow-x:auto;max-width:100%}
-hr{border:0;border-top:1px solid #444}
-textarea,input,button,select{font-family:monospace;font-size:1rem;background:#000;color:#eae6dc;
-border:1px solid #666;padding:.4em;max-width:100%}
+hr{border:0;border-top:1px solid var(--rule)}
+textarea,input,button,select{font-family:monospace;font-size:1rem;background:var(--control-bg);color:var(--terminal-fg);
+border:1px solid var(--control-border);padding:.4em;max-width:100%}
 textarea{width:100%;resize:vertical}
-@media(prefers-color-scheme:light){body{--terminal-fg:#111;--terminal-bg:#fff}a{color:#046}
-textarea,input,button,select{background:#fff;color:#111}}`
+@media(prefers-color-scheme:light){:root:not([data-theme]){color-scheme:light;--terminal-fg:#111;
+--terminal-bg:#fff;--link:#046;--control-bg:#fff;--control-border:#888;--rule:#bbb}}`
 
 export function page(title: string, body: string, signedIn: boolean, meta: PageMeta = {}): string {
   const back = '<a href="/" data-history-back>back</a>'
+  const theme = '<button type="button" data-theme-toggle hidden>theme</button>'
   const nav = signedIn
-    ? `${back}<a href="/">home</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>`
-    : `${back}<a href="/">home</a><a href="/account">sign in</a>`
+    ? `${back}<a href="/">home</a><a href="/me">my hole</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>${theme}`
+    : `${back}<a href="/">home</a><a href="/account">sign in</a>${theme}`
   const metadata = [
     meta.canonical ? `<link rel="canonical" href="${esc(meta.canonical)}">` : '',
     meta.description ? `<meta name="description" content="${esc(meta.description)}">` : '',
@@ -249,6 +257,7 @@ export function page(title: string, body: string, signedIn: boolean, meta: PageM
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>${esc(title)}</title>
 ${metadata}
 <style>${STYLE}</style><script src="/browser.js" defer></script></head>

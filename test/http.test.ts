@@ -242,6 +242,12 @@ test('http frontend', async (t) => {
       const body = await (await fetch(`${base}/account`)).text()
       assert.match(body, /Signed in as/)
       assert.match(body, /local operator/)
+      assert.match(body, /href="\/me">My hole<\/a>/)
+      const home = await (await fetch(base)).text()
+      assert.match(home, /href="\/me">Open my hole<\/a>/)
+      const mine = await fetch(`${base}/me`, { redirect: 'manual' })
+      assert.equal(mine.status, 303)
+      assert.equal(mine.headers.get('location'), `/${npub}`)
     })
   })
 
@@ -253,6 +259,9 @@ test('http frontend', async (t) => {
       const post = await fetch(`${base}/post`, { redirect: 'manual' })
       assert.equal(post.status, 303)
       assert.equal(post.headers.get('location'), '/account')
+      const mine = await fetch(`${base}/me`, { redirect: 'manual' })
+      assert.equal(mine.status, 303)
+      assert.equal(mine.headers.get('location'), '/account')
     })
   })
 

@@ -460,6 +460,10 @@ async function handle(
     }
   }
   if (path === '/account') return accountPage(opts, viewer, store, signedIn)
+  if (path === '/me') {
+    const pubkey = await viewerPubkey(viewer)
+    return pubkey === null ? redirect('/account') : redirect(`/${nip19.npubEncode(pubkey)}`)
+  }
   if (path === '/pair') return pairPage(req, opts, signedIn)
   if (path === '/unpair') return unpairPage(req, signedIn)
   if (path === '/post') return postPage(req, opts, store, viewer, signedIn)
@@ -614,6 +618,13 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     '<p><a href="/gopher/gopher.floodgap.com/1/">Floodgap</a> ',
     '<a href="/gopher/gopher.floodgap.com/1/world">Floodgap world map</a></p>',
   ]
+  if (signedIn) {
+    body.splice(
+      8,
+      0,
+      '<p><strong>Your identity is connected.</strong> <a href="/me">Open my hole</a>.</p>',
+    )
+  }
   if (opts.pins.length > 0) {
     body.push('<h2>Pinned holes</h2>')
     for (const npub of opts.pins) {
@@ -685,7 +696,7 @@ async function accountPage(
     viewer.kind === 'nip46' ? ' (NIP-46 remote signer)' : '',
     '</p>',
     `<p><code>${esc(npub)}</code></p>`,
-    `<p><a href="/${esc(npub)}">Your hole</a></p>`,
+    '<p><a href="/me">My hole</a></p>',
     '<p><a href="/feed">Your feed</a></p>',
     '<p><a href="/post">Write a note</a></p>',
   ]

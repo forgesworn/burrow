@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0 (2026-08-04)
+
+### Navigation
+
+- add a persistent `my hole` link to the signed-in HTTP navigation and account
+  page, backed by a session-aware `/me` redirect to the viewer's npub
+- make the signed-in home page say that an identity is connected and offer a
+  direct route into its hole
+
+### Appearance
+
+- follow the browser's light or dark preference by default and add an explicit
+  theme switch to every HTTP page
+- remember the visitor's theme choice locally while retaining a JavaScript-free
+  system-theme fallback
+
 ## 0.10.1 (2026-08-04)
 
 ### Publishing guidance

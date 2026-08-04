@@ -17,6 +17,67 @@ const url = 'https://bridge.example/nip07/connect'
 test('the HTTP browser enhancement is valid standalone JavaScript', () => {
   assert.doesNotThrow(() => new Function(HTTP_BROWSER_SCRIPT))
   assert.match(HTTP_BROWSER_SCRIPT, /window\.history\.back\(\)/)
+  assert.match(HTTP_BROWSER_SCRIPT, /gopherkind-theme/)
+})
+
+function exerciseTheme(
+  stored: string | null,
+  systemDark: boolean,
+): {
+  theme: string | undefined
+  label: string
+  saved: string | null
+} {
+  let click: () => void = () => {
+    throw new Error('theme handler was not registered')
+  }
+  let saved = stored
+  const root = { dataset: {} as Record<string, string> }
+  const button = {
+    hidden: true,
+    textContent: '',
+    setAttribute: () => {},
+    addEventListener: (name: string, handler: () => void) => {
+      if (name === 'click') click = handler
+    },
+  }
+  const browserWindow = {
+    navigation: { canGoBack: false },
+    history: { length: 1, back: () => {} },
+    nostr: undefined,
+    matchMedia: () => ({ matches: systemDark, addEventListener: () => {} }),
+    localStorage: {
+      getItem: () => saved,
+      setItem: (_key: string, value: string) => {
+        saved = value
+      },
+    },
+  }
+  const document = {
+    documentElement: root,
+    querySelector: (selector: string) => (selector === '[data-theme-toggle]' ? button : null),
+    querySelectorAll: () => [],
+  }
+  new Function('window', 'document', 'HTMLFormElement', HTTP_BROWSER_SCRIPT)(
+    browserWindow,
+    document,
+    class {},
+  )
+  click()
+  return { theme: root.dataset.theme, label: button.textContent, saved }
+}
+
+test('theme follows the system initially, toggles explicitly and remembers the choice', () => {
+  assert.deepEqual(exerciseTheme(null, true), {
+    theme: 'light',
+    label: 'dark mode',
+    saved: 'light',
+  })
+  assert.deepEqual(exerciseTheme('light', true), {
+    theme: 'dark',
+    label: 'light mode',
+    saved: 'dark',
+  })
 })
 
 function exerciseBackLink(options: {
