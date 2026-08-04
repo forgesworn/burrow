@@ -14,6 +14,7 @@ import { RateLimiter } from './ratelimit.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { matchPersonal, resolvePersonal, PERSONAL_ROOT } from './personal.ts'
+import { aboutContent, ABOUT_PATH } from './about.ts'
 import type { CliSigner } from './signing.ts'
 
 export interface ServeOptions {
@@ -100,6 +101,11 @@ export async function respond(
     }
   }
 
+  // Banner on: a gopher menu has nowhere else to carry the page title.
+  if (rawPath.trim() === ABOUT_PATH) {
+    return toGopher(aboutContent('gopher'), opts.bridge, true)
+  }
+
   let route: Route
   try {
     route = parseSelector(line)
@@ -141,6 +147,8 @@ async function welcome(
   }
   out += infoLine('Every hole here is a set of signed Nostr events (kind 31436).')
   out += infoLine('No single host owns the hole; it is readable while relays retain copies.')
+  out += infoLine('')
+  out += gopherLine('1', 'Why gopher on Nostr', ABOUT_PATH, host, port)
   out += infoLine('')
   out += infoLine('Browse a hole by selector:  /<npub>')
   out += infoLine('Any npub works: profiles, notes and long-form articles are')

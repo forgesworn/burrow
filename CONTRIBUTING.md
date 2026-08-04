@@ -17,7 +17,12 @@ npm run typecheck            # tsc --noEmit, strict
 npm run lint                 # biome: format check + lint, also runs in CI
 npm run format               # biome: apply the fixes
 npm run coverage             # source-only coverage with enforced thresholds
+npm run check                # all three gates, the same ones CI runs
 ```
+
+[docs/index.md](docs/index.md) maps the rest of the documentation;
+[docs/bridge-profile.md](docs/bridge-profile.md) is normative for application
+behaviour and SPEC.md is normative for the event format.
 
 Formatting is not a matter of taste here, it is whatever `npm run format`
 produces: two spaces, single quotes, no semicolons, 100 columns. CI fails on
@@ -36,6 +41,7 @@ change breaks live subscriptions). Do not bump it without reading the pin.
 
 ## Conventions
 
+- [The code of conduct](CODE_OF_CONDUCT.md) is short and applies here.
 - British English throughout. No em dashes.
 - Commits: `type: description`, lowercase, imperative. No `Co-Authored-By`.
 - Nostr tag names follow the NIPs: `expiration` (NIP-40), never `expiry`.

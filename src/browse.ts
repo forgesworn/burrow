@@ -17,7 +17,8 @@ import {
   type ClientTarget,
   type GopherTarget,
 } from './target.ts'
-import { renderNumbered, pageLinks } from './cliview.ts'
+import { renderNumbered, renderForTerminal, pageLinks } from './cliview.ts'
+import { aboutContent } from './about.ts'
 import type { BookmarkStore } from './bookmarks.ts'
 import type { PairingStore } from './identity.ts'
 import { resolveSigner, type CliSigner } from './signing.ts'
@@ -113,7 +114,8 @@ export function homeContent(bookmarks: BookmarkStore): Content {
     items.push({ type: s.type, display: s.display, target: linkTargetOf(target) })
   }
   items.push(info(''))
-  items.push(info('go <npub, name@domain or gopher url> visits anywhere; help lists commands.'))
+  items.push(info('go <npub, name@domain or gopher url> visits anywhere.'))
+  items.push(info('why explains the idea; help lists commands.'))
   return { kind: 'menu', title: 'gopherkind', items }
 }
 
@@ -233,6 +235,7 @@ export type BrowseCommand =
   | { cmd: 'whoami' }
   | { cmd: 'unpair' }
   | { cmd: 'help' }
+  | { cmd: 'why' }
   | { cmd: 'quit' }
   | { cmd: 'empty' }
   | { cmd: 'unknown'; word: string }
@@ -297,6 +300,9 @@ export function parseBrowseCommand(line: string): BrowseCommand {
     case 'help':
     case '?':
       return { cmd: 'help' }
+    case 'why':
+    case 'about':
+      return { cmd: 'why' }
     case 'quit':
     case 'q':
     case 'exit':
@@ -317,6 +323,7 @@ export const HELP = `commands:
   mark / marks       bookmark this page / show bookmarks (unmark <n> removes)
   history            where you have been this session
   whoami, pair <bunker://...>, unpair
+  why                the case for gopherholes on nostr
   home, help, quit
 `
 
@@ -523,6 +530,9 @@ export async function runBrowse(initial: string | undefined, opts: BrowseOptions
           break
         case 'help':
           process.stdout.write(HELP)
+          break
+        case 'why':
+          pageOut(renderForTerminal(aboutContent('your terminal')))
           break
         case 'quit':
           rl.close()

@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest something gopherkind should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Some things are deliberate non-goals: Gopher+, CGI or executable selectors,
+        serving binaries or images, custodial key handling of any kind, and DMs or
+        zap wallets. See the non-goals in
+        [CONTRIBUTING.md](https://github.com/forgesworn/gopherkind/blob/main/CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that is hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: A rough shape is fine. Say which surface it belongs on.
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints it respects
+      options:
+        - label: It does not require the bridge to hold a user's secret key
+        - label: It does not send a credential over gopher
+        - label: It does not need a long-lived relay subscription
+        - label: It still works in lynx without JavaScript (HTTP features only)

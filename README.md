@@ -2,6 +2,18 @@
 
 Gopherholes served from Nostr relays.
 
+[![ci](https://github.com/forgesworn/gopherkind/actions/workflows/ci.yml/badge.svg)](https://github.com/forgesworn/gopherkind/actions/workflows/ci.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![node >= 24](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](https://nodejs.org)
+
+**[Why gopher on Nostr](docs/why-gopher-on-nostr.md)** ·
+**[Getting started](docs/getting-started.md)** ·
+**[Docs](docs/index.md)** ·
+**[FAQ](docs/faq.md)** ·
+**[Home page](https://forgesworn.github.io/gopherkind/)** ·
+**[Live bridge](https://gopherkind.com/)** ·
+**[Support](docs/support.md)**
+
 Gopherspace has one endemic disease: holes die. The hobby box behind
 your favourite phlog loses power, the domain lapses, and fifteen years
 of writing are gone. gopherkind moves the hole off the box. Documents are
@@ -73,6 +85,9 @@ Needs Node 24 or newer.
 # Until the one-time npm bootstrap is complete, install from GitHub.
 npm install --global github:forgesworn/gopherkind
 
+# The case for all this, in your terminal
+gopherkind why
+
 # Browse gopherspace and Nostr interactively
 gopherkind
 
@@ -97,6 +112,10 @@ The public reference bridge is available on all three frontends:
 - Gopher: `gopher://gopherkind.com/`
 - Gemini: `gemini://gopherkind.com/`
 - Web: <https://gopherkind.com/>
+
+Every bridge explains itself at `/about` on all three, built from the same
+document the terminal prints for `gopherkind why`. A reader who has never heard
+of Nostr needs no account to get the point.
 
 The web endpoint terminates TLS on the bridge host, so remote visitors can
 connect a NIP-07 browser extension or pair a NIP-46 signer. Port 8070 is not
@@ -587,14 +606,35 @@ Kind 31436 is not yet an accepted NIP. The proposal was submitted to
 on 3 August 2026 and remains unmerged. [docs/nip-submission.md](docs/nip-submission.md)
 records the proposal and its independent fixture evidence.
 
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [Why gopher on Nostr](docs/why-gopher-on-nostr.md) | The case, and its honest limits |
+| [Getting started](docs/getting-started.md) | Install, read, pair, publish, verify, serve |
+| [FAQ](docs/faq.md) | Retention, deletion, keys, tokens, what this is not |
+| [Troubleshooting](docs/troubleshooting.md) | Error messages and what to do about them |
+| [Operations](docs/operations.md) | Running a public bridge properly |
+| [Bridge profile](docs/bridge-profile.md) | Normative application behaviour |
+| [SPEC.md](SPEC.md) | Kind 31436 itself |
+| [Support](docs/support.md) | What funding buys |
+
+[docs/index.md](docs/index.md) is the full map.
+
 ## Support
 
-gopherkind is unfunded hobby work under ForgeSworn. If it made you grin:
+gopherkind is MIT-licensed, unfunded work under ForgeSworn. No company, no
+token, no ads, no telemetry, no custody of anyone's key, and nothing to sell
+you. It is paid for in evenings and a small hosting bill, so funding buys the
+only thing the project is made of: consecutive evenings.
 
 - Zap: `npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2`
 - Lightning: `profusemeat89@walletofsatoshi.com`
 - Ko-fi: <https://ko-fi.com/brays>
 - Geyser: <https://geyser.fund/project/forgesworn>
+
+[docs/support.md](docs/support.md) says what the money actually does, what it
+will never do, and the several ways to help that cost nothing.
 
 ## Licence
 

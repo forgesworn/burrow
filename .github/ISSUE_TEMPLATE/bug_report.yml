@@ -1,0 +1,63 @@
+name: Bug report
+description: Something behaves differently from the documentation
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report security issues here. See
+        [SECURITY.md](https://github.com/forgesworn/gopherkind/blob/main/SECURITY.md)
+        for private reporting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the exact command or URL, and the exact error text.
+      placeholder: |
+        $ gopherkind publish ./my-hole
+        document was rejected by every relay
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: '`gopherkind --version` output, a release tag, or a commit sha'
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: '`node --version` (24 or newer is required)'
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      multiple: true
+      options:
+        - CLI / terminal client
+        - gopher
+        - gemini
+        - HTTP (lynx)
+        - HTTP (graphical browser)
+        - publishing
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: |
+        Relay set, deployment shape (loopback, reverse proxy, container), client
+        name and version. `gopherkind inspect npub1... --json` is safe to attach:
+        it contains public event coordinates and relay results, no secrets.

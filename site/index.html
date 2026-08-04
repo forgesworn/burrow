@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>gopherkind: gopherholes served from Nostr relays</title>
+<meta name="description" content="Gopher documents as signed Nostr events. Your hole belongs to your npub, not a hostname, and any bridge can serve it to any gopher client written since 1991.">
+<link rel="canonical" href="https://forgesworn.github.io/gopherkind/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="gopherkind">
+<meta property="og:description" content="Gopherholes served from Nostr relays. Signed documents that outlive the box they were served from.">
+<meta property="og:url" content="https://forgesworn.github.io/gopherkind/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🕳️</text></svg>">
+<style>
+:root{
+  color-scheme:dark light;
+  --bg:#0c0e0d; --panel:#131614; --fg:#e9e5db; --muted:#9aa39c;
+  --link:#7ee0c8; --accent:#f0b429; --rule:#2a302c; --shadow:rgba(0,0,0,.5);
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#fbfaf6; --panel:#ffffff; --fg:#16191a; --muted:#5a635e;
+    --link:#0a6b57; --accent:#8a5a00; --rule:#e0ded5; --shadow:rgba(0,0,0,.08);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  overflow-wrap:break-word;
+}
+.mono,code,pre,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+h1,h2,h3{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  font-weight:600; line-height:1.25; letter-spacing:-.01em; margin:0 0 .5em}
+h1{font-size:clamp(2rem,5.5vw,3.25rem)}
+h2{font-size:clamp(1.35rem,3.2vw,1.9rem); margin-top:0}
+h3{font-size:1.05rem; margin-bottom:.35em}
+p{margin:0 0 1em}
+a{color:var(--link)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.wrap{max-width:62rem; margin:0 auto; padding:0 1.25rem}
+.narrow{max-width:44rem}
+section{padding:clamp(2.5rem,6vw,4.5rem) 0; border-top:1px solid var(--rule)}
+section:first-of-type{border-top:0}
+.eyebrow{font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:.75rem}
+.lede{font-size:clamp(1.05rem,2.2vw,1.25rem); color:var(--fg)}
+.muted{color:var(--muted)}
+
+/* header */
+header{padding:1.25rem 0; border-bottom:1px solid var(--rule)}
+.bar{display:flex; flex-wrap:wrap; gap:.5rem 1.25rem; align-items:baseline; justify-content:space-between}
+.brand{font-family:ui-monospace,monospace; font-size:1.1rem; font-weight:600; color:var(--fg); text-decoration:none}
+.brand::before{content:"› "; color:var(--accent)}
+nav{display:flex; flex-wrap:wrap; gap:.5rem 1.1rem; font-size:.93rem}
+
+/* hero */
+.hero{padding-top:clamp(2.5rem,7vw,5rem)}
+.hero h1{max-width:20ch}
+.hero .lede{max-width:60ch}
+.cta{display:flex; flex-wrap:wrap; gap:.75rem; margin:1.75rem 0 .5rem}
+.btn{display:inline-block; padding:.7rem 1.15rem; border:1px solid var(--rule);
+  border-radius:.4rem; text-decoration:none; color:var(--fg); background:var(--panel);
+  font-family:ui-monospace,monospace; font-size:.95rem}
+.btn:hover{border-color:var(--link)}
+.btn-primary{background:var(--link); color:var(--bg); border-color:var(--link); font-weight:600}
+.btn-primary:hover{filter:brightness(1.08)}
+.note{font-size:.88rem; color:var(--muted)}
+
+/* terminal */
+.term{background:var(--panel); border:1px solid var(--rule); border-radius:.5rem;
+  box-shadow:0 1px 3px var(--shadow); overflow:hidden; margin:1.5rem 0}
+.term-bar{display:flex; gap:.4rem; align-items:center; padding:.55rem .8rem;
+  border-bottom:1px solid var(--rule); font-size:.78rem; color:var(--muted)}
+.dot{width:.6rem; height:.6rem; border-radius:50%; background:var(--rule)}
+.term pre{margin:0; padding:1rem; overflow-x:auto; font-size:.85rem; line-height:1.55}
+.term .p{color:var(--accent)}
+.term .c{color:var(--muted)}
+.term .l{color:var(--link)}
+pre{tab-size:4}
+code:not(pre code){background:var(--panel); border:1px solid var(--rule);
+  border-radius:.25rem; padding:.05em .35em; font-size:.9em}
+
+/* grids */
+.grid{display:grid; gap:1.25rem; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(22rem,1fr))}
+.card{background:var(--panel); border:1px solid var(--rule); border-radius:.5rem; padding:1.15rem 1.25rem}
+.card p:last-child{margin-bottom:0}
+.card .tag{font-family:ui-monospace,monospace; font-size:.75rem; color:var(--accent);
+  letter-spacing:.08em; text-transform:uppercase}
+ul.plain{list-style:none; padding:0; margin:0}
+ul.plain li{padding-left:1.4rem; position:relative; margin-bottom:.6rem}
+ul.plain li::before{content:"■"; position:absolute; left:0; color:var(--accent); font-size:.7rem; top:.45em}
+ol.steps{padding-left:1.3rem}
+ol.steps li{margin-bottom:.6rem}
+
+/* diagram */
+figure{margin:1.5rem 0 0}
+figure svg{width:100%; height:auto; display:block}
+figcaption{font-size:.85rem; color:var(--muted); margin-top:.6rem}
+.svg-fg{fill:var(--fg)} .svg-muted{fill:var(--muted)} .svg-accent{fill:var(--accent)}
+.svg-line{stroke:var(--rule); stroke-width:1.5; fill:none}
+.svg-box{fill:var(--panel); stroke:var(--rule); stroke-width:1.5}
+.svg-label{font-family:ui-monospace,monospace; font-size:12px}
+.svg-small{font-family:ui-monospace,monospace; font-size:10.5px}
+
+/* support */
+.support{background:var(--panel)}
+.give{display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); margin:1.5rem 0}
+.give a{display:block; padding:.85rem 1rem; border:1px solid var(--rule); border-radius:.45rem;
+  text-decoration:none; background:var(--bg)}
+.give a:hover{border-color:var(--link)}
+/* A <br> rather than display:block, so the label and its note stay on
+   separate lines in a text browser that ignores this stylesheet entirely. */
+.give strong{font-family:ui-monospace,monospace; color:var(--fg)}
+.give span{font-size:.85rem; color:var(--muted)}
+.key{font-family:ui-monospace,monospace; font-size:.78rem; word-break:break-all;
+  background:var(--bg); border:1px solid var(--rule); border-radius:.35rem; padding:.6rem .75rem; display:block}
+
+table{width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem}
+th,td{text-align:left; padding:.55rem .6rem; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-family:ui-monospace,monospace; font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.scroll{overflow-x:auto}
+
+footer{border-top:1px solid var(--rule); padding:2.5rem 0 3.5rem; color:var(--muted); font-size:.9rem}
+footer nav{margin-bottom:1rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="#top">gopherkind</a>
+    <nav>
+      <a href="#why">Why</a>
+      <a href="#how">How it works</a>
+      <a href="#start">Quickstart</a>
+      <a href="#limits">Honest limits</a>
+      <a href="#support">Support</a>
+      <a href="https://github.com/forgesworn/gopherkind">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Gopher · Nostr · kind 31436</p>
+    <h1>Your writing outlives the box it was served from.</h1>
+    <p class="lede">Gopherspace has one endemic disease: holes die. gopherkind turns
+    gopher documents into signed Nostr events, so a hole belongs to your npub instead
+    of a hostname, and any bridge that can fetch a copy serves it to any gopher client
+    written since 1991.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#start">Get started</a>
+      <a class="btn" href="https://gopherkind.com/">Try the live bridge</a>
+      <a class="btn" href="https://github.com/forgesworn/gopherkind">Read the source</a>
+    </div>
+    <p class="note">MIT licensed. No token, no ads, no telemetry, no custody of your key.
+    This page has no JavaScript and no trackers, which felt like the least we could do.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span>a hole that nobody published</span></div>
+<pre><span class="p">$</span> gopherkind read npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+TheCryptoDonkey
+===============
+
+  TheCryptoDonkey
+  <span class="c">a virtual hole generated from Nostr events</span>
+
+  Bitcoin, freedom, decentralisation, liberty advocate.
+
+  Profile
+      <span class="l">/npub1mgvlrnf.../profile.txt</span>
+  Notes
+      <span class="l">/npub1mgvlrnf.../notes</span>
+  Articles (long-form)
+      <span class="l">/npub1mgvlrnf.../articles</span>
+  Follows
+      <span class="l">/npub1mgvlrnf.../follows</span>
+  Followers
+      <span class="l">/npub1mgvlrnf.../followers</span>
+  Search
+      <span class="l">/_gopherkind/search/npub1mgvlrnf...</span>
+</pre>
+    </div>
+    <p class="note">Nobody published that. Every npub is already a hole, generated from
+    the events the account has anyway.</p>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap">
+    <p class="eyebrow">The problem</p>
+    <h2>A hole is a host, and hosts stop.</h2>
+    <div class="narrow">
+      <p>The hobby box behind your favourite phlog loses power. A domain lapses. A
+      university closes an alumni account. Fifteen years of writing stop existing, all
+      at once, with no forwarding address.</p>
+      <p>This is structural, not careless. RFC 1436 has no notion of an author, so
+      nothing in the protocol survives the hostname, and nothing in the wire format can
+      prove who wrote a document even while the host is up.</p>
+    </div>
+    <div class="grid" style="margin-top:2rem">
+      <div class="card">
+        <p class="tag">Gopher had</p>
+        <h3>Interface divorced from information</h3>
+        <p class="muted">Menus and text, navigated identically, rendered by anything with
+        a TCP stack. No fonts to load, no consent dialog, nothing bidding for your
+        attention. It is why a protocol from 1991 still has readers.</p>
+      </div>
+      <div class="card">
+        <p class="tag">Gopher lacked</p>
+        <h3>Authorship and permanence</h3>
+        <p class="muted">Copy a phlog to another server and it is just somebody's file:
+        identical bytes, no provenance, no way to prove it was ever yours.</p>
+      </div>
+      <div class="card">
+        <p class="tag">Nostr supplies</p>
+        <h3>Keypair identity, signed documents</h3>
+        <p class="muted">Events are signed, addressable and copied to relays you choose.
+        Exactly the two things gopher never had. In return, gopher gives Nostr a reading
+        room instead of a timeline.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2>A directory in, four protocols out.</h2>
+    <div class="narrow">
+      <p>Kind <code>31436</code> is named for the RFC. The <code>d</code> tag is the
+      document's exact path, the <code>type</code> tag is the gopher item type, and menu
+      content is a <em>kindmap</em>: a gophermap with the host and port columns removed,
+      because the document no longer has a host.</p>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 860 250" role="img" aria-labelledby="diagram-title">
+        <title id="diagram-title">Text files are signed into kind 31436 events, stored on
+        relays, and served by any bridge to gopher, Gemini, HTTP and terminal clients.</title>
+
+        <rect class="svg-box" x="8" y="80" width="130" height="76" rx="6"/>
+        <text class="svg-label svg-fg" x="73" y="106" text-anchor="middle">my-hole/</text>
+        <text class="svg-small svg-muted" x="73" y="124" text-anchor="middle">index.map</text>
+        <text class="svg-small svg-muted" x="73" y="140" text-anchor="middle">about.txt</text>
+
+        <path class="svg-line" d="M138 118 H196"/>
+        <polygon class="svg-accent" points="196,113 208,118 196,123"/>
+        <text class="svg-small svg-muted" x="167" y="107" text-anchor="middle">sign</text>
+
+        <rect class="svg-box" x="212" y="72" width="150" height="92" rx="6"/>
+        <text class="svg-label svg-fg" x="287" y="100" text-anchor="middle">kind 31436</text>
+        <text class="svg-small svg-muted" x="287" y="120" text-anchor="middle">d = /about.txt</text>
+        <text class="svg-small svg-muted" x="287" y="136" text-anchor="middle">type = 0</text>
+        <text class="svg-small svg-accent" x="287" y="152" text-anchor="middle">signed by your npub</text>
+
+        <path class="svg-line" d="M362 118 H420"/>
+        <polygon class="svg-accent" points="420,113 432,118 420,123"/>
+        <text class="svg-small svg-muted" x="391" y="107" text-anchor="middle">publish</text>
+
+        <rect class="svg-box" x="436" y="60" width="128" height="34" rx="6"/>
+        <text class="svg-small svg-fg" x="500" y="81" text-anchor="middle">relay</text>
+        <rect class="svg-box" x="436" y="101" width="128" height="34" rx="6"/>
+        <text class="svg-small svg-fg" x="500" y="122" text-anchor="middle">relay</text>
+        <rect class="svg-box" x="436" y="142" width="128" height="34" rx="6"/>
+        <text class="svg-small svg-fg" x="500" y="163" text-anchor="middle">relay</text>
+        <text class="svg-small svg-muted" x="500" y="196" text-anchor="middle">your choice, plus NIP-65</text>
+
+        <path class="svg-line" d="M564 118 H620"/>
+        <polygon class="svg-accent" points="620,113 632,118 620,123"/>
+        <text class="svg-small svg-muted" x="592" y="107" text-anchor="middle">fetch</text>
+
+        <rect class="svg-box" x="636" y="86" width="96" height="64" rx="6"/>
+        <text class="svg-label svg-fg" x="684" y="112" text-anchor="middle">bridge</text>
+        <text class="svg-small svg-muted" x="684" y="130" text-anchor="middle">any bridge</text>
+
+        <path class="svg-line" d="M732 118 H772"/>
+        <text class="svg-small svg-fg" x="784" y="66">gopher</text>
+        <text class="svg-small svg-fg" x="784" y="98">gemini</text>
+        <text class="svg-small svg-fg" x="784" y="130">http / lynx</text>
+        <text class="svg-small svg-fg" x="784" y="162">terminal</text>
+        <path class="svg-line" d="M772 118 V62 H778"/>
+        <path class="svg-line" d="M772 118 V94 H778"/>
+        <path class="svg-line" d="M772 118 V126 H778"/>
+        <path class="svg-line" d="M772 118 V158 H778"/>
+
+        <text class="svg-small svg-muted" x="8" y="228">Lose the bridge and the documents remain. Any other bridge serves the same signed events.</text>
+      </svg>
+      <figcaption>One router, four frontends. Reading needs no identity anywhere; writing
+      always goes through a NIP-46 signer or a NIP-07 extension you control.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">What changes</p>
+    <h2>Four things gopher never had.</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>The hole belongs to an npub</h3>
+        <p class="muted">Lose the machine and another bridge serves the same events from
+        relays that still hold them. The hostname stops being a single point of failure.</p>
+      </div>
+      <div class="card">
+        <h3>Every document proves its author</h3>
+        <p class="muted">The signature travels with the text, so a copy served by a
+        stranger is still verifiably yours.</p>
+      </div>
+      <div class="card">
+        <h3>Editing keeps the address</h3>
+        <p class="muted">Addressable replacement: change a file, publish again, and the
+        document at that path is replaced everywhere. No dead links, no cache busting.</p>
+      </div>
+      <div class="card">
+        <h3>Everyone already has a hole</h3>
+        <p class="muted">Profile, notes, replies, threads, articles, follows and followers
+        render as menus and text with nothing published at all. Gopherspace grows by the
+        entire Nostr userbase.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Four front doors</p>
+    <h2>Pick the one you already live in.</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Surface</th><th>What it is for</th><th>Identity</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">gopher</td><td>RFC 1436, type 7 search, every client since 1991</td>
+            <td>Read-only over the network, permanently. Plaintext has no safe credential.</td></tr>
+          <tr><td class="mono">gemini</td><td>gemtext, status 10 input, Lagrange and friends</td>
+            <td>Client certificate bound to your NIP-46 signer</td></tr>
+          <tr><td class="mono">http</td><td>Plain HTML and real forms, aimed at lynx first</td>
+            <td>Loopback is you; remote visitors use NIP-46 or a NIP-07 extension</td></tr>
+          <tr><td class="mono">terminal</td><td>Interactive client in the VF-1 tradition, plus one-shot commands</td>
+            <td>Your paired signer, or none at all for reading</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="narrow">
+      <p>It is a gopher <em>client</em> too, so traditional gopherspace renders through the
+      same interface, and a gophermap that links to a bridge with an npub selector or a
+      <code>nostr:</code> URI is followed natively through your own relays. Floodgap and an
+      npub are the same kind of object once you are inside.</p>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <p class="eyebrow">Quickstart</p>
+    <h2>Ten minutes, and reading costs none of them.</h2>
+    <div class="term">
+      <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span>needs Node 24 or newer</span></div>
+<pre><span class="c"># until the one-time npm bootstrap is done, install from GitHub</span>
+<span class="p">$</span> npm install --global github:forgesworn/gopherkind
+
+<span class="c"># read anything, no key, no account, no configuration</span>
+<span class="p">$</span> gopherkind read npub1...
+<span class="p">$</span> gopherkind read gopher://gopher.floodgap.com/1/
+<span class="p">$</span> gopherkind why
+
+<span class="c"># connect a signer you already control (Amber, nsec.app, Signet...)</span>
+<span class="p">$</span> gopherkind pair 'bunker://...'
+
+<span class="c"># a directory of text files becomes a signed hole</span>
+<span class="p">$</span> gopherkind publish ./my-hole --dry-run
+<span class="p">$</span> gopherkind publish ./my-hole
+<span class="p">$</span> gopherkind inspect npub1...     <span class="c"># per-relay proof it is retrievable</span>
+
+<span class="c"># serve it: gopher 7070, gemini 1965, http 8070, loopback by default</span>
+<span class="p">$</span> gopherkind serve
+<span class="p">$</span> lynx http://localhost:8070/
+</pre>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <p class="tag">Never</p>
+        <h3>Your key does not enter this program</h3>
+        <p class="muted">No nsec input, no key generation, no custody of any kind. Signing
+        happens in your NIP-46 signer or your NIP-07 extension. A bridge stores only its
+        own client key, a TLS certificate and a mode-600 pairing file.</p>
+      </div>
+      <div class="card">
+        <p class="tag">Also never</p>
+        <h3>No build step, no database</h3>
+        <p class="muted">Runs directly on Node 24 type stripping. A bridge keeps a state
+        directory and a few minutes of cache. Two runtime dependencies, both pinned.</p>
+      </div>
+    </div>
+    <p><a href="https://github.com/forgesworn/gopherkind/blob/main/docs/getting-started.md">Full getting started guide →</a>
+    &nbsp; <a href="https://github.com/forgesworn/gopherkind/blob/main/docs/faq.md">FAQ →</a>
+    &nbsp; <a href="https://github.com/forgesworn/gopherkind/blob/main/SPEC.md">The kind 31436 spec →</a></p>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <p class="eyebrow">Honest limits</p>
+    <h2>What this does not fix.</h2>
+    <div class="narrow">
+      <p>A project that oversold this would deserve to be ignored, so here is the whole
+      list before you install anything.</p>
+      <ul class="plain">
+        <li><strong>Relays are not archives.</strong> Removing the single host removes one
+        point of failure. It does not promise any relay keeps an event forever. Publish to
+        relays you trust, keep an export, re-check with <code>gopherkind inspect</code>.</li>
+        <li><strong>Deletion is a request.</strong> NIP-09 asks relays to forget and some
+        will not. NIP-40 expiry is enforced by well-behaved bridges but is not a tombstone
+        for a path with older revisions.</li>
+        <li><strong>A bridge is still a host.</strong> It is simply no longer <em>the</em>
+        host. If one disappears, the documents do not.</li>
+        <li><strong>Kind 31436 is proposed, not accepted.</strong> The submission is
+        <a href="https://github.com/nostr-protocol/nips/pull/2429">PR #2429</a>, unmerged
+        at the time of writing.</li>
+        <li><strong>Gopher stays read-only over the network.</strong> No authentication, no
+        encryption, so no credential may ever cross it. 1991 gets to read; 2026 gets to write.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="support" class="support">
+  <div class="wrap">
+    <p class="eyebrow">Support the work</p>
+    <h2>Funding buys evenings. Evenings are all this is made of.</h2>
+    <div class="narrow">
+      <p>gopherkind is MIT licensed and unfunded. There is no company behind it, no token,
+      no premium tier, no advertising and no data to sell, because it holds nothing about
+      you. What there is: a public bridge with a monthly bill, and a maintainer writing
+      after work.</p>
+    </div>
+
+    <div class="give">
+      <a href="https://ko-fi.com/brays"><strong>Ko-fi</strong><br><span>One-off or monthly, card friendly</span></a>
+      <a href="https://geyser.fund/project/forgesworn"><strong>Geyser</strong><br><span>Lightning, project page</span></a>
+      <a href="https://github.com/sponsors/TheCryptoDonkey"><strong>GitHub Sponsors</strong><br><span>Recurring, in the place you already are</span></a>
+      <a href="lightning:profusemeat89@walletofsatoshi.com"><strong>Lightning</strong><br><span>profusemeat89@walletofsatoshi.com</span></a>
+    </div>
+    <p class="note">Zap the maintainer directly:</p>
+    <code class="key">npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2</code>
+
+    <div class="grid" style="margin-top:2rem">
+      <div class="card">
+        <p class="tag">What it unlocks</p>
+        <ul class="plain" style="margin-top:.5rem">
+          <li>Getting kind 31436 through NIP review, which is what makes other clients implement it</li>
+          <li>Packaging so running a bridge is a fifteen-minute job for someone else</li>
+          <li>A conformance suite so a second implementation is a weekend, not a month</li>
+          <li>Archival tooling: scheduled retrievability checks and alerts when copies thin out</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="tag">Free ways to help</p>
+        <ul class="plain" style="margin-top:.5rem">
+          <li>Publish a hole, so there is more to read</li>
+          <li>Run a bridge; more bridges is the entire point</li>
+          <li>Review <a href="https://github.com/nostr-protocol/nips/pull/2429">the NIP</a>, which is worth more than money</li>
+          <li>Report what broke, especially in odd clients</li>
+          <li>Tell one person. The failure mode here is silence, not criticism</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:1.5rem"><a href="https://github.com/forgesworn/gopherkind/blob/main/docs/support.md">What the money does, and what it will never do →</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <nav>
+      <a href="https://github.com/forgesworn/gopherkind">Source</a>
+      <a href="https://github.com/forgesworn/gopherkind/blob/main/docs/index.md">Docs</a>
+      <a href="https://github.com/forgesworn/gopherkind/blob/main/SPEC.md">Spec</a>
+      <a href="https://github.com/forgesworn/gopherkind/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/forgesworn/gopherkind/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://gopherkind.com/">Live bridge</a>
+    </nav>
+    <p>The live bridge also answers on <code class="mono">gopher://gopherkind.com/</code> and
+    <code class="mono">gemini://gopherkind.com/</code>, and explains itself at
+    <code class="mono">/about</code> on all three. It is one route to relay-held events, not a
+    promise of uptime.</p>
+    <p>MIT licensed. Built by <a href="https://github.com/TheCryptoDonkey">TheCryptoDonkey</a>
+    under ForgeSworn. British spelling throughout, deliberately.</p>
+  </div>
+</footer>
+
+</body>
+</html>

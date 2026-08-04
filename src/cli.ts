@@ -24,11 +24,14 @@ import {
   cmdAnnounce,
   cmdExport,
   cmdInspect,
+  packageVersion,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner } from './signing.ts'
 import { runBrowse } from './browse.ts'
 import { BookmarkStore } from './bookmarks.ts'
+import { aboutContent } from './about.ts'
+import { renderForTerminal } from './cliview.ts'
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 
@@ -41,6 +44,7 @@ const USAGE = `usage:
     gopherkind inspect <npub> [--json]   show current documents visible on each relay
     gopherkind export <npub> <dir>       save a lossless, re-publishable snapshot
     gopherkind feed [--limit 20]         notes from who you follow
+    gopherkind why                       the case for gopherholes on nostr
     targets: npub[/path], nostr: entity, name@domain (NIP-05), gopher:// url
 
   write (needs a signer, see below):
@@ -66,6 +70,8 @@ const USAGE = `usage:
                         [--gopher-port 70] [--gemini-port 1965] [--no-gemini]
                         [--name n] [--about a] [--dry-run]
       tells nostr clients this bridge opens kind 31436 (NIP-89).
+
+  gopherkind version | help
 
   every command takes [--relay wss://...]... and [--state-dir d].
 
@@ -502,6 +508,12 @@ if (command === 'serve') {
 } else if (command === 'whoami') {
   const { values } = parseArgs({ args: rest, options: COMMON })
   run(cmdWhoami(relaysOf(values), pairingsOf(values)))
+} else if (command === 'why' || command === 'about') {
+  process.stdout.write(renderForTerminal(aboutContent('your terminal')))
+} else if (command === 'version' || command === '--version' || command === '-v') {
+  process.stdout.write(`${packageVersion()}\n`)
+} else if (command === 'help' || command === '--help' || command === '-h') {
+  process.stdout.write(`${USAGE}\n`)
 } else {
   fail(USAGE)
 }

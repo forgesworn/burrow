@@ -34,6 +34,9 @@
 ## Selector namespace (gopher and gemini alike)
 
 - empty / `/`: bridge welcome menu
+- `/about`: bridge-owned page explaining kind 31436 and why a document should
+  outlive its host. Same `Content` on gopher, Gemini and HTTP, linked from every
+  welcome page, and never requires identity
 - `/<npub>`: hole root (authored `d=/`, else virtual root)
 - `/<npub>/<path>`: document at that path
 - gopher search: type 7 with tab-separated query
@@ -93,6 +96,10 @@ from GitHub with `npm install --global github:forgesworn/gopherkind`
 - identity: `gopherkind pair <bunker://...>`, `gopherkind unpair`,
   `gopherkind whoami`. Signing is remote-only: `GOPHERKIND_BUNKER` one-off
   URI, then the stored NIP-46 pairing. Local secret keys are never accepted.
+- explain: `gopherkind why` (also `about`) prints the same page the bridge
+  serves at `/about`; `why` inside the interactive browser does the same
+- `gopherkind version` (`--version`, `-v`) and `gopherkind help` (`--help`,
+  `-h`) answer without a signer or a relay
 - all commands take `[--relay wss://...]...` and `[--state-dir d]`
 - `gopherkind serve [--port 7070] [--gemini-port 1965] [--host 127.0.0.1]
   [--hostname x] [--public-port n] [--relay wss://...]...
@@ -138,3 +145,11 @@ from GitHub with `npm install --global github:forgesworn/gopherkind`
 - README: https://github.com/forgesworn/gopherkind/blob/main/README.md
 - Protocol spec: https://github.com/forgesworn/gopherkind/blob/main/SPEC.md
 - Bridge profile: https://github.com/forgesworn/gopherkind/blob/main/docs/bridge-profile.md
+- Documentation hub: https://github.com/forgesworn/gopherkind/blob/main/docs/index.md
+- Getting started: https://github.com/forgesworn/gopherkind/blob/main/docs/getting-started.md
+- FAQ: https://github.com/forgesworn/gopherkind/blob/main/docs/faq.md
+- Troubleshooting: https://github.com/forgesworn/gopherkind/blob/main/docs/troubleshooting.md
+- Why gopher on Nostr: https://github.com/forgesworn/gopherkind/blob/main/docs/why-gopher-on-nostr.md
+- Operations: https://github.com/forgesworn/gopherkind/blob/main/docs/operations.md
+- Home page: https://forgesworn.github.io/gopherkind/
+- Live reference bridge: https://gopherkind.com/ (also gopher:// and gemini://)

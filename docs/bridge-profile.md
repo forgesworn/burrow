@@ -29,6 +29,7 @@ response alone does not prove that a later reader can retrieve the event.
 | Selector | Result |
 |---|---|
 | empty | Bridge welcome menu |
+| `/about` | Bridge-owned explanation of what a gopherkind hole is |
 | `/<npub>` | Root document, `d` = `/` |
 | `/<npub><path>` | The exact kind `31436` path |
 | `/<npub>` followed by tab and query | Whole-hole search |
@@ -134,6 +135,12 @@ A Gemini or HTTP frontend maps `/<npub><path>` to the same document as the
 gopher selector. Each UTF-8 path segment is percent-encoded once in generated
 links and decoded once on input. A literal percent sign is therefore encoded
 as `%25` and is not confused with an existing escape.
+
+A bridge SHOULD explain itself in its own medium. The reference bridge serves
+one `/about` document, built from the same `Content` value on every frontend,
+and links it from each welcome page. It belongs to the bridge namespace, not to
+a hole, and MUST NOT require identity: a reader who has never heard of Nostr is
+exactly the reader it is for.
 
 An HTTP frontend MAY accept a NIP-05 identifier as an entry point. After
 resolution it SHOULD redirect to `/<npub><path>` rather than treating the

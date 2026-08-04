@@ -1,6 +1,6 @@
 {
   "name": "gopherkind",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Signed gopherholes on Nostr relays, with Gopher, Gemini, HTTP and CLI readers.",
   "type": "module",
   "license": "MIT",
@@ -39,10 +39,7 @@
     "CHANGELOG.md",
     "SECURITY.md",
     "SPEC.md",
-    "docs/bridge-profile.md",
-    "docs/conformance.md",
-    "docs/operations.md",
-    "docs/releasing.md",
+    "docs",
     "test/fixtures/kind31436-v1.json",
     "llms.txt"
   ],
@@ -52,6 +49,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm run coverage",
     "coverage": "node --test test/*.test.ts --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75",
     "lint": "biome check src test",
     "format": "biome check --write src test",
