@@ -312,7 +312,7 @@ function readBody(req: http.IncomingMessage): Promise<Record<string, string>> {
     let body = ''
     req.on('data', (c: Buffer) => {
       body += c.toString('utf8')
-      // A 60 KB signed document expands under form encoding. Keep the wire
+      // A signed document expands under form encoding. Keep the wire
       // bound explicit while leaving room for that event and its signature.
       if (body.length > 256_000) {
         reject(new Error('body too large'))
@@ -908,7 +908,9 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     'same-hole page separately; adding a menu link does not create its destination.</p>',
     '</details>',
     '<p><label for="document-content">Content</label><br>',
-    `<textarea name="content" id="document-content" rows="20" cols="72">${esc(values.content ?? '')}</textarea></p>`,
+    `<textarea name="content" id="document-content" rows="20" cols="72" aria-describedby="content-help">${esc(values.content ?? '')}</textarea></p>`,
+    '<p id="content-help">Large pages may exceed the relay-backed signer limit after',
+    'encoding. Gopherkind checks the complete request before asking for a signature.</p>',
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
     'I understand this is public and replaces any current page at the same exact path.</label></p>',
     nip07SigningStatus(viewer),

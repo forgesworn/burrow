@@ -6,6 +6,8 @@ import path from 'node:path'
 import {
   planDirectory,
   docToTemplate,
+  nip46SigningRequestBytes,
+  NIP46_SIGNING_REQUEST_LIMIT,
   parseDuration,
   planDeletion,
   publishDocument,
@@ -84,6 +86,15 @@ test('parseDuration understands s/m/h/d/w, rejects junk', () => {
 test('docToTemplate adds an expiration tag when asked', () => {
   const tpl = docToTemplate({ path: '/x', type: '0', title: 'x', content: 'c' }, 1000, 60)
   assert.deepEqual(tpl.tags.at(-1), ['expiration', '1060'])
+})
+
+test('NIP-46 signing request accounting includes the nested event JSON', () => {
+  const template = docToTemplate(
+    { path: '/', type: '1', title: 'root', content: 'iWelcome\n' },
+    1000,
+  )
+  assert.ok(nip46SigningRequestBytes(template) > Buffer.byteLength(JSON.stringify(template)))
+  assert.ok(nip46SigningRequestBytes(template) < NIP46_SIGNING_REQUEST_LIMIT)
 })
 
 test('planDeletion covers each document with e and a tags', () => {
@@ -278,6 +289,27 @@ test('single-document publishing refuses secrets and false relay acceptance', as
     ),
     /accepted but is not readable/,
   )
+})
+
+test('single-document publishing rejects an oversized NIP-46 request before signing', async () => {
+  let signatures = 0
+  const signer: CliSigner = {
+    describe: 'counting remote signer',
+    pubkey: async () => '0'.repeat(64),
+    sign: async () => {
+      signatures += 1
+      throw new Error('signer must not be called')
+    },
+  }
+  await assert.rejects(
+    publishDocument(
+      { path: '/', type: '1', title: 'root', content: 'x'.repeat(41 * 1024) },
+      ['wss://configured.example'],
+      signer,
+    ),
+    /too large for a relay-backed NIP-46 signer/,
+  )
+  assert.equal(signatures, 0)
 })
 
 test('publish fails truthfully when every relay rejects a document', async () => {

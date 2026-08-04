@@ -299,6 +299,7 @@ test('http frontend', async (t) => {
       assert.match(scriptBody, /window\.nostr/)
       assert.match(scriptBody, /nostr\.getPublicKey\(\)/)
       assert.match(scriptBody, /nostr\.signEvent\(template\)/)
+      assert.match(scriptBody, /This page is too large for a relay-backed signer/)
       assert.match(scriptBody, /window\.history\.back\(\)/)
 
       const auth = nip07Authorization(base)

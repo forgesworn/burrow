@@ -92,6 +92,8 @@ export function assertBrowserSignedTemplate(
 export const HTTP_BROWSER_SCRIPT = `(() => {
   'use strict'
 
+  const NIP46_SIGNING_REQUEST_LIMIT = 40 * 1024
+
   const statusText = (node, text) => {
     if (node) node.textContent = text
   }
@@ -193,6 +195,12 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
     }
   }
 
+  const remoteSigningRequestBytes = (template) => new TextEncoder().encode(JSON.stringify({
+    id: 'gopherkind-signing-request',
+    method: 'sign_event',
+    params: [JSON.stringify(template)],
+  })).length
+
   const connect = async (button, status) => {
     const nostr = provider()
     if (!nostr) throw new Error('No NIP-07 browser extension was found.')
@@ -257,11 +265,15 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
         try {
           const nostr = provider()
           if (!nostr) throw new Error('No NIP-07 browser extension was found.')
+          const template = signedTemplate(form)
+          if (template.content === '' && form.dataset.nip07Action === 'post') throw new Error('Write something before signing.')
+          if (form.dataset.nip07Action === 'publish' &&
+              remoteSigningRequestBytes(template) > NIP46_SIGNING_REQUEST_LIMIT) {
+            throw new Error('This page is too large for a relay-backed signer. Reduce the content before signing.')
+          }
           statusText(status, 'Check your browser extension and approve this signature.')
           const pubkey = await nostr.getPublicKey()
           if (pubkey !== form.dataset.nip07Pubkey) throw new Error('The extension account has changed. Sign out and connect again.')
-          const template = signedTemplate(form)
-          if (template.content === '' && form.dataset.nip07Action === 'post') throw new Error('Write something before signing.')
           const signed = await nostr.signEvent(template)
           if (!eventLooksSigned(signed, pubkey)) throw new Error('The extension returned a bad signature.')
 
