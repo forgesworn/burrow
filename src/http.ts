@@ -909,7 +909,7 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     '</details>',
     '<p><label for="document-content">Content</label><br>',
     `<textarea name="content" id="document-content" rows="20" cols="72" aria-describedby="content-help">${esc(values.content ?? '')}</textarea></p>`,
-    '<p id="content-help">Large pages may exceed the relay-backed signer limit after',
+    '<p id="content-help">Large pages may exceed the portable relay-and-hardware signer limit after',
     'encoding. Gopherkind checks the complete request before asking for a signature.</p>',
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
     'I understand this is public and replaces any current page at the same exact path.</label></p>',

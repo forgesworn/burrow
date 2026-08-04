@@ -29,7 +29,9 @@ export interface PlannedDoc {
 }
 
 export const RECOVERY_MANIFEST = '.gopherkind.json'
-export const NIP46_SIGNING_REQUEST_LIMIT = 40 * 1024
+// A 19 KiB request and its slightly larger signed response both remain below
+// the next NIP-44 padding step, leaving room inside a 32 KiB hardware frame.
+export const NIP46_SIGNING_REQUEST_LIMIT = 19 * 1024
 
 interface RecoveryManifestEntry {
   file: string
@@ -210,7 +212,7 @@ function assertNip46Signable(template: EventTemplate, documentPath: string): voi
   const bytes = nip46SigningRequestBytes(template)
   if (bytes <= NIP46_SIGNING_REQUEST_LIMIT) return
   throw new Error(
-    `${documentPath} is too large for a relay-backed NIP-46 signer ` +
+    `${documentPath} is too large for a portable relay-and-hardware NIP-46 signer ` +
       `(${bytes} bytes; limit ${NIP46_SIGNING_REQUEST_LIMIT}). Reduce the page before signing.`,
   )
 }

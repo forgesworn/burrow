@@ -92,7 +92,7 @@ export function assertBrowserSignedTemplate(
 export const HTTP_BROWSER_SCRIPT = `(() => {
   'use strict'
 
-  const NIP46_SIGNING_REQUEST_LIMIT = 40 * 1024
+  const NIP46_SIGNING_REQUEST_LIMIT = 19 * 1024
 
   const statusText = (node, text) => {
     if (node) node.textContent = text
@@ -269,7 +269,7 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
           if (template.content === '' && form.dataset.nip07Action === 'post') throw new Error('Write something before signing.')
           if (form.dataset.nip07Action === 'publish' &&
               remoteSigningRequestBytes(template) > NIP46_SIGNING_REQUEST_LIMIT) {
-            throw new Error('This page is too large for a relay-backed signer. Reduce the content before signing.')
+            throw new Error('This page is too large for a portable relay-and-hardware signer. Reduce the content before signing.')
           }
           statusText(status, 'Check your browser extension and approve this signature.')
           const pubkey = await nostr.getPublicKey()
