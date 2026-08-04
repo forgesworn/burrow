@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2 (2026-08-04)
+
+### Fixed
+
+- keep both the encrypted NIP-46 request and its larger signed response within
+  portable 32 KiB hardware-signer frames, instead of checking only the relay
+  event ceiling
+
 ## 0.11.1 (2026-08-04)
 
 ### Fixed

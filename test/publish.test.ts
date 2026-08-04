@@ -303,11 +303,11 @@ test('single-document publishing rejects an oversized NIP-46 request before sign
   }
   await assert.rejects(
     publishDocument(
-      { path: '/', type: '1', title: 'root', content: 'x'.repeat(41 * 1024) },
+      { path: '/', type: '1', title: 'root', content: 'x'.repeat(20 * 1024) },
       ['wss://configured.example'],
       signer,
     ),
-    /too large for a relay-backed NIP-46 signer/,
+    /too large for a portable relay-and-hardware NIP-46 signer/,
   )
   assert.equal(signatures, 0)
 })
