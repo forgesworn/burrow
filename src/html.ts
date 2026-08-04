@@ -241,7 +241,7 @@ export function page(title: string, body: string, signedIn: boolean, meta: PageM
   const back = '<a href="/" data-history-back>back</a>'
   const theme = '<button type="button" data-theme-toggle hidden>theme</button>'
   const nav = signedIn
-    ? `${back}<a href="/">home</a><a href="/me">my hole</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>${theme}`
+    ? `${back}<a href="/">home</a><a href="/me">my pages</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>${theme}`
     : `${back}<a href="/">home</a><a href="/account">sign in</a>${theme}`
   const metadata = [
     meta.canonical ? `<link rel="canonical" href="${esc(meta.canonical)}">` : '',

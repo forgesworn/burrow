@@ -5,6 +5,7 @@ import http from 'node:http'
 import path from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import type { Event } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure'
 import { createHttpServer, type HttpOptions } from '../src/http.ts'
@@ -165,6 +166,8 @@ test('http frontend', async (t) => {
     // legacy gopherspace is linked through the built-in proxy, so it works
     // in browsers that do not speak gopher
     assert.match(body, /href="\/gopher\/gopher\.floodgap\.com\/1"/)
+    assert.match(body, /Edit and republish/)
+    assert.match(body, /All my pages/)
     const text = await (await fetch(`${base}/${npub}/about.txt`)).text()
     assert.match(text, /<pre>[\s\S]*kind 31436/)
   })
@@ -268,13 +271,67 @@ test('http frontend', async (t) => {
       const body = await (await fetch(`${base}/account`)).text()
       assert.match(body, /Signed in as/)
       assert.match(body, /local operator/)
-      assert.match(body, /href="\/me">My hole<\/a>/)
+      assert.match(body, /href="\/me">My pages<\/a>/)
       const home = await (await fetch(base)).text()
-      assert.match(home, /href="\/me">Open my hole<\/a>/)
+      assert.match(home, /href="\/me">Manage my pages<\/a>/)
       const mine = await fetch(`${base}/me`, { redirect: 'manual' })
-      assert.equal(mine.status, 303)
-      assert.equal(mine.headers.get('location'), `/${npub}`)
+      assert.equal(mine.status, 200)
+      const pages = await mine.text()
+      assert.match(pages, /<h1>Your pages<\/h1>/)
+      assert.match(pages, new RegExp(`href="/${npub}">View your public hole`))
+      assert.match(pages, /edit and republish/)
     })
+  })
+
+  await t.test('page manager supports create, edit, view and confirmed deletion', async (t2) => {
+    const published: unknown[] = []
+    const base = await start(t2, {}, published)
+    const manager = await (await fetch(`${base}/me`)).text()
+    assert.match(manager, /href="\/publish">Add a new page<\/a>/)
+    assert.match(manager, /href="\/publish\?path=%2F">edit and republish<\/a>/)
+    assert.match(manager, /href="\/me\/delete\?path=%2F">request deletion<\/a>/)
+
+    const edit = await (await fetch(`${base}/publish?path=%2F`)).text()
+    assert.match(edit, /<h1>Edit \/<\/h1>/)
+    assert.match(edit, /name="path"[^>]*value="\/"[^>]*readonly/)
+    assert.match(edit, /Sign and republish/)
+    assert.match(edit, /Welcome to the example gopherkind/)
+
+    const confirmation = await (await fetch(`${base}/me/delete?path=%2F`)).text()
+    assert.match(confirmation, /Request page deletion/)
+    assert.match(confirmation, /leave your hole without a home page/)
+    assert.match(confirmation, /name="confirm" pattern="DELETE"/)
+    const id = /name="id" value="([0-9a-f]{64})"/.exec(confirmation)?.[1] ?? ''
+    const address = /name="address" value="([^"]+)"/.exec(confirmation)?.[1] ?? ''
+    const csrf = csrfFrom(confirmation)
+
+    const unconfirmed = await fetch(`${base}/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ id, kind: '31436', path: '/', address, csrf }),
+    })
+    assert.equal(unconfirmed.status, 400)
+    assert.equal(published.length, 0)
+
+    const deleted = await fetch(`${base}/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        id,
+        kind: '31436',
+        path: '/',
+        address,
+        confirm: 'DELETE',
+        csrf,
+      }),
+    })
+    assert.equal(deleted.status, 200)
+    assert.match(await deleted.text(), /Back to your pages/)
+    const event = published[0] as Event
+    assert.equal(event.kind, 5)
+    assert.ok(event.tags.some((tag) => tag[0] === 'e' && tag[1] === id))
+    assert.ok(event.tags.some((tag) => tag[0] === 'k' && tag[1] === '31436'))
+    assert.ok(event.tags.some((tag) => tag[0] === 'a' && tag[1] === address))
   })
 
   await t.test('local trust can be turned off', async (t2) => {
@@ -433,6 +490,41 @@ test('http frontend', async (t) => {
       assert.equal(deleted.status, 200)
       assert.match(await deleted.text(), /Deletion requested/)
       assert.deepEqual(published[1], signedDeletion)
+
+      const documentDeleteForm = await (
+        await fetch(`${base}/me/delete?path=%2F`, { headers: { cookie } })
+      ).text()
+      const documentId = /name="id" value="([0-9a-f]{64})"/.exec(documentDeleteForm)?.[1] ?? ''
+      const documentAddress = /name="address" value="([^"]+)"/.exec(documentDeleteForm)?.[1] ?? ''
+      const signedDocumentDeletion = finalizeEvent(
+        {
+          kind: 5,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['e', documentId],
+            ['k', '31436'],
+            ['a', documentAddress],
+          ],
+          content: 'deleted by author',
+        },
+        sk,
+      )
+      const documentDeleted = await fetch(`${base}/delete`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie,
+          origin: base,
+        },
+        body: new URLSearchParams({
+          csrf: csrfFrom(documentDeleteForm),
+          confirm: 'DELETE',
+          event: JSON.stringify(signedDocumentDeletion),
+        }),
+      })
+      assert.equal(documentDeleted.status, 200)
+      assert.match(await documentDeleted.text(), /Back to your pages/)
+      assert.deepEqual(published[2], signedDocumentDeletion)
 
       const feed = await (await fetch(`${base}/feed`, { headers: { cookie } })).text()
       assert.match(feed, /<h1>Your feed<\/h1>/)

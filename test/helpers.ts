@@ -101,6 +101,10 @@ export function makeStore(published: unknown[] = []): HoleStore {
       published.push(ev)
       return 3
     },
+    publishForAuthor: async (ev: unknown) => {
+      published.push(ev)
+      return { accepted: 3, total: 3 }
+    },
     close: () => {},
   } as unknown as HoleStore
 }

@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import type { Event, Filter } from 'nostr-tools'
 import { HoleStore, type PoolLike } from '../src/fetch.ts'
-import { DOC_KIND, NOTE_KIND, RELAY_LIST_KIND } from '../src/protocol.ts'
+import { DELETE_KIND, DOC_KIND, NOTE_KIND, RELAY_LIST_KIND } from '../src/protocol.ts'
 
 const sk = generateSecretKey()
 const pk = getPublicKey(sk)
@@ -24,15 +24,22 @@ function ev(partial: Partial<Event> & { kind: number }): Event {
 
 // A fake pool that answers querySync from a per-kind handler and records the
 // relay set each query was sent to.
-function fakePool(byKind: (filter: Filter) => Event[]): PoolLike & { relaysSeen: string[][] } {
+function fakePool(
+  byKind: (filter: Filter) => Event[],
+): PoolLike & { relaysSeen: string[][]; publishRelaysSeen: string[][] } {
   const relaysSeen: string[][] = []
+  const publishRelaysSeen: string[][] = []
   return {
     relaysSeen,
+    publishRelaysSeen,
     async querySync(relays: string[], filter: Filter) {
       relaysSeen.push(relays)
       return byKind(filter)
     },
-    publish: (relays: string[]) => relays.map(() => Promise.resolve('ok')),
+    publish: (relays: string[]) => {
+      publishRelaysSeen.push(relays)
+      return relays.map(() => Promise.resolve('ok'))
+    },
     async ensureRelay() {
       return { onnotice: () => {} }
     },
@@ -79,6 +86,87 @@ test('doc resolves the newest event, lowest id on a tie', async () => {
   )
   const got = await store.doc(pk, '/a')
   assert.equal(got?.content, 'new')
+})
+
+test('a document deletion request hides prior revisions but not a later republish', async () => {
+  const original = ev({
+    kind: DOC_KIND,
+    created_at: now - 20,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'original',
+  })
+  const deletion = ev({
+    kind: DELETE_KIND,
+    created_at: now - 10,
+    tags: [
+      ['e', original.id],
+      ['k', String(DOC_KIND)],
+      ['a', `${DOC_KIND}:${pk}:/a`],
+    ],
+    content: 'deleted by author',
+  })
+  const deletedStore = new HoleStore(
+    ['wss://bridge'],
+    fakePool((filter) => (filter.kinds?.includes(DELETE_KIND) ? [deletion] : [original])),
+  )
+  assert.equal(await deletedStore.doc(pk, '/a'), null)
+  assert.deepEqual(await deletedStore.hole(pk), [])
+
+  const republished = ev({
+    kind: DOC_KIND,
+    created_at: now,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'back again',
+  })
+  const republishedStore = new HoleStore(
+    ['wss://bridge'],
+    fakePool((filter) =>
+      filter.kinds?.includes(DELETE_KIND) ? [deletion] : [original, republished],
+    ),
+  )
+  assert.equal((await republishedStore.doc(pk, '/a'))?.id, republished.id)
+  assert.deepEqual(
+    (await republishedStore.hole(pk)).map((event) => event.id),
+    [republished.id],
+  )
+})
+
+test('invalidating a document clears its path and hole caches', async () => {
+  const original = ev({
+    kind: DOC_KIND,
+    created_at: now - 1,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'original',
+  })
+  const updated = ev({
+    kind: DOC_KIND,
+    created_at: now,
+    tags: [
+      ['d', '/a'],
+      ['type', '0'],
+    ],
+    content: 'updated',
+  })
+  let current = original
+  const store = new HoleStore(
+    ['wss://bridge'],
+    fakePool((filter) => (filter.kinds?.includes(DELETE_KIND) ? [] : [current])),
+  )
+  assert.equal((await store.doc(pk, '/a'))?.id, original.id)
+  assert.equal((await store.hole(pk))[0]?.id, original.id)
+  current = updated
+  store.invalidateDocument(pk, '/a')
+  assert.equal((await store.doc(pk, '/a'))?.id, updated.id)
+  assert.equal((await store.hole(pk))[0]?.id, updated.id)
 })
 
 test('an expired winning document does not resurrect an older revision', async () => {
@@ -201,6 +289,24 @@ test('a hole reads from the author write relays (NIP-65), not just the bridge', 
   assert.ok(docQuery, 'author write relay should be queried')
   assert.ok(docQuery?.includes('wss://bridge'))
   assert.ok(!docQuery?.includes('wss://read.only.example'))
+})
+
+test('an author event publishes to the bridge and the author write relays', async () => {
+  const relayList = ev({
+    kind: RELAY_LIST_KIND,
+    tags: [
+      ['r', 'wss://author.example'],
+      ['r', 'wss://read.only.example', 'read'],
+    ],
+  })
+  const deletion = ev({ kind: DELETE_KIND })
+  const pool = fakePool((filter) => (filter.kinds?.includes(RELAY_LIST_KIND) ? [relayList] : []))
+  const store = new HoleStore(['wss://bridge'], pool)
+
+  const report = await store.publishForAuthor(deletion)
+
+  assert.deepEqual(report, { accepted: 2, total: 2 })
+  assert.deepEqual(pool.publishRelaysSeen, [['wss://bridge', 'wss://author.example']])
 })
 
 test('query failures degrade to an empty result, not a throw', async () => {

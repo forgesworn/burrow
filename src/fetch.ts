@@ -8,6 +8,7 @@ import {
   CONTACTS_KIND,
   RELAY_LIST_KIND,
   LONG_FORM_KIND,
+  DELETE_KIND,
   docPath,
   expirationTimestamp,
   currentDocument,
@@ -160,15 +161,17 @@ export class HoleStore {
     const key = `${pubkey}|${path}`
     const hit = this.docsCache.get(key)
     if (hit !== undefined) return currentEvent(hit)
-    const events = await this.query(
-      { kinds: [DOC_KIND], authors: [pubkey], '#d': [path] },
-      4000,
-      await this.authorRelays(pubkey),
-    )
-    const value = currentDocument(
+    const relays = await this.authorRelays(pubkey)
+    const coordinate = `${DOC_KIND}:${pubkey}:${path}`
+    const [events, deletions] = await Promise.all([
+      this.query({ kinds: [DOC_KIND], authors: [pubkey], '#d': [path] }, 4000, relays),
+      this.query({ kinds: [DELETE_KIND], authors: [pubkey], '#a': [coordinate] }, 4000, relays),
+    ])
+    const candidate = currentDocument(
       events.filter((event) => tagValue(event, 'd') === path),
       Math.floor(Date.now() / 1000),
     )
+    const value = candidate !== null && documentDeleted(candidate, deletions) ? null : candidate
     this.docsCache.set(key, value)
     return value
   }
@@ -176,11 +179,11 @@ export class HoleStore {
   async hole(pubkey: string): Promise<Event[]> {
     const hit = this.holeCache.get(pubkey)
     if (hit !== undefined) return currentEvents(hit)
-    const events = await this.query(
-      { kinds: [DOC_KIND], authors: [pubkey], limit: 500 },
-      6000,
-      await this.authorRelays(pubkey),
-    )
+    const relays = await this.authorRelays(pubkey)
+    const [events, deletions] = await Promise.all([
+      this.query({ kinds: [DOC_KIND], authors: [pubkey], limit: 500 }, 6000, relays),
+      this.query({ kinds: [DELETE_KIND], authors: [pubkey], limit: 500 }, 6000, relays),
+    ])
     const byPath = new Map<string, Event[]>()
     for (const ev of events) {
       const coordinate = tagValue(ev, 'd')
@@ -193,6 +196,7 @@ export class HoleStore {
     const value = [...byPath.values()]
       .map((revisions) => currentDocument(revisions, now))
       .filter((ev): ev is Event => ev !== null)
+      .filter((event) => !documentDeleted(event, deletions))
       .sort((a, b) => docPath(a).localeCompare(docPath(b)))
     this.holeCache.set(pubkey, value)
     return value
@@ -539,9 +543,38 @@ export class HoleStore {
     return results.filter((r) => r.status === 'fulfilled').length
   }
 
+  async publishForAuthor(ev: Event): Promise<{ accepted: number; total: number }> {
+    const relays = await this.authorRelays(ev.pubkey)
+    const results = await Promise.allSettled(this.pool.publish(relays, ev))
+    return {
+      accepted: results.filter((result) => result.status === 'fulfilled').length,
+      total: relays.length,
+    }
+  }
+
+  invalidateDocument(pubkey: string, path: string): void {
+    this.docsCache.delete(`${pubkey}|${path}`)
+    this.holeCache.delete(pubkey)
+  }
+
   close(): void {
     this.pool.destroy()
   }
+}
+
+function documentDeleted(document: Event, deletions: Event[]): boolean {
+  const coordinate = `${DOC_KIND}:${document.pubkey}:${docPath(document)}`
+  return deletions.some(
+    (deletion) =>
+      deletion.kind === DELETE_KIND &&
+      deletion.pubkey === document.pubkey &&
+      !isExpired(deletion, Math.floor(Date.now() / 1000)) &&
+      deletion.created_at >= document.created_at &&
+      deletion.tags.some(
+        (tag) =>
+          (tag[0] === 'e' && tag[1] === document.id) || (tag[0] === 'a' && tag[1] === coordinate),
+      ),
+  )
 }
 
 function latest(events: Event[]): Event | null {

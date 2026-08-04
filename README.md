@@ -362,8 +362,10 @@ Requests from loopback are treated as you, the operator, using the
 remote signer that `gopherkind pair` stored. No login, no cookies, no
 certificates: open lynx on your own
 machine and you are already signed in. You get menus and documents,
-search forms, your feed, a note composer, a single-document publisher,
-and a delete button on your own notes.
+search forms, your feed, a note composer and a page workspace at `/me`.
+The workspace lists your authored paths and lets you add a page, open it,
+edit and republish it in place, or publish a signed deletion request. Your own
+notes also carry a deletion button.
 
 HTTP and Gemini search lives at `/_gopherkind/search/<npub>`, outside
 the authored hole namespace. A document published at `/search` is

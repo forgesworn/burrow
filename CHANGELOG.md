@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0 (2026-08-04)
+
+### Page management
+
+- turn the signed-in `/me` page into an owner workspace which lists every
+  authored page with direct view, edit and deletion-request actions
+- prefill the publisher from the current signed event and lock its exact path
+  while editing, so republishing updates the intended page in place
+- add confirmed page deletion with both event and address references, hide
+  revisions covered by a NIP-09 request, and allow a later republish to restore
+  the same path
+- send deletion requests to the author's NIP-65 write relays as well as the
+  configured bridge relays
+- expose edit, deletion and all-pages actions while viewing one of your own
+  authored pages
+
 ## 0.11.3 (2026-08-04)
 
 ### Fixed

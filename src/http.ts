@@ -19,8 +19,13 @@ import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import {
   NOTE_KIND,
+  DOC_KIND,
   DELETE_KIND,
+  docPath,
+  docTitle,
+  docType,
   firstLine,
+  isValidDocPath,
   isoDate,
   parseDocument,
   plainTerminalText,
@@ -469,16 +474,14 @@ async function handle(
     }
   }
   if (path === '/account') return accountPage(opts, viewer, store, signedIn)
-  if (path === '/me') {
-    const pubkey = await viewerPubkey(viewer)
-    return pubkey === null ? redirect('/account') : redirect(`/${nip19.npubEncode(pubkey)}`)
-  }
+  if (path === '/me') return managePages(store, viewer, signedIn)
+  if (path === '/me/delete') return deleteDocumentPage(req, store, viewer, signedIn)
   if (path === '/pair') return pairPage(req, opts, signedIn)
   if (path === '/unpair') return unpairPage(req, signedIn)
   if (path === '/post') return postPage(req, opts, store, viewer, signedIn)
-  if (path === '/publish') return publishPage(req, opts, viewer, signedIn)
+  if (path === '/publish') return publishPage(req, opts, store, viewer, signedIn)
   if (path === '/feed') return feedPage(opts, store, viewer, signedIn)
-  if (path === '/delete') return deletePage(req, opts, store, viewer, signedIn)
+  if (path === '/delete') return deletePage(req, store, viewer, signedIn)
   if (path.startsWith('/gopher/') || path === '/gopher') {
     const target = parseProxyPath(path)
     if (!target) {
@@ -589,19 +592,29 @@ async function handle(
   }
   const rendered = renderContentHtml(content)
   let extra = ''
+  const mine = signedIn ? await viewerPubkey(viewer) : null
+  if (mine === route.pubkey && content.kind !== 'error') {
+    const authored = await store.doc(route.pubkey, route.path)
+    if (authored !== null) {
+      const edit = `/publish?path=${encodeURIComponent(route.path)}`
+      const remove = `/me/delete?path=${encodeURIComponent(route.path)}`
+      extra +=
+        '\n<hr>\n<h2>Manage this page</h2>' +
+        `<p><a href="${esc(edit)}">Edit and republish</a> · ` +
+        `<a href="${esc(remove)}">Request deletion</a> · ` +
+        '<a href="/me">All my pages</a></p>'
+    }
+  }
   // Offer deletion on your own notes.
   const noteId = /^\/notes\/([0-9a-f]{64})$/.exec(route.path)?.[1]
-  if (noteId && signedIn) {
-    const mine = await viewerPubkey(viewer)
-    if (mine === route.pubkey) {
-      extra =
-        `\n<hr>\n<form method="post" action="/delete"${nip07FormAttributes(viewer, 'delete')}>` +
-        csrfField(viewer) +
-        `<input type="hidden" name="id" value="${esc(noteId)}">` +
-        `<input type="hidden" name="kind" value="${NOTE_KIND}">` +
-        nip07SigningStatus(viewer) +
-        '<p><input type="submit" value="Delete this note"></p></form>'
-    }
+  if (noteId && mine === route.pubkey) {
+    extra =
+      `\n<hr>\n<form method="post" action="/delete"${nip07FormAttributes(viewer, 'delete')}>` +
+      csrfField(viewer) +
+      `<input type="hidden" name="id" value="${esc(noteId)}">` +
+      `<input type="hidden" name="kind" value="${NOTE_KIND}">` +
+      nip07SigningStatus(viewer) +
+      '<p><input type="submit" value="Delete this note"></p></form>'
   }
   return html(
     content.kind === 'error' ? 404 : 200,
@@ -631,7 +644,7 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     body.splice(
       8,
       0,
-      '<p><strong>Your identity is connected.</strong> <a href="/me">Open my hole</a>.</p>',
+      '<p><strong>Your identity is connected.</strong> <a href="/me">Manage my pages</a>.</p>',
     )
   }
   if (opts.pins.length > 0) {
@@ -705,7 +718,7 @@ async function accountPage(
     viewer.kind === 'nip46' ? ' (NIP-46 remote signer)' : '',
     '</p>',
     `<p><code>${esc(npub)}</code></p>`,
-    '<p><a href="/me">My hole</a></p>',
+    '<p><a href="/me">My pages</a></p>',
     '<p><a href="/feed">Your feed</a></p>',
     '<p><a href="/post">Write a note</a></p>',
   ]
@@ -875,10 +888,95 @@ async function postPage(
   }
 }
 
-function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string {
+async function managePages(store: HoleStore, viewer: Viewer, signedIn: boolean): Promise<Reply> {
+  if (!isSignedIn(viewer)) return redirect('/account')
+  const pubkey = await viewerPubkey(viewer)
+  if (pubkey === null) return redirect('/account')
+  const npub = nip19.npubEncode(pubkey)
+  const documents = await store.hole(pubkey)
+  const rows = documents.map((event) => {
+    const path = docPath(event)
+    const view = holeRef(npub, path)
+    const edit = `/publish?path=${encodeURIComponent(path)}`
+    const remove = `/me/delete?path=${encodeURIComponent(path)}`
+    const type = docType(event) === '1' ? 'menu' : 'text'
+    return (
+      `<li><code>${esc(path)}</code> — ${esc(docTitle(event))} (${type})<br>` +
+      `<a href="${esc(view)}">view</a> · <a href="${esc(edit)}">edit and republish</a> · ` +
+      `<a href="${esc(remove)}">request deletion</a></li>`
+    )
+  })
+  const body = [
+    '<h1>Your pages</h1>',
+    `<p><a href="/${esc(npub)}">View your public hole</a> · ` +
+      '<a href="/publish">Add a new page</a></p>',
+    '<p>Publishing the same exact path updates that page. Deletion publishes a signed',
+    'request; relays and readers may retain a copy.</p>',
+    rows.length === 0
+      ? '<p>You have no authored pages yet. Start with a <a href="/publish">home page at <code>/</code></a>.</p>'
+      : `<ul>${rows.join('\n')}</ul>`,
+  ]
+  return html(200, page('Your pages', body.join('\n'), signedIn))
+}
+
+async function deleteDocumentPage(
+  req: http.IncomingMessage,
+  store: HoleStore,
+  viewer: Viewer,
+  signedIn: boolean,
+): Promise<Reply> {
+  if (!isSignedIn(viewer)) return redirect('/account')
+  if (req.method !== 'GET') return redirect('/me')
+  const path = new URL(req.url ?? '/', 'http://localhost').searchParams.get('path') ?? ''
+  if (!isValidDocPath(path)) {
+    return html(400, page('Bad page path', '<h1>Bad page path</h1>', signedIn))
+  }
+  const pubkey = await viewerPubkey(viewer)
+  if (pubkey === null) return redirect('/account')
+  const existing = await store.doc(pubkey, path)
+  if (existing === null) {
+    return html(
+      404,
+      page(
+        'Page not found',
+        '<h1>Page not found</h1><p>No current authored page exists at that path.</p><p><a href="/me">Back to your pages</a></p>',
+        signedIn,
+      ),
+    )
+  }
+  const address = `${DOC_KIND}:${pubkey}:${path}`
+  const rootWarning =
+    path === '/' ? '<p><strong>This will leave your hole without a home page.</strong></p>' : ''
+  const form = [
+    '<h1>Request page deletion</h1>',
+    `<p>You are requesting deletion of <code>${esc(path)}</code> (${esc(docTitle(existing))}).</p>`,
+    rootWarning,
+    '<p>This publishes a signed NIP-09 request. Relays may ignore it and clients may retain a copy.</p>',
+    `<form method="post" action="/delete"${nip07FormAttributes(viewer, 'delete')}>`,
+    csrfField(viewer),
+    `<input type="hidden" name="id" value="${esc(existing.id)}">`,
+    `<input type="hidden" name="kind" value="${DOC_KIND}">`,
+    `<input type="hidden" name="path" value="${esc(path)}">`,
+    `<input type="hidden" name="address" value="${esc(address)}">`,
+    '<p><label>Type <code>DELETE</code> to confirm<br>',
+    '<input type="text" name="confirm" pattern="DELETE" autocomplete="off" required></label></p>',
+    nip07SigningStatus(viewer),
+    '<p><input type="submit" value="Sign deletion request"> <a href="/me">Cancel</a></p>',
+    '</form>',
+  ].join('\n')
+  return html(200, page('Request page deletion', form, signedIn))
+}
+
+function documentForm(
+  viewer: Viewer,
+  values: Partial<PlannedDoc> = {},
+  options: { editing?: boolean } = {},
+): string {
   const type = values.type ?? '0'
+  const editing = options.editing === true
   return [
-    '<h1>Publish to your hole</h1>',
+    editing ? `<h1>Edit ${esc(values.path ?? '')}</h1>` : '<h1>Publish to your hole</h1>',
+    '<p><a href="/me">Back to your pages</a></p>',
     '<p>Add a public page to your hole or update one you have already published.',
     'Your signer signs it, then gopherkind sends it to your Nostr relays.</p>',
     '<ul>',
@@ -892,7 +990,7 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     'after you replace a page or request its deletion.</p>',
     `<form method="post" action="/publish"${nip07FormAttributes(viewer, 'publish')}>`,
     csrfField(viewer),
-    `<p><label for="document-path">Path</label><br><input id="document-path" type="text" name="path" size="50" value="${esc(values.path ?? '/')}" aria-describedby="path-help" required></p>`,
+    `<p><label for="document-path">Path</label><br><input id="document-path" type="text" name="path" size="50" value="${esc(values.path ?? '/')}" aria-describedby="path-help"${editing ? ' readonly' : ''} required></p>`,
     '<p id="path-help">Use <code>/</code> for your home page, or a path such as',
     '<code>/about.txt</code> or <code>/phlog/2026-08-04.txt</code>. Paths are exact,',
     'and publishing to the same path updates that page.</p>',
@@ -923,18 +1021,55 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
     'I understand this is public and replaces any current page at the same exact path.</label></p>',
     nip07SigningStatus(viewer),
-    '<p><input type="submit" value="Sign and publish"></p></form>',
+    `<p><input type="submit" value="${editing ? 'Sign and republish' : 'Sign and publish'}"></p></form>`,
   ].join('\n')
 }
 
 async function publishPage(
   req: http.IncomingMessage,
   opts: HttpOptions,
+  store: HoleStore,
   viewer: Viewer,
   signedIn: boolean,
 ): Promise<Reply> {
   if (!isSignedIn(viewer)) return redirect('/account')
   if (req.method !== 'POST') {
+    const requestedPath = new URL(req.url ?? '/', 'http://localhost').searchParams.get('path')
+    if (requestedPath !== null) {
+      if (!isValidDocPath(requestedPath)) {
+        return html(400, page('Bad page path', '<h1>Bad page path</h1>', signedIn))
+      }
+      const pubkey = await viewerPubkey(viewer)
+      if (pubkey === null) return redirect('/account')
+      const existing = await store.doc(pubkey, requestedPath)
+      if (existing === null) {
+        return html(
+          404,
+          page(
+            'Page not found',
+            '<h1>Page not found</h1><p>No current authored page exists at that path.</p><p><a href="/me">Back to your pages</a></p>',
+            signedIn,
+          ),
+        )
+      }
+      return html(
+        200,
+        page(
+          `Edit ${requestedPath}`,
+          documentForm(
+            viewer,
+            {
+              path: docPath(existing),
+              title: docTitle(existing),
+              type: docType(existing),
+              content: existing.content,
+            },
+            { editing: true },
+          ),
+          signedIn,
+        ),
+      )
+    }
     return html(200, page('Publish a document', documentForm(viewer), signedIn))
   }
 
@@ -1014,6 +1149,8 @@ async function publishPage(
       )(document, viewer.signer)
     }
     const ref = holeRef(report.npub, report.path)
+    const pubkey = await viewerPubkey(viewer)
+    if (pubkey !== null) store.invalidateDocument?.(pubkey, report.path)
     const nextStep =
       document.type === '0'
         ? '<p>To make this page easy to find, link to it from a menu page such as your <code>/</code> home page.</p>'
@@ -1029,6 +1166,7 @@ async function publishPage(
           `<p><a href="${esc(ref)}">Read the document</a></p>`,
           nextStep,
           `<p><a href="/${esc(report.npub)}">Open your hole</a></p>`,
+          '<p><a href="/me">Manage your pages</a></p>',
           '<p><a href="/publish">Publish another document</a></p>',
         ].join('\n'),
         signedIn,
@@ -1049,7 +1187,6 @@ async function publishPage(
 
 async function deletePage(
   req: http.IncomingMessage,
-  opts: HttpOptions,
   store: HoleStore,
   viewer: Viewer,
   signedIn: boolean,
@@ -1061,13 +1198,20 @@ async function deletePage(
     return html(403, page('Blocked', '<h1>Blocked</h1><p>bad or missing form token</p>', signedIn))
   let browserEvent: Event | null = null
   let id: string
+  let address: string | null = null
+  let requestedPath: string | null = null
   try {
     if (viewer.kind === 'nip07') {
       browserEvent = browserSubmittedEvent(body, viewer)
       const eventTags = browserEvent.tags.filter((tag) => tag[0] === 'e')
       id = eventTags.length === 1 ? (eventTags[0]?.[1] ?? '') : ''
+      const addressTags = browserEvent.tags.filter((tag) => tag[0] === 'a')
+      if (addressTags.length > 1) throw new Error('deletion has more than one address')
+      address = addressTags[0]?.[1] ?? null
     } else {
       id = (body['id'] ?? '').trim()
+      address = (body['address'] ?? '').trim() || null
+      requestedPath = (body['path'] ?? '').trim() || null
     }
   } catch (err) {
     return html(
@@ -1083,7 +1227,24 @@ async function deletePage(
     return html(400, page('Bad request', '<p>bad event id</p>', signedIn))
   const mine = await viewerPubkey(viewer)
   if (mine === null) return redirect('/account')
-  const existing = await store.event(id)
+  if (address !== null) {
+    const prefix = `${DOC_KIND}:${mine}:`
+    if (!address.startsWith(prefix)) {
+      return html(
+        400,
+        page('Deletion refused', '<h1>Deletion refused</h1><p>bad document address</p>', signedIn),
+      )
+    }
+    requestedPath = address.slice(prefix.length)
+  }
+  if (requestedPath !== null && !isValidDocPath(requestedPath)) {
+    return html(
+      400,
+      page('Deletion refused', '<h1>Deletion refused</h1><p>bad document path</p>', signedIn),
+    )
+  }
+  const existing =
+    requestedPath === null ? await store.event(id) : await store.doc(mine, requestedPath)
   // Fail closed: only sign a deletion for an event we positively confirm is
   // the operator's. A relay miss (existing === null) must not authorise it.
   if (!existing) {
@@ -1102,6 +1263,45 @@ async function deletePage(
       page('Not yours', '<h1>Not yours</h1><p>You can only delete your own events.</p>', signedIn),
     )
   }
+  if (existing.id !== id) {
+    return html(
+      409,
+      page(
+        'Page changed',
+        '<h1>Page changed</h1><p>That page has changed since the deletion form was opened. Nothing was deleted.</p><p><a href="/me">Back to your pages</a></p>',
+        signedIn,
+      ),
+    )
+  }
+  const document = existing.kind === DOC_KIND ? parseDocument(existing) : null
+  if (existing.kind === DOC_KIND) {
+    if (document === null || requestedPath !== document.path) {
+      return html(
+        400,
+        page('Deletion refused', '<h1>Deletion refused</h1><p>bad document metadata</p>', signedIn),
+      )
+    }
+    const expectedAddress = `${DOC_KIND}:${mine}:${document.path}`
+    if (address !== expectedAddress || body['confirm'] !== 'DELETE') {
+      return html(
+        400,
+        page(
+          'Confirm deletion',
+          '<h1>Confirm deletion</h1><p>Nothing was deleted. Type DELETE on the page deletion form before signing.</p><p><a href="/me">Back to your pages</a></p>',
+          signedIn,
+        ),
+      )
+    }
+  } else if (address !== null || requestedPath !== null) {
+    return html(
+      400,
+      page(
+        'Deletion refused',
+        '<h1>Deletion refused</h1><p>address does not name a page</p>',
+        signedIn,
+      ),
+    )
+  }
   const template = {
     kind: DELETE_KIND,
     created_at: Math.floor(Date.now() / 1000),
@@ -1111,6 +1311,7 @@ async function deletePage(
     ],
     content: 'deleted by author',
   }
+  if (document !== null) template.tags.push(['a', `${DOC_KIND}:${mine}:${document.path}`])
   let signed: Event
   if (browserEvent !== null) {
     template.created_at = browserEvent.created_at
@@ -1130,18 +1331,21 @@ async function deletePage(
     if (viewer.signer === null) return redirect('/account')
     signed = await viewer.signer.sign(template)
   }
-  const accepted = await store.publish(signed)
+  const delivery = await store.publishForAuthor(signed)
+  if (document !== null) store.invalidateDocument?.(mine, document.path)
   return html(
     200,
     page(
       'Deletion requested',
       [
         '<h1>Deletion requested</h1>',
-        `<p>Accepted by ${accepted}/${opts.relays.length} relays.</p>`,
+        `<p>Accepted by ${delivery.accepted}/${delivery.total} relays.</p>`,
         '<p>Deletion is a request, not a guarantee: relays may ignore it and',
         'clients may keep a local copy. If the event contained a secret,',
         'rotate the secret too.</p>',
-        '<p><a href="/feed">Back to your feed</a></p>',
+        document === null
+          ? '<p><a href="/feed">Back to your feed</a></p>'
+          : '<p><a href="/me">Back to your pages</a></p>',
       ].join('\n'),
       signedIn,
     ),
