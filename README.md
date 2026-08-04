@@ -94,9 +94,9 @@ of `gopherkind`; day-to-day source development needs no build step.
 
 The public reference bridge is available on all three frontends:
 
-- Gopher: `gopher://144.126.230.165/`
-- Gemini: `gemini://144.126.230.165/`
-- Web: <https://gopherkind.144-126-230-165.sslip.io/>
+- Gopher: `gopher://gopherkind.com/`
+- Gemini: `gemini://gopherkind.com/`
+- Web: <https://gopherkind.com/>
 
 The web endpoint terminates TLS on the bridge host, so remote visitors can
 connect a NIP-07 browser extension or pair a NIP-46 signer. Port 8070 is not
