@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { page, renderMenuHtml } from '../src/html.ts'
+import { page, renderMenuHtml, renderTerminalHtml } from '../src/html.ts'
 import { renderGemtextMenu } from '../src/gemtext.ts'
 import { info } from '../src/resolve.ts'
 import type { MenuItem } from '../src/resolve.ts'
@@ -35,6 +35,47 @@ test('info runs are split by links, not merged across them', () => {
 test('blank padding around an info run is trimmed', () => {
   const out = renderMenuHtml('T', [info(''), info('text'), info('')])
   assert.match(out, /<pre>text<\/pre>/)
+})
+
+test('terminal SGR styling becomes inert HTML styling', () => {
+  const source = [
+    '\x1b[1;38;2;27;75;105mtrue colour',
+    '\x1b[0;48;5;196;4m indexed & underlined',
+    '\x1b[0;31;47;3;9m styled <text>',
+    '\x1b[0m plain',
+  ].join('')
+  assert.equal(
+    renderTerminalHtml(source),
+    [
+      '<span style="color:#1b4b69;font-weight:bold">true colour</span>',
+      '<span style="background-color:#ff0000;text-decoration:underline"> indexed &amp; underlined</span>',
+      '<span style="color:#aa0000;background-color:#aaaaaa;font-style:italic;text-decoration:line-through"> styled &lt;text&gt;</span>',
+      ' plain',
+    ].join(''),
+  )
+})
+
+test('terminal controls cannot become active HTML', () => {
+  const source =
+    '\x1b]8;;https://attacker.example\x07linked\x1b]8;;\x07 ' +
+    '\x1b[2Jcursor <script> \x1b[38:2::10:20:30mcolour'
+  const out = renderTerminalHtml(source)
+  assert.doesNotMatch(out, /attacker|\[2J|<script>/)
+  assert.ok(!out.includes('\x1b'))
+  assert.match(out, /linked cursor &lt;script&gt; /)
+  assert.match(out, /<span style="color:#0a141e">colour<\/span>/)
+})
+
+test('gopher menu artwork and links retain terminal colours in HTML', () => {
+  const link = { ...LINK, display: '\x1b[32mA coloured link\x1b[0m' }
+  const out = renderMenuHtml('T', [info('\x1b[38;2;27;75;105m⢀\x1b[0m'), link])
+  assert.match(out, /<pre><span style="color:#1b4b69">⢀<\/span><\/pre>/)
+  assert.match(
+    out,
+    /<a href="\/npub1x\/x"><span style="color:#00aa00">A coloured link<\/span><\/a>/,
+  )
+  assert.doesNotMatch(out, /\[38;/)
+  assert.ok(!out.includes('\x1b'))
 })
 
 test('html shell keeps navigation and form controls within a mobile viewport', () => {

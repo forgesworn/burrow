@@ -11,6 +11,13 @@
 - keep public retention and exact-path replacement explicit, then suggest the
   relevant next step after a text page or menu is published
 
+### Gopher proxy
+
+- render safe ANSI SGR colours and text attributes from traditional Gopher
+  menus as inert HTML styling instead of printing terminal escape fragments
+- discard cursor movement, terminal hyperlinks and other active control
+  sequences while preserving the underlying text, artwork and links
+
 ## 0.10.0 (2026-08-03)
 
 ### Browser identity

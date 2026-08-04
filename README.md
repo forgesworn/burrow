@@ -346,6 +346,11 @@ rest of gopherspace from a browser that has never heard of gopher.
 Kindmap `gopher://` links route through it automatically. lynx can
 of course also just speak gopher directly.
 
+Traditional menus which use ANSI SGR colours or text attributes retain that
+styling in the graphical web frontend. Other terminal controls stay inert;
+cursor movement, terminal hyperlinks and clipboard commands are never passed
+through as browser behaviour.
+
 ## The full experience in lynx
 
 lynx is not only a gopher client, it speaks HTTP, so the bridge serves
