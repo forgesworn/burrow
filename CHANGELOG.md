@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1 (2026-08-04)
+
+### Fixed
+
+- reject oversized relay-backed signing requests before invoking NIP-46 or a
+  browser extension, with a clear prompt to reduce the page instead of waiting
+  for a remote `signEvent` timeout
+
 ## 0.11.0 (2026-08-04)
 
 ### Navigation

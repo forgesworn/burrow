@@ -29,6 +29,7 @@ export interface PlannedDoc {
 }
 
 export const RECOVERY_MANIFEST = '.gopherkind.json'
+export const NIP46_SIGNING_REQUEST_LIMIT = 40 * 1024
 
 interface RecoveryManifestEntry {
   file: string
@@ -196,6 +197,24 @@ export function docToTemplate(
   return { kind: DOC_KIND, created_at: createdAt, tags, content: doc.content }
 }
 
+export function nip46SigningRequestBytes(template: EventTemplate): number {
+  const request = JSON.stringify({
+    id: 'gopherkind-signing-request',
+    method: 'sign_event',
+    params: [JSON.stringify(template)],
+  })
+  return Buffer.byteLength(request, 'utf8')
+}
+
+function assertNip46Signable(template: EventTemplate, documentPath: string): void {
+  const bytes = nip46SigningRequestBytes(template)
+  if (bytes <= NIP46_SIGNING_REQUEST_LIMIT) return
+  throw new Error(
+    `${documentPath} is too large for a relay-backed NIP-46 signer ` +
+      `(${bytes} bytes; limit ${NIP46_SIGNING_REQUEST_LIMIT}). Reduce the page before signing.`,
+  )
+}
+
 export function parseDuration(s: string): number {
   const m = /^(\d+)([smhdw])$/.exec(s)
   if (!m) throw new Error(`bad duration: ${s} (use e.g. 90m, 12h, 30d, 2w)`)
@@ -298,7 +317,7 @@ function validateBrowserDocument(doc: PlannedDoc): void {
   }
   // Validate the remaining exact-path and title rules before asking any
   // signer or relay to handle this document.
-  docToTemplate(doc, 0)
+  assertNip46Signable(docToTemplate(doc, 0), doc.path)
 }
 
 export async function publishSignedDocument(
@@ -391,10 +410,15 @@ export async function publishHole(
     }
   }
   const createdAt = Math.floor(Date.now() / 1000)
+  const templates = docs.map((doc) => {
+    const template = docToTemplate(doc, createdAt, opts.expireSeconds)
+    assertNip46Signable(template, doc.path)
+    return template
+  })
   const pubkey = await signer.pubkey()
   const events: Event[] = []
-  for (const doc of docs) {
-    const event = await signer.sign(docToTemplate(doc, createdAt, opts.expireSeconds))
+  for (const [index, doc] of docs.entries()) {
+    const event = await signer.sign(templates[index] as EventTemplate)
     if (event.pubkey !== pubkey) throw new Error(`signer returned the wrong author for ${doc.path}`)
     events.push(event)
   }
