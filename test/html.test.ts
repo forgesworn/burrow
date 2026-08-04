@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { page, renderMenuHtml, renderTerminalHtml } from '../src/html.ts'
 import { renderGemtextMenu } from '../src/gemtext.ts'
 import { info } from '../src/resolve.ts'
-import type { MenuItem } from '../src/resolve.ts'
+import { parseKindmap } from '../src/linemap.ts'
+import { resolveMapLines, type MenuItem } from '../src/resolve.ts'
 
 const ART = [
   info('***********************'),
@@ -67,8 +68,8 @@ test('terminal controls cannot become active HTML', () => {
 })
 
 test('gopher menu artwork and links retain terminal colours in HTML', () => {
-  const link = { ...LINK, display: '\x1b[32mA coloured link\x1b[0m' }
-  const out = renderMenuHtml('T', [info('\x1b[38;2;27;75;105m⢀\x1b[0m'), link])
+  const map = '\x1b[38;2;27;75;105m⢀\x1b[0m\n0\x1b[32mA coloured link\x1b[0m\t/x'
+  const out = renderMenuHtml('T', resolveMapLines(parseKindmap(map), 'npub1x'))
   assert.match(out, /<pre><span style="color:#1b4b69">⢀<\/span><\/pre>/)
   assert.match(
     out,

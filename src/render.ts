@@ -1,6 +1,6 @@
 import type { MapLine } from './linemap.ts'
 import { resolveMapLines, type MenuItem } from './resolve.ts'
-import { replaceControlCharacters } from './protocol.ts'
+import { cleanTerminalDisplay, replaceControlCharacters } from './protocol.ts'
 
 // RFC 1436 wire rendering.
 
@@ -11,7 +11,7 @@ export interface BridgeAddr {
 
 const INFO_TAIL = '\t-\terror.host\t1'
 
-function clean(text: string): string {
+function cleanField(text: string): string {
   return replaceControlCharacters(text)
 }
 
@@ -26,11 +26,11 @@ export function gopherLine(
   // in a selector or host (e.g. from a percent-decoded proxied gophermap,
   // or a hostile event) would otherwise forge extra menu records.
   const safeType = /^[\x21-\x7e]$/.test(type) ? type : 'i'
-  return `${safeType}${clean(display)}\t${clean(selector)}\t${clean(host)}\t${Number(port) || 70}\r\n`
+  return `${safeType}${cleanTerminalDisplay(display)}\t${cleanField(selector)}\t${cleanField(host)}\t${Number(port) || 70}\r\n`
 }
 
 export function infoLine(display: string): string {
-  return `i${clean(display)}${INFO_TAIL}\r\n`
+  return `i${cleanTerminalDisplay(display)}${INFO_TAIL}\r\n`
 }
 
 export function holeSelector(npub: string, path: string): string {
@@ -77,5 +77,5 @@ export function renderText(content: string): string {
 }
 
 export function renderError(message: string): string {
-  return `3${clean(message)}${INFO_TAIL}\r\n.\r\n`
+  return `3${cleanField(message)}${INFO_TAIL}\r\n.\r\n`
 }

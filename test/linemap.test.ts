@@ -21,6 +21,17 @@ test('explicit i prefix is stripped', () => {
   assert.deepEqual(line, { type: 'i', display: 'hello' })
 })
 
+test('safe terminal colours survive while active terminal controls are removed', () => {
+  const styled = '\x1b[38;5;214mDonkey\x1b[0m'
+  assert.deepEqual(parseKindmap(styled)[0], { type: 'i', display: styled })
+  assert.deepEqual(parseKindmap(`0${styled}\t/about.txt`)[0], {
+    type: '0',
+    display: styled,
+    link: '/about.txt',
+  })
+  assert.equal(parseKindmap('\x1b[2Jcursor moved')[0]?.display, 'cursor moved')
+})
+
 test('extra tab fields from pasted gophermaps are ignored', () => {
   const [line] = parseKindmap('1Phlog\t/phlog\tgopher.example\t70')
   assert.deepEqual(line, { type: '1', display: 'Phlog', link: '/phlog' })

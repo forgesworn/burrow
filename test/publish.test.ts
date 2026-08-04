@@ -94,6 +94,7 @@ test('NIP-46 signing request accounting includes the nested event JSON', () => {
     1000,
   )
   assert.ok(nip46SigningRequestBytes(template) > Buffer.byteLength(JSON.stringify(template)))
+  assert.equal(NIP46_SIGNING_REQUEST_LIMIT, 1536)
   assert.ok(nip46SigningRequestBytes(template) < NIP46_SIGNING_REQUEST_LIMIT)
 })
 
@@ -303,7 +304,7 @@ test('single-document publishing rejects an oversized NIP-46 request before sign
   }
   await assert.rejects(
     publishDocument(
-      { path: '/', type: '1', title: 'root', content: 'x'.repeat(20 * 1024) },
+      { path: '/', type: '1', title: 'root', content: 'x'.repeat(2 * 1024) },
       ['wss://configured.example'],
       signer,
     ),

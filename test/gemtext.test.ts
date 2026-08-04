@@ -17,6 +17,13 @@ test('menu renders heading, info text and links', () => {
   assert.equal(out, `# Test\n\nWelcome\n=> /${npub}/about.txt About\n`)
 })
 
+test('gemtext removes complete terminal style sequences', () => {
+  const out = render('\x1b[38;5;214mDonkey\x1b[0m')
+  assert.match(out, /\nDonkey\n/)
+  assert.doesNotMatch(out, /\[38;/)
+  assert.ok(!out.includes(String.fromCharCode(27)))
+})
+
 test('search items point at the bridge namespace', () => {
   const out = render('7Find things\t/')
   assert.equal(out, `# Test\n\n=> /_gopherkind/search/${npub} Find things\n`)

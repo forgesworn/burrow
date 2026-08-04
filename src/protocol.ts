@@ -1,4 +1,5 @@
 import type { Event } from 'nostr-tools'
+import { stripVTControlCharacters } from 'node:util'
 
 // Addressable event kind for gopherkind documents. 31436 after RFC 1436,
 // the Gopher protocol specification.
@@ -58,6 +59,33 @@ export function replaceControlCharacters(value: string, replacement = ' '): stri
       return code <= 0x1f || (code >= 0x7f && code <= 0x9f) ? replacement : character
     })
     .join('')
+}
+
+const SGR_PATTERN_SOURCE = `${String.fromCharCode(27)}\\[[0-9;:]*m`
+
+/** True when a display contains controls other than inert SGR styling. */
+export function hasNonSgrControls(value: string): boolean {
+  return hasControlCharacters(value.replace(new RegExp(SGR_PATTERN_SOURCE, 'g'), ''))
+}
+
+/** Preserve only SGR colour/style sequences and neutralise every other control. */
+export function cleanTerminalDisplay(value: string): string {
+  const out: string[] = []
+  const pattern = new RegExp(SGR_PATTERN_SOURCE, 'g')
+  let offset = 0
+  for (const match of value.matchAll(pattern)) {
+    const index = match.index ?? offset
+    out.push(replaceControlCharacters(stripVTControlCharacters(value.slice(offset, index))))
+    out.push(match[0])
+    offset = index + match[0].length
+  }
+  out.push(replaceControlCharacters(stripVTControlCharacters(value.slice(offset))))
+  return out.join('')
+}
+
+/** Remove complete terminal sequences for plain-text protocols and metadata. */
+export function plainTerminalText(value: string): string {
+  return replaceControlCharacters(stripVTControlCharacters(value))
 }
 
 export function isWellFormedUnicode(value: string): boolean {

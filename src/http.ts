@@ -17,7 +17,14 @@ import { Nip46Client } from './nip46client.ts'
 import { storedSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, firstLine, isoDate, parseDocument } from './protocol.ts'
+import {
+  NOTE_KIND,
+  DELETE_KIND,
+  firstLine,
+  isoDate,
+  parseDocument,
+  plainTerminalText,
+} from './protocol.ts'
 import { holeRef } from './gemtext.ts'
 import { resolveClientTarget, type ClientTarget } from './target.ts'
 import {
@@ -99,10 +106,12 @@ function contentDescription(content: Content): string {
   if (content.kind === 'menu') {
     return (
       firstLine(
-        content.items
-          .filter((item) => item.target.scheme === 'none')
-          .map((item) => item.display)
-          .join(' '),
+        plainTerminalText(
+          content.items
+            .filter((item) => item.target.scheme === 'none')
+            .map((item) => item.display)
+            .join(' '),
+        ),
         180,
       ) || content.title
     )
@@ -909,8 +918,8 @@ function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string 
     '</details>',
     '<p><label for="document-content">Content</label><br>',
     `<textarea name="content" id="document-content" rows="20" cols="72" aria-describedby="content-help">${esc(values.content ?? '')}</textarea></p>`,
-    '<p id="content-help">Large pages may exceed the portable relay-and-hardware signer limit after',
-    'encoding. Gopherkind checks the complete request before asking for a signature.</p>',
+    '<p id="content-help">Remote signing requests are capped at 1.5 KiB so their encrypted request',
+    'and signed response stay below the practical 4 KiB hardware transport boundary.</p>',
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
     'I understand this is public and replaces any current page at the same exact path.</label></p>',
     nip07SigningStatus(viewer),
