@@ -37,6 +37,10 @@ export class TtlLru<V> {
     }
   }
 
+  delete(key: string): boolean {
+    return this.map.delete(key)
+  }
+
   get size(): number {
     return this.map.size
   }

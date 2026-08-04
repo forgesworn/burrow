@@ -91,7 +91,7 @@ test('html shell keeps navigation and form controls within a mobile viewport', (
   assert.match(out, /textarea,input,button,select\{[^}]*max-width:100%\}/)
   assert.match(out, /textarea\{width:100%;resize:vertical\}/)
   assert.match(out, /<nav><a href="\/" data-history-back>back<\/a><a href="\/">home<\/a>/)
-  assert.match(out, /<a href="\/me">my hole<\/a>/)
+  assert.match(out, /<a href="\/me">my pages<\/a>/)
   assert.match(out, /data-theme-toggle hidden>theme<\/button>/)
   assert.match(out, /:root\[data-theme="light"\]/)
   assert.match(out, /:root\[data-theme="dark"\]/)

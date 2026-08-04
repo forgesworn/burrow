@@ -184,11 +184,16 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
         }
       }
       case 'delete':
-        return {
-          kind: 5,
-          created_at,
-          tags: [['e', String(data.get('id') || '')], ['k', String(data.get('kind') || '')]],
-          content: 'deleted by author',
+        {
+          const tags = [['e', String(data.get('id') || '')], ['k', String(data.get('kind') || '')]]
+          const address = String(data.get('address') || '')
+          if (address) tags.push(['a', address])
+          return {
+            kind: 5,
+            created_at,
+            tags,
+            content: 'deleted by author',
+          }
         }
       default:
         throw new Error('unknown browser signing action')
@@ -283,6 +288,9 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
           hiddenInput(submission, 'csrf', String(new FormData(form).get('csrf') || ''))
           hiddenInput(submission, 'event', JSON.stringify(signed))
           if (form.dataset.nip07Action === 'publish') hiddenInput(submission, 'replace', 'yes')
+          if (form.dataset.nip07Action === 'delete') {
+            hiddenInput(submission, 'confirm', String(new FormData(form).get('confirm') || ''))
+          }
           document.body.appendChild(submission)
           HTMLFormElement.prototype.submit.call(submission)
         } catch (error) {
