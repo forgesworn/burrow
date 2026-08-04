@@ -73,6 +73,14 @@ test('info lines use the standard dummy fields', () => {
   assert.equal(out, 'ijust some text\t-\terror.host\t1\r\n.\r\n')
 })
 
+test('gopher wire output retains only inert SGR styling', () => {
+  const styled = '\x1b[38;5;214mDonkey\x1b[0m'
+  assert.equal(
+    renderMenu(parseKindmap(`${styled}\n\x1b[2Jcursor`), owner, bridge),
+    `i${styled}\t-\terror.host\t1\r\nicursor\t-\terror.host\t1\r\n.\r\n`,
+  )
+})
+
 test('text is CRLF, dot-stuffed, dot-terminated', () => {
   const out = renderText('hello\n.hidden\nworld\n')
   assert.equal(out, 'hello\r\n..hidden\r\nworld\r\n.\r\n')

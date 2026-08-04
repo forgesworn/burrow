@@ -1,4 +1,4 @@
-import { hasControlCharacters, replaceControlCharacters } from './protocol.ts'
+import { cleanTerminalDisplay, hasControlCharacters, hasNonSgrControls } from './protocol.ts'
 
 // Kindmap: the host-agnostic menu source stored in kind 31436 events.
 // One item per line: `<type><display>` or `<type><display>\t<link>`.
@@ -15,7 +15,7 @@ export interface MapLine {
 const ITEM_TYPE = /^[\x21-\x7e]$/
 
 function cleanInfo(value: string): string {
-  return replaceControlCharacters(value)
+  return cleanTerminalDisplay(value)
 }
 
 export function parseKindmap(content: string): MapLine[] {
@@ -37,14 +37,9 @@ export function parseKindmap(content: string): MapLine[] {
       const fallback = head.startsWith('i') ? head.slice(1) : head
       return { type: 'i', display: cleanInfo(fallback) }
     }
-    if (
-      type === 'i' ||
-      link === '' ||
-      hasControlCharacters(display) ||
-      hasControlCharacters(link)
-    ) {
+    if (type === 'i' || link === '' || hasNonSgrControls(display) || hasControlCharacters(link)) {
       return { type: 'i', display: cleanInfo(display) }
     }
-    return { type, display, link }
+    return { type, display: cleanTerminalDisplay(display), link }
   })
 }

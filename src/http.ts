@@ -17,7 +17,14 @@ import { Nip46Client } from './nip46client.ts'
 import { storedSigner, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
 import { findSecret } from './secretguard.ts'
 import { parseProfile, displayName } from './virtual.ts'
-import { NOTE_KIND, DELETE_KIND, firstLine, isoDate, parseDocument } from './protocol.ts'
+import {
+  NOTE_KIND,
+  DELETE_KIND,
+  firstLine,
+  isoDate,
+  parseDocument,
+  plainTerminalText,
+} from './protocol.ts'
 import { holeRef } from './gemtext.ts'
 import { resolveClientTarget, type ClientTarget } from './target.ts'
 import {
@@ -99,10 +106,12 @@ function contentDescription(content: Content): string {
   if (content.kind === 'menu') {
     return (
       firstLine(
-        content.items
-          .filter((item) => item.target.scheme === 'none')
-          .map((item) => item.display)
-          .join(' '),
+        plainTerminalText(
+          content.items
+            .filter((item) => item.target.scheme === 'none')
+            .map((item) => item.display)
+            .join(' '),
+        ),
         180,
       ) || content.title
     )

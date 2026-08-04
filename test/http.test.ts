@@ -169,6 +169,32 @@ test('http frontend', async (t) => {
     assert.match(text, /<pre>[\s\S]*kind 31436/)
   })
 
+  await t.test(
+    'signed kindmap terminal colours render without leaking control syntax',
+    async (t2) => {
+      const styledRoot = finalizeEvent(
+        docToTemplate(
+          {
+            path: '/',
+            type: '1',
+            title: 'Styled root',
+            content: '\x1b[38;5;214mDonkey\x1b[0m\n',
+          },
+          1_754_000_010,
+        ),
+        sk,
+      )
+      const store = makeStore()
+      store.doc = async (pk: string, documentPath: string) =>
+        pk === pubkey && documentPath === '/' ? styledRoot : null
+      const base = await start(t2, { store, publicUrl: 'https://bridge.example' })
+      const body = await (await fetch(`${base}/${npub}`)).text()
+      assert.match(body, /<span style="color:#ffaf00">Donkey<\/span>/)
+      assert.doesNotMatch(body, /\[38;5;214m/)
+      assert.ok(!body.includes(String.fromCharCode(27)))
+    },
+  )
+
   await t.test('public HTTP pages carry canonical and share metadata', async (t2) => {
     const base = await start(t2, { publicUrl: 'https://bridge.example' })
     const body = await (await fetch(`${base}/${npub}`)).text()

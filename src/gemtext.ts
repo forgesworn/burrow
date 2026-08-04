@@ -1,5 +1,5 @@
 import type { MenuItem } from './resolve.ts'
-import { replaceControlCharacters } from './protocol.ts'
+import { plainTerminalText } from './protocol.ts'
 
 // Gemtext rendering for the gemini frontend. Hole links stay relative so
 // they work through whatever hostname the bridge is reached on. Search uses
@@ -45,7 +45,7 @@ export function targetRef(item: MenuItem): string | null {
 // display string or title can forge `=>` links. Strip them everywhere a
 // renderer interpolates user-derived text.
 export function cleanGemtext(text: string): string {
-  return replaceControlCharacters(text)
+  return plainTerminalText(text)
 }
 
 function escapeInfo(line: string): string {

@@ -7,6 +7,8 @@
 - cap remote signing requests at 1.5 KiB so NIP-44 padding and the signed
   response envelope stay below the practical 4 KiB transport boundary on
   constrained hardware signers
+- preserve inert ANSI SGR colour in signed kindmap displays across Gopher and
+  HTTP rendering, while removing it cleanly from Gemini and page metadata
 
 ## 0.11.2 (2026-08-04)
 
