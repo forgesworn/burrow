@@ -8,28 +8,27 @@ to `127.0.0.1`. Exposing a bridge is an explicit operator decision.
 The reference deployment runs release `v0.10.0` at commit
 `8222f9f7e819d29116d587c74799847ffd97c3a6`:
 
-- `gopher://144.126.230.165/`
-- `gemini://144.126.230.165/`
-- `https://gopherkind.144-126-230-165.sslip.io/`
+- `gopher://gopherkind.com/`
+- `gemini://gopherkind.com/`
+- `https://gopherkind.com/`
 
 It runs the repository image as an unprivileged user with a read-only root
 filesystem, a persistent state mount, automatic restart and explicit CPU,
-memory and process limits. TCP ports 70, 1965 and 443 are the only additional
-public openings. Port 8070 is bound to `127.0.0.1`; a dedicated same-host Caddy
-proxy is its only caller. The bridge runs with `--http-behind-proxy`,
+memory and process limits. The deployment exposes Gopher on TCP 70 and Gemini
+on TCP 1965; web traffic shares the host's existing Caddy listener on 443.
+Port 8070 is bound to `127.0.0.1`, and the same-host Caddy proxy is its only
+caller. The bridge runs with `--http-behind-proxy`,
 `--no-local-trust` and the HTTPS URL above, so NIP-07 and NIP-46 identity are
 available without granting proxy traffic local-operator authority.
 
-The live proxy uses [the checked-in Caddyfile](../deploy/reference.Caddyfile)
-and the official `caddy:2.11.4-alpine` image pinned to digest
-`sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648`.
-It runs read-only as uid 1000 with only `NET_BIND_SERVICE`, persistent `/data`
-and `/config` mounts, automatic restart, a backend health check and explicit
-CPU, memory and process limits. HTTP redirects and the ACME HTTP challenge are
-disabled because the host's shared nginx owns port 80; Caddy obtains and
-renews the certificate with TLS-ALPN-01 on port 443. The `sslip.io` name maps
-the embedded IPv4 address to the reference host, so an address change also
-requires a new hostname, `--http-url` and certificate.
+The live HTTPS route uses [the checked-in Caddyfile](../deploy/reference.Caddyfile)
+as a fragment of the host's shared, system-managed Caddy configuration. Caddy
+owns ports 80 and 443, obtains and renews the public certificate, and replaces
+the forwarding headers before sending requests to `127.0.0.1:8070`. The app
+container remains the only gopherkind-specific runtime: it runs read-only as
+the unprivileged `node` user with automatic restart, a health check, a
+persistent state mount, dropped capabilities and explicit CPU, memory and
+process limits.
 
 ## Native service
 

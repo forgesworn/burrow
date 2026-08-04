@@ -1,17 +1,15 @@
-{
-	auto_https disable_redirects
-}
-
-gopherkind.144-126-230-165.sslip.io {
-	tls {
-		issuer acme {
-			disable_http_challenge
-		}
-	}
-
+gopherkind.com {
+	encode zstd gzip
 	reverse_proxy 127.0.0.1:8070 {
 		header_up Host {host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {client_ip}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
 	}
 }
