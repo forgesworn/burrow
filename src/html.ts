@@ -240,9 +240,28 @@ textarea{width:100%;resize:vertical}
 export function page(title: string, body: string, signedIn: boolean, meta: PageMeta = {}): string {
   const back = '<a href="/" data-history-back>back</a>'
   const theme = '<button type="button" data-theme-toggle hidden>theme</button>'
-  const nav = signedIn
-    ? `${back}<a href="/">home</a><a href="/me">my pages</a><a href="/feed">feed</a><a href="/post">post</a><a href="/publish">publish</a><a href="/account">account</a>${theme}`
-    : `${back}<a href="/">home</a><a href="/account">sign in</a>${theme}`
+  // Joined with newlines: a flex container ignores the whitespace between its
+  // items, while lynx (which ignores the stylesheet entirely) needs it to keep
+  // the links from running into one word.
+  const links = signedIn
+    ? [
+        back,
+        '<a href="/">home</a>',
+        '<a href="/me">my pages</a>',
+        '<a href="/feed">feed</a>',
+        '<a href="/post">post</a>',
+        '<a href="/publish">publish</a>',
+        '<a href="/account">account</a>',
+        theme,
+      ]
+    : [
+        back,
+        '<a href="/">home</a>',
+        '<a href="/about">about</a>',
+        '<a href="/account">sign in</a>',
+        theme,
+      ]
+  const nav = links.join('\n')
   const metadata = [
     meta.canonical ? `<link rel="canonical" href="${esc(meta.canonical)}">` : '',
     meta.description ? `<meta name="description" content="${esc(meta.description)}">` : '',

@@ -31,6 +31,7 @@ import {
   plainTerminalText,
 } from './protocol.ts'
 import { holeRef } from './gemtext.ts'
+import { aboutContent, ABOUT_PATH } from './about.ts'
 import { resolveClientTarget, type ClientTarget } from './target.ts'
 import {
   docToTemplate,
@@ -453,6 +454,17 @@ async function handle(
   }
   if (path === '/nip07/connect') return nip07ConnectPage(req, opts)
   if (path === '/') return html(200, await welcome(opts, store, signedIn))
+  if (path === ABOUT_PATH) {
+    const rendered = renderContentHtml(aboutContent('the web'))
+    return html(
+      200,
+      page(rendered.title, rendered.body, signedIn, {
+        canonical: canonical(opts, ABOUT_PATH),
+        description:
+          'Why gopherholes belong on Nostr: signed documents that outlive the host they were served from.',
+      }),
+    )
+  }
   if (path === '/robots.txt') {
     return html(200, robotsTxt(), { 'content-type': 'text/plain; charset=utf-8' })
   }
@@ -635,6 +647,7 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     '<form method="get" action="/go"><p>Open a hole: ',
     '<input type="text" name="npub" size="40" placeholder="npub1..."> ',
     '<input type="submit" value="Go"></p></form>',
+    '<p><a href="/about">Why gopher on Nostr</a></p>',
     '<h2>Traditional gopherspace</h2>',
     '<p>gopherkind is also a gopher client, so old-school holes render here too.</p>',
     '<p><a href="/gopher/gopher.floodgap.com/1/">Floodgap</a> ',

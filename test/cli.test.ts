@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const root = path.join(import.meta.dirname, '..')
@@ -36,6 +36,22 @@ test('cli usage and argument validation (source)', () => {
   const bogus = run(srcCli, ['definitely-not-a-command'])
   assert.notEqual(bogus.status, 0)
   assert.match(bogus.out, /usage:/)
+})
+
+test('version and help are answerable without a signer or a relay', () => {
+  const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+    version: string
+  }
+  for (const flag of ['version', '--version', '-v']) {
+    const result = run(srcCli, [flag])
+    assert.equal(result.status, 0)
+    assert.equal(result.out.trim(), `gopherkind ${manifest.version}`)
+  }
+  for (const flag of ['help', '--help', '-h']) {
+    const result = run(srcCli, [flag])
+    assert.equal(result.status, 0)
+    assert.match(result.out, /usage:/)
+  }
 })
 
 test('the built dist entry runs the same way', { skip: !existsSync(distCli) }, () => {

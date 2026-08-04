@@ -1,5 +1,6 @@
 import * as nip19 from 'nostr-tools/nip19'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { HoleStore } from './fetch.ts'
 import type { PairingStore } from './identity.ts'
 import { resolveRoute } from './router.ts'
@@ -21,6 +22,19 @@ import {
 // The CLI client. Everything the Gemini frontend can do, without a GUI or
 // a client certificate: read any hole, post through your signer, see your
 // feed. Reading needs no identity at all.
+
+// Read from the manifest beside this module, so the stripped source and the
+// compiled dist entry report the same version rather than a baked-in constant
+// that a release can forget to update.
+export function packageVersion(): string {
+  try {
+    const raw = readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+    const manifest = JSON.parse(raw) as { version?: string }
+    return `gopherkind ${manifest.version ?? 'unknown'}`
+  } catch {
+    return 'gopherkind (version unknown)'
+  }
+}
 
 export async function cmdRead(target: string, relays: string[], virtual: boolean): Promise<string> {
   const parsed = await resolveClientTarget(target)

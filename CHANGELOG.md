@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.13.0 (2026-08-04)
+
+### The case, served in its own medium
+
+- serve one `/about` document on gopher, Gemini and HTTP, built from the same
+  `Content` value, explaining what a gopherkind hole is and why a document
+  should outlive its host; it needs no identity on any surface
+- link it from every welcome page, and print the same page from the terminal
+  with `gopherkind why` or the `why` command inside the interactive browser
+
+### Command line
+
+- add `gopherkind version` (`--version`, `-v`), read from the package manifest
+  so the stripped source and the compiled entry always agree
+- add `gopherkind help` (`--help`, `-h`) alongside the existing usage output
+
+### Documentation
+
+- add a documentation hub, a getting-started guide, an FAQ, a troubleshooting
+  guide, the long-form case for gopher on Nostr, and a support page which says
+  what funding buys and what it will never buy
+- add a static home page under `site/`, published to GitHub Pages, with no
+  JavaScript and no third-party requests
+- document the `/about` route in the bridge profile, and ship the whole `docs`
+  directory in the npm package
+
+### Repository
+
+- add issue and pull request templates, a code of conduct, and an
+  `npm run check` shortcut for the full lint, typecheck and coverage gate
+
 ## 0.12.1 (2026-08-04)
 
 ### Fixed

@@ -11,6 +11,7 @@ import { RateLimiter } from './ratelimit.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, firstLine, isoDate } from './protocol.ts'
 import { findSecret } from './secretguard.ts'
+import { aboutContent, ABOUT_PATH } from './about.ts'
 import type { PairingStore, Pairing } from './identity.ts'
 import type { RemoteSigner, PairResult } from './nip46client.ts'
 
@@ -163,6 +164,8 @@ export async function respondGemini(
   if (url.protocol !== 'gemini:') return '59 unsupported scheme\r\n'
   if (rawPath === '' || rawPath === '/') return welcomePage(ctx, store)
   if (rawPath === '/robots.txt') return `20 text/plain\r\n${geminiRobotsTxt()}`
+  // Before the identity routes: the pitch needs no certificate and no pairing.
+  if (rawPath === ABOUT_PATH) return toGemini(aboutContent('gemini'))
 
   if (rawPath.startsWith(SEARCH_PREFIX)) {
     const npub = rawPath.slice(SEARCH_PREFIX.length)
@@ -439,6 +442,8 @@ async function welcomePage(ctx: GeminiContext, store: HoleStore): Promise<string
     'Browse a hole at /<npub>. Any npub works: profiles, notes and',
     'long-form articles are served as a virtual hole even when nothing',
     'was ever published to gopherspace.',
+    '',
+    '=> /about Why gopher on Nostr',
   ]
   if (ctx.identity) {
     lines.push('', '=> /account Sign in (client certificate + your Nostr signer)')
