@@ -29,11 +29,11 @@ export interface PlannedDoc {
 }
 
 export const RECOVERY_MANIFEST = '.gopherkind.json'
-// Real ESP32 signing transports have rebooted on responses around 7 KiB even
-// though their nominal protocol frames are larger. A 1.5 KiB plaintext request
-// leaves comfortable room for NIP-44 padding and the signed response envelope
-// beneath the practical 4 KiB transport boundary.
-export const NIP46_SIGNING_REQUEST_LIMIT = 1536
+// Keep both the request and its slightly larger signed response inside this
+// NIP-44 plaintext padding step. Their encrypted relay envelopes remain below
+// 32 KiB, while the fixed Heartwood path has enough room for rich ANSI menu art
+// without weakening the relay-safe document ceiling.
+export const NIP46_SIGNING_PLAINTEXT_LIMIT = 20 * 1024
 
 interface RecoveryManifestEntry {
   file: string
@@ -210,12 +210,36 @@ export function nip46SigningRequestBytes(template: EventTemplate): number {
   return Buffer.byteLength(request, 'utf8')
 }
 
+export function nip46SigningResponseBytes(template: EventTemplate): number {
+  const signed = {
+    id: '0'.repeat(64),
+    pubkey: '0'.repeat(64),
+    created_at: template.created_at,
+    kind: template.kind,
+    tags: template.tags,
+    content: template.content,
+    sig: '0'.repeat(128),
+  }
+  const response = JSON.stringify({
+    id: 'gopherkind-signing-request',
+    result: JSON.stringify(signed),
+  })
+  return Buffer.byteLength(response, 'utf8')
+}
+
 function assertNip46Signable(template: EventTemplate, documentPath: string): void {
-  const bytes = nip46SigningRequestBytes(template)
-  if (bytes <= NIP46_SIGNING_REQUEST_LIMIT) return
+  const requestBytes = nip46SigningRequestBytes(template)
+  const responseBytes = nip46SigningResponseBytes(template)
+  if (
+    requestBytes <= NIP46_SIGNING_PLAINTEXT_LIMIT &&
+    responseBytes <= NIP46_SIGNING_PLAINTEXT_LIMIT
+  ) {
+    return
+  }
   throw new Error(
     `${documentPath} is too large for a portable relay-and-hardware NIP-46 signer ` +
-      `(${bytes} bytes; limit ${NIP46_SIGNING_REQUEST_LIMIT}). Reduce the page before signing.`,
+      `(request ${requestBytes} bytes; signed response ${responseBytes} bytes; ` +
+      `limit ${NIP46_SIGNING_PLAINTEXT_LIMIT}). Reduce the page before signing.`,
   )
 }
 

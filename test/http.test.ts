@@ -384,7 +384,7 @@ test('http frontend', async (t) => {
       assert.match(scriptBody, /nostr\.signEvent\(template\)/)
       assert.match(
         scriptBody,
-        /This page is too large for the safe 1\.5 KiB remote-signing request limit/,
+        /This page is too large for the safe 20 KiB remote-signing request limit/,
       )
       assert.match(scriptBody, /window\.history\.back\(\)/)
 

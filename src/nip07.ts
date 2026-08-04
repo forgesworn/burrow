@@ -92,7 +92,7 @@ export function assertBrowserSignedTemplate(
 export const HTTP_BROWSER_SCRIPT = `(() => {
   'use strict'
 
-  const NIP46_SIGNING_REQUEST_LIMIT = 1536
+  const NIP46_SIGNING_PLAINTEXT_LIMIT = 20 * 1024
 
   const statusText = (node, text) => {
     if (node) node.textContent = text
@@ -206,6 +206,19 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
     params: [JSON.stringify(template)],
   })).length
 
+  const remoteSigningResponseBytes = (template) => new TextEncoder().encode(JSON.stringify({
+    id: 'gopherkind-signing-request',
+    result: JSON.stringify({
+      id: '0'.repeat(64),
+      pubkey: '0'.repeat(64),
+      created_at: template.created_at,
+      kind: template.kind,
+      tags: template.tags,
+      content: template.content,
+      sig: '0'.repeat(128),
+    }),
+  })).length
+
   const connect = async (button, status) => {
     const nostr = provider()
     if (!nostr) throw new Error('No NIP-07 browser extension was found.')
@@ -273,8 +286,9 @@ export const HTTP_BROWSER_SCRIPT = `(() => {
           const template = signedTemplate(form)
           if (template.content === '' && form.dataset.nip07Action === 'post') throw new Error('Write something before signing.')
           if (form.dataset.nip07Action === 'publish' &&
-              remoteSigningRequestBytes(template) > NIP46_SIGNING_REQUEST_LIMIT) {
-            throw new Error('This page is too large for the safe 1.5 KiB remote-signing request limit. Reduce the content before signing.')
+              (remoteSigningRequestBytes(template) > NIP46_SIGNING_PLAINTEXT_LIMIT ||
+               remoteSigningResponseBytes(template) > NIP46_SIGNING_PLAINTEXT_LIMIT)) {
+            throw new Error('This page is too large for the safe 20 KiB remote-signing request limit. Reduce the content before signing.')
           }
           statusText(status, 'Check your browser extension and approve this signature.')
           const pubkey = await nostr.getPublicKey()
