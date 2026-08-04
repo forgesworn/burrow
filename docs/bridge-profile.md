@@ -164,6 +164,10 @@ document publishing form MUST make exact-path replacement explicit before
 asking the signer to sign. It SHOULD use the same NIP-65 relay destinations
 and post-acceptance read-back as a directory publisher, and MUST NOT claim
 success when the document cannot be retrieved from any destination.
+The form SHOULD describe text and menu pages by what someone can make before
+introducing the kindmap protocol name. It SHOULD provide the kindmap line
+format and a working example, explain that menu links do not publish their
+same-hole destinations, and keep public relay retention explicit.
 
 NIP-07 MAY be a progressive enhancement, but the underlying HTTP pages SHOULD
 remain readable and the NIP-46 path usable without JavaScript.

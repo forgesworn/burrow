@@ -858,20 +858,48 @@ async function postPage(
 function documentForm(viewer: Viewer, values: Partial<PlannedDoc> = {}): string {
   const type = values.type ?? '0'
   return [
-    '<h1>Publish a document</h1>',
-    '<p>Publish one signed Gopherkind document. Paths are exact and publishing',
-    'the same path replaces its current revision.</p>',
+    '<h1>Publish to your hole</h1>',
+    '<p>Add a public page to your hole or update one you have already published.',
+    'Your signer signs it, then gopherkind sends it to your Nostr relays.</p>',
+    '<ul>',
+    '<li><strong>Text page:</strong> write an about page, journal entry, contact page',
+    'or any other plain-text document.</li>',
+    '<li><strong>Menu page:</strong> make a home page or section that introduces your',
+    "hole and links to pages, other people's holes, searches or websites. The",
+    'menu format is called a <em>kindmap</em>.</li>',
+    '</ul>',
+    '<p>Published pages are public. Relays and readers may retain old copies even',
+    'after you replace a page or request its deletion.</p>',
     `<form method="post" action="/publish"${nip07FormAttributes(viewer, 'publish')}>`,
     csrfField(viewer),
-    `<p>Path <input type="text" name="path" size="50" value="${esc(values.path ?? '/')}" required></p>`,
-    `<p>Title <input type="text" name="title" size="50" value="${esc(values.title ?? '')}"></p>`,
-    '<p>Type <select name="type">',
-    `<option value="0"${type === '0' ? ' selected' : ''}>text</option>`,
-    `<option value="1"${type === '1' ? ' selected' : ''}>kindmap menu</option>`,
+    `<p><label for="document-path">Path</label><br><input id="document-path" type="text" name="path" size="50" value="${esc(values.path ?? '/')}" aria-describedby="path-help" required></p>`,
+    '<p id="path-help">Use <code>/</code> for your home page, or a path such as',
+    '<code>/about.txt</code> or <code>/phlog/2026-08-04.txt</code>. Paths are exact,',
+    'and publishing to the same path updates that page.</p>',
+    '<p><label for="document-title">Title</label><br>',
+    `<input id="document-title" type="text" name="title" size="50" value="${esc(values.title ?? '')}" aria-describedby="title-help"></p>`,
+    '<p id="title-help">Shown as the page heading. If left blank, the path is used.</p>',
+    '<p><label for="document-type">Page type</label><br><select id="document-type" name="type" aria-describedby="type-help">',
+    `<option value="0"${type === '0' ? ' selected' : ''}>Text page</option>`,
+    `<option value="1"${type === '1' ? ' selected' : ''}>Menu page (kindmap)</option>`,
     '</select></p>',
-    `<p><textarea name="content" rows="20" cols="72">${esc(values.content ?? '')}</textarea></p>`,
+    '<p id="type-help">Text pages show their content literally. Menu pages turn',
+    'specially written lines into navigation links.</p>',
+    '<details><summary>How to write a menu page</summary>',
+    '<p>Ordinary lines become introductory text. A link line contains a one-character',
+    'item type and its label, then one tab, then the destination. Useful item types',
+    'are <code>0</code> for a text page, <code>1</code> for another menu,',
+    '<code>7</code> for search and <code>h</code> for a website.</p>',
+    '<pre>Welcome to my hole\n\n0About me\t/about.txt\n1My journal\t/phlog\n7Search this hole\t/\nhMy website\thttps://example.com</pre>',
+    '<p>Same-hole destinations start with <code>/</code>. You can also link to an',
+    '<code>npub</code>, <code>nprofile</code>, <code>naddr</code>,',
+    '<code>gopher://</code> or <code>https://</code> address. Publish each linked',
+    'same-hole page separately; adding a menu link does not create its destination.</p>',
+    '</details>',
+    '<p><label for="document-content">Content</label><br>',
+    `<textarea name="content" id="document-content" rows="20" cols="72">${esc(values.content ?? '')}</textarea></p>`,
     '<p><label><input type="checkbox" name="replace" value="yes" required> ',
-    'I understand this replaces any current document at the same exact path.</label></p>',
+    'I understand this is public and replaces any current page at the same exact path.</label></p>',
     nip07SigningStatus(viewer),
     '<p><input type="submit" value="Sign and publish"></p></form>',
   ].join('\n')
@@ -964,6 +992,10 @@ async function publishPage(
       )(document, viewer.signer)
     }
     const ref = holeRef(report.npub, report.path)
+    const nextStep =
+      document.type === '0'
+        ? '<p>To make this page easy to find, link to it from a menu page such as your <code>/</code> home page.</p>'
+        : '<p>Remember to publish any same-hole pages this menu links to; a menu link does not create its destination.</p>'
     return html(
       200,
       page(
@@ -973,6 +1005,8 @@ async function publishPage(
           `<p><code>${esc(report.path)}</code> was accepted by ${report.acceptedBy.length}/${report.relays.length} relays`,
           `and read back from ${report.readableFrom.length}/${report.relays.length}.</p>`,
           `<p><a href="${esc(ref)}">Read the document</a></p>`,
+          nextStep,
+          `<p><a href="/${esc(report.npub)}">Open your hole</a></p>`,
           '<p><a href="/publish">Publish another document</a></p>',
         ].join('\n'),
         signedIn,

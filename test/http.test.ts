@@ -537,6 +537,23 @@ test('http frontend', async (t) => {
       assert.match(body, /accepted by 2\/2 relays/)
       assert.match(body, /read back from 1\/2/)
       assert.match(body, new RegExp(`href="/${npub}/web\\.txt"`))
+      assert.match(body, /link to it from a menu page/)
+      assert.match(body, new RegExp(`href="/${npub}">Open your hole`))
+
+      const menuPublished = await fetch(`${base}/publish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          path: '/',
+          title: 'Home',
+          type: '1',
+          content: '0Web document\t/web.txt',
+          replace: 'yes',
+          csrf,
+        }),
+      })
+      assert.equal(menuPublished.status, 200)
+      assert.match(await menuPublished.text(), /publish any same-hole pages this menu links to/)
       assert.deepEqual(planned, [
         {
           path: '/web.txt',
@@ -544,9 +561,30 @@ test('http frontend', async (t) => {
           type: '0',
           content: 'hello from the web',
         },
+        {
+          path: '/',
+          title: 'Home',
+          type: '1',
+          content: '0Web document\t/web.txt',
+        },
       ])
     },
   )
+
+  await t.test('document publisher explains page types, paths and menu syntax', async (t2) => {
+    const base = await start(t2)
+    const body = await (await fetch(`${base}/publish`)).text()
+
+    assert.match(body, /<h1>Publish to your hole<\/h1>/)
+    assert.match(body, /Text page:<\/strong> write an about page/)
+    assert.match(body, /Menu page:<\/strong> make a home page/)
+    assert.match(body, /Menu page \(kindmap\)/)
+    assert.match(body, /Use <code>\/<\/code> for your home page/)
+    assert.match(body, /one tab, then the destination/)
+    assert.match(body, /0About me\t\/about\.txt/)
+    assert.match(body, /adding a menu link does not create its destination/)
+    assert.match(body, /Relays and readers may retain old copies/)
+  })
 
   await t.test(
     'document publishing strips credential-shaped content before redisplay',

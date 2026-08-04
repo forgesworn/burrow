@@ -526,9 +526,11 @@ approves a URI the bridge displays. After that:
 - `/post` writes a kind 1 note. The bridge builds the event, your
   signer signs it, relays get it. If your signer is a Heartwood ESP32,
   posting to gopherspace is literally pressing a physical button.
-- `/publish` writes one kind 31436 document after explicit confirmation that
-  the exact path will replace its current revision. It uses the same NIP-65
-  relay plan and acceptance/read-back checks as the CLI publisher.
+- `/publish` guides you through a plain-text page or a menu page, including a
+  working kindmap example, then writes one kind 31436 document after explicit
+  confirmation that the exact path will replace its current revision. It uses
+  the same NIP-65 relay plan and acceptance/read-back checks as the CLI
+  publisher.
 - `/feed` renders your follows (kind 3) as a menu of recent notes,
   each linking into the author's hole.
 - `/unpair` cuts the link, and you can revoke the session on the

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.1 (2026-08-04)
+
+### Publishing guidance
+
+- explain text pages and menu pages by what they let someone make before
+  introducing the kindmap protocol name
+- show exact path examples and a copyable kindmap covering text, menu, search
+  and website links in the JavaScript-free publishing form
+- keep public retention and exact-path replacement explicit, then suggest the
+  relevant next step after a text page or menu is published
+
 ## 0.10.0 (2026-08-03)
 
 ### Browser identity
