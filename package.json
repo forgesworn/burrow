@@ -1,6 +1,6 @@
 {
   "name": "gopherkind",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "Signed gopherholes on Nostr relays, with Gopher, Gemini, HTTP and CLI readers.",
   "type": "module",
   "license": "MIT",

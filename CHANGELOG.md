@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.16.2 (2026-08-06)
+
+- install from the registry. gopherkind is on npm as of 0.16.1, so
+  `npm install --global gopherkind` replaces the git install everywhere it was
+  documented, and `npx gopherkind` runs it without installing at all
+- record that the one-time npm bootstrap needs `--provenance=false`. The
+  documented command could never have worked: `publishConfig.provenance` is
+  true, which is right for every release through the workflow and fatal on a
+  workstation, where npm finds no provider and fails before uploading
+- name NIP-5A (static websites) as the closest existing work in the spec's
+  rationale, replacing a vague reference to the nsite family whose kind 34128
+  is now legacy. Three differences: text inline rather than Blossom blob
+  hashes, one event per document rather than a path manifest, and gopher item
+  types for clients with no HTML parser
+
 ## 0.16.1 (2026-08-06)
 
 - stop calling this the public bridge. The about page argues that a hole
