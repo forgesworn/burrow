@@ -6,11 +6,11 @@ tarball, writes `SHA256SUMS`, and attaches both files to the GitHub release.
 This path works without npm registry credentials.
 
 ```sh
-npm version 0.10.1 --no-git-tag-version
+npm version 0.16.2 --no-git-tag-version
 # update CHANGELOG.md, review and merge
-git tag -a v0.10.1 -m 'gopherkind 0.10.1'
-git push origin v0.10.1
-gh release create v0.10.1 --verify-tag --generate-notes
+git tag -a v0.16.2 -m 'gopherkind 0.16.2'
+git push origin v0.16.2
+gh release create v0.16.2 --verify-tag --generate-notes
 ```
 
 Publishing the GitHub release starts the workflow. Manual dispatch is the
@@ -24,17 +24,33 @@ workstation-publish exception: publish the exact checksummed GitHub release
 asset, rather than rebuilding the package locally.
 
 ```sh
-gh release download v0.10.1 \
+gh release download v0.16.1 \
   --pattern 'gopherkind-*.tgz' --pattern SHA256SUMS \
-  --dir gopherkind-0.10.1-release
-cd gopherkind-0.10.1-release
+  --dir gopherkind-0.16.1-release
+cd gopherkind-0.16.1-release
 shasum -a 256 -c SHA256SUMS
 npm login
-npm publish ./gopherkind-0.10.1.tgz --access public
+npm publish ./gopherkind-0.16.1.tgz --access public --provenance=false
 ```
 
+`--provenance=false` is required and is not optional tidying.
+`publishConfig.provenance` is `true` in `package.json`, which is correct for
+every release that goes through `release.yml`, but provenance can only be
+attested by a supported CI provider holding an OIDC token. Run from a
+workstation there is no provider, and npm fails before uploading anything:
+
+```
+npm error code EUSAGE
+npm error Automatic provenance generation not supported for provider: null
+```
+
+So the bootstrap publication carries no provenance attestation. That is
+unavoidable rather than a shortcut: the package must exist before a trusted
+publisher can be attached to it, and nothing outside CI can sign that
+attestation. Every release after this one gets provenance normally.
+
 The npm account must have two-factor authentication enabled. Check the package
-page and install `gopherkind@0.9.2` in a clean temporary directory before
+page and install `gopherkind@0.16.1` in a clean temporary directory before
 configuring its trusted publisher. npm 11.11 or later can do that directly:
 
 ```sh
