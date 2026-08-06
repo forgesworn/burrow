@@ -10,6 +10,19 @@
 - document the kindmap trap that a line with no tab loses one leading `i`,
   because that is how a gophermap marks an information record. Found by
   publishing prose which began with the word "it"
+- give the project its own Nostr identity,
+  `npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s`, rather
+  than publishing its pages from the maintainer's key and replacing that
+  person's hole root with a product page on every bridge. The key is a
+  deterministic nsec-tree leaf, so it is a separate identity without being a
+  separate secret; it lives behind a NIP-46 signer like any other, because
+  gopherkind refuses raw secret keys including its own
+- serve the project's NIP-05 name statically from the reference Caddyfile,
+  since who owns a name at a hostname is the operator's claim rather than
+  something relay data can answer. Validated with `caddy validate`, and the
+  route checked for the JSON body and the CORS header NIP-05 requires
+- first publication of `hole/` is pending: the npub renders as an empty
+  virtual hole until then
 
 ## 0.13.0 (2026-08-06)
 

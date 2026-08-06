@@ -1,9 +1,22 @@
 gopherkind.com {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:8070 {
-		header_up Host {host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-For {client_ip}
+
+	# NIP-05 for the project identity, served statically so it never reaches
+	# the bridge. A bridge is a window onto relays; who owns a name at this
+	# hostname is the operator's claim, not something relay data can answer.
+	# `_` renders as the bare domain in clients, so both names resolve here.
+	handle /.well-known/nostr.json {
+		header Content-Type application/json
+		header Access-Control-Allow-Origin *
+		respond `{"names":{"_":"392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53","gopherkind":"392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53"}}` 200
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8070 {
+			header_up Host {host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	header {

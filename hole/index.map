@@ -13,19 +13,12 @@ even a bridge you run yourself.
 0Keeping it alive	/support.txt
 
 1Phlog	/phlog
+1Release notes and updates	/notes
 7Search this hole	/
-
-The rest of this identity, generated from ordinary Nostr events
-rather than published here:
-
-0Profile	/profile.txt
-1Notes	/notes
-1Articles (long-form)	/articles
-1Follows	/follows
-1Followers	/followers
 
 Elsewhere:
 
+1The maintainer's hole	npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
 hSource, docs and issues	https://github.com/forgesworn/gopherkind
 hHome page	https://forgesworn.github.io/gopherkind/
 hThe kind 31436 proposal	https://github.com/nostr-protocol/nips/pull/2429

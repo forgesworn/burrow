@@ -5,9 +5,10 @@ You are reading a gopherhole that has no host.
 
 Every document here is a signed Nostr event of kind 31436, named for
 RFC 1436, the gopher protocol. The path you asked for is the event's
-`d` tag. The signature is mine. The copies live on relays I chose,
-and any bridge that can retrieve one can serve it to you, whether or
-not the machine I published from is switched on.
+`d` tag. The signature is the project's own. The copies live on
+relays it chose, and any bridge that can retrieve one can serve them
+to you, whether or not the machine they were published from is
+switched on.
 
 That is the whole idea. Gopherspace has one endemic disease: holes
 die with their hostname, and nothing in the protocol can prove who
@@ -31,7 +32,24 @@ generated from ordinary Nostr events. Authored documents like this
 one simply shadow the generated paths. Taking over your own hole is
 just publishing.
 
+This hole's own identity
+------------------------
+
+The project has its own npub rather than borrowing the maintainer's.
+That is not ceremony: a hole belongs to a key, so publishing the
+project's pages from a person's key would make the project's front
+door part of that person's identity, on every bridge, permanently.
+
+The key is a deterministic leaf derived from the maintainer's
+existing key tree with nsec-tree, so it is a separate identity
+without being a separate secret to look after. The link between them
+is stated here rather than hidden; the point is separability, not
+anonymity. It is held in a NIP-46 signer like any other, because
+gopherkind refuses to accept a raw secret key, including its own.
+
 MIT licensed. No token, no ads, no telemetry, nothing to sell you.
 
   Source and documentation
       https://github.com/forgesworn/gopherkind
+  Deterministic sub-identity derivation
+      https://github.com/forgesworn/nsec-tree

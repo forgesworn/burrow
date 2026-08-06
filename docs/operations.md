@@ -21,6 +21,25 @@ caller. The bridge runs with `--http-behind-proxy`,
 `--no-local-trust` and the HTTPS URL above, so NIP-07 and NIP-46 identity are
 available without granting proxy traffic local-operator authority.
 
+The bridge pins the project's own hole on its welcome menu:
+
+```sh
+--pin npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s
+```
+
+Its NIP-05 name is served statically by the proxy rather than by the bridge.
+A bridge is a window onto relays, and who owns a name at a hostname is the
+operator's claim, not something relay data can answer. The reference Caddyfile
+answers `/.well-known/nostr.json` for both `_@gopherkind.com` (which clients
+display as the bare domain) and `gopherkind@gopherkind.com`, with the
+`Access-Control-Allow-Origin: *` header NIP-05 requires. Verify after any proxy
+change:
+
+```sh
+curl -fsS 'https://gopherkind.com/.well-known/nostr.json?name=_'
+gopherkind read gopherkind@gopherkind.com
+```
+
 The live HTTPS route uses [the checked-in Caddyfile](../deploy/reference.Caddyfile)
 as a fragment of the host's shared, system-managed Caddy configuration. Caddy
 owns ports 80 and 443, obtains and renews the public certificate, and replaces

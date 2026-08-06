@@ -57,12 +57,42 @@ frontend must stay JavaScript-free and work in lynx.
 
 ## The project's own hole
 
-`hole/` is gopherkind's hole, published to the maintainer's npub with
-`gopherkind publish hole`. It is ordinary content: text files, kindmaps and a
-`.gopherkind.json` manifest which fixes each document's exact path, type and
+`hole/` is gopherkind's hole. It is ordinary content: text files, kindmaps and
+a `.gopherkind.json` manifest which fixes each document's exact path, type and
 title. `test/hole.test.ts` guards it, so a dead same-hole link, a document too
 large for a hardware signer, or a file the manifest forgot fails CI rather than
 getting signed. Adding a file there means adding its manifest entry.
+
+It belongs to the project's own identity, not to the maintainer's:
+
+```text
+npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s
+392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53
+```
+
+A hole belongs to a key, so publishing an authored `/` from a person's key
+replaces that person's hole root with a product page on every bridge. The
+project key is a deterministic leaf of the maintainer's key tree
+([nsec-tree](https://github.com/forgesworn/nsec-tree)), so it is a separate
+identity rather than a separate secret to look after.
+
+Publishing it uses a separate state directory, because gopherkind stores one
+signer pairing per state directory and the project key must not displace the
+maintainer's:
+
+```sh
+# once: put the derived leaf behind a NIP-46 signer, then pair it.
+# the flag goes after the subcommand, not before it.
+gopherkind pair 'bunker://...' --state-dir ~/.gopherkind-project
+gopherkind whoami --state-dir ~/.gopherkind-project   # expect npub18y4d9g6...
+
+gopherkind publish hole --dry-run --state-dir ~/.gopherkind-project
+gopherkind publish hole --state-dir ~/.gopherkind-project
+```
+
+Note what is *not* in those steps: exporting an nsec. gopherkind refuses raw
+secret keys, including its own project key. The leaf goes into a signer, and
+the signer signs.
 
 ## Non-goals
 
