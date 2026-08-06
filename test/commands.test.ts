@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { cmdPost, cmdUnpair } from '../src/commands.ts'
 import { PairingStore } from '../src/identity.ts'
 import { renderForTerminal } from '../src/cliview.ts'
-import { resolveSigner, CLI_PAIRING_KEY } from '../src/signing.ts'
+import { resolveSigner, requireSignerIdentity, CLI_PAIRING_KEY } from '../src/signing.ts'
+import * as nip19 from 'nostr-tools/nip19'
 import { npub, testSigner } from './helpers.ts'
 
 function tmpPairings(t: { after: (fn: () => void) => void }): PairingStore {
@@ -98,4 +99,45 @@ test('terminal rendering shows menus, text and errors', () => {
   assert.match(menu, / {2}A post\n {6}\/[a-z0-9]+\/notes\/x/)
   assert.equal(renderForTerminal({ kind: 'text', title: 't', body: 'body\n\n' }), 'body\n')
   assert.equal(renderForTerminal({ kind: 'error', message: 'nope' }), 'error: nope\n')
+})
+
+// One hardware signer can hold several identities, and picking the wrong slot
+// is silent: a kind 31436 document is addressable, so publishing under the
+// wrong key replaces whatever that author had at the path. `--as` is the
+// difference between an accident and a refusal.
+test('requireSignerIdentity passes through when the signer matches', async () => {
+  const same = await requireSignerIdentity(testSigner, npub)
+  assert.equal(same, testSigner)
+})
+
+test('requireSignerIdentity refuses a signer that is not the expected npub', async () => {
+  // must be a decodable npub, or this tests the malformed branch instead
+  const stranger = nip19.npubEncode(`${'00'.repeat(31)}01`)
+  await assert.rejects(
+    () => requireSignerIdentity(testSigner, stranger),
+    (err: Error) => {
+      // The message has to name both keys: "wrong signer" alone leaves the
+      // reader guessing which slot they actually reached for.
+      assert.match(err.message, new RegExp(`the signer is ${npub}`))
+      assert.match(err.message, /Nothing was signed/)
+      return true
+    },
+  )
+})
+
+test('requireSignerIdentity rejects a value that is not an npub', async () => {
+  await assert.rejects(() => requireSignerIdentity(testSigner, 'gopherkind'), /--as needs an npub/)
+  // an nsec-shaped or hex value must not be quietly accepted either
+  await assert.rejects(
+    () =>
+      requireSignerIdentity(
+        testSigner,
+        '392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53',
+      ),
+    /--as needs an npub/,
+  )
+})
+
+test('requireSignerIdentity is a no-op when no identity is demanded', async () => {
+  assert.equal(await requireSignerIdentity(testSigner, undefined), testSigner)
 })

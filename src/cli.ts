@@ -28,7 +28,7 @@ import {
   packageVersion,
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
-import { resolveSigner } from './signing.ts'
+import { resolveSigner, requireSignerIdentity } from './signing.ts'
 import { runBrowse } from './browse.ts'
 import { BookmarkStore } from './bookmarks.ts'
 import { aboutContent } from './about.ts'
@@ -60,8 +60,10 @@ const USAGE = `usage:
   write (needs a signer, see below):
     gopherkind post <text> [--dry-run]   sign and broadcast a kind 1 note
     gopherkind delete <id|note1|nevent1> [--wide] [--dry-run]
-    gopherkind publish <dir> [--expire 30d] [--dry-run]
-    gopherkind unpublish </path>... | --all [--dry-run]
+    gopherkind publish <dir> [--as npub1...] [--expire 30d] [--dry-run]
+    gopherkind unpublish </path>... | --all [--as npub1...] [--dry-run]
+      --as refuses to sign unless the signer is that npub. Worth using
+      whenever one signer holds more than one identity.
 
   identity:
     gopherkind pair <bunker://...>       store a remote signer for future use
@@ -79,7 +81,7 @@ const USAGE = `usage:
       the http frontend is the one to point lynx at for the full client.
     gopherkind announce --hostname bridge.example [--http-url https://bridge.example]
                         [--gopher-port 70] [--gemini-port 1965] [--no-gemini]
-                        [--name n] [--about a] [--dry-run]
+                        [--name n] [--about a] [--as npub1...] [--dry-run]
       tells nostr clients this bridge opens kind 31436 (NIP-89).
 
   gopherkind version | help
@@ -363,12 +365,14 @@ if (command === 'serve') {
     options: {
       ...COMMON,
       expire: { type: 'string' },
+      as: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
     },
   })
   const dir = positionals[0]
   if (dir === undefined) fail(USAGE)
   resolveSigner(pairingsOf(values))
+    .then((signer) => requireSignerIdentity(signer, values.as))
     .then((signer) =>
       publishHole(dir, values.relay ?? DEFAULT_RELAYS, signer, {
         dryRun: values['dry-run'],
@@ -384,11 +388,13 @@ if (command === 'serve') {
     options: {
       ...COMMON,
       all: { type: 'boolean', default: false },
+      as: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
     },
   })
   if (!values.all && positionals.length === 0) fail(USAGE)
   resolveSigner(pairingsOf(values))
+    .then((signer) => requireSignerIdentity(signer, values.as))
     .then((signer) =>
       unpublishHole(
         values.all ? 'all' : positionals,
@@ -506,6 +512,7 @@ if (command === 'serve') {
       'no-gemini': { type: 'boolean', default: false },
       'http-url': { type: 'string' },
       identifier: { type: 'string', default: 'gopherkind-bridge' },
+      as: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
     },
   })
@@ -527,6 +534,7 @@ if (command === 'serve') {
       relaysOf(values),
       pairingsOf(values),
       values['dry-run'],
+      values.as,
     ),
   )
 } else if (command === 'unpair') {

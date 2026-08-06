@@ -1,4 +1,5 @@
 import type { Event, EventTemplate } from 'nostr-tools'
+import * as nip19 from 'nostr-tools/nip19'
 import type { PairingStore } from './identity.ts'
 import { Nip46Client } from './nip46client.ts'
 
@@ -14,6 +15,38 @@ export interface CliSigner {
   describe: string
   pubkey(): Promise<string>
   sign(template: EventTemplate): Promise<Event>
+}
+
+// Signing with the wrong identity is quiet and hard to undo. A kind 31436
+// document is addressable, so publishing one replaces whatever that author had
+// at that path: a hole root signed by the wrong key overwrites somebody's front
+// page, and the only trace is an npub in the output that looks much like any
+// other. Someone holding several keys in one hardware signer can select the
+// wrong slot without noticing.
+//
+// `--as` states the intended author up front. Checking it costs no signature,
+// because a NIP-46 get_public_key is not a signing operation, so the wrong
+// signer is refused before it is ever asked to sign anything.
+export async function requireSignerIdentity(
+  signer: CliSigner,
+  expected: string | undefined,
+): Promise<CliSigner> {
+  if (expected === undefined) return signer
+  let wanted: string
+  try {
+    const decoded = nip19.decode(expected)
+    if (decoded.type !== 'npub') throw new Error('not an npub')
+    wanted = decoded.data
+  } catch {
+    throw new Error(`--as needs an npub, got: ${expected}`)
+  }
+  const actual = await signer.pubkey()
+  if (actual !== wanted) {
+    throw new Error(
+      `the signer is ${nip19.npubEncode(actual)}, not ${expected}. Nothing was signed.`,
+    )
+  }
+  return signer
 }
 
 export async function bunkerSignerFromUri(uri: string): Promise<CliSigner> {
