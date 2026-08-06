@@ -55,6 +55,15 @@ Any new client feature lands in the CLI first and reuses the shared
 in at that layer; keep protocol-specific rendering out of the router. The HTTP
 frontend must stay JavaScript-free and work in lynx.
 
+## The project's own hole
+
+`hole/` is gopherkind's hole, published to the maintainer's npub with
+`gopherkind publish hole`. It is ordinary content: text files, kindmaps and a
+`.gopherkind.json` manifest which fixes each document's exact path, type and
+title. `test/hole.test.ts` guards it, so a dead same-hole link, a document too
+large for a hardware signer, or a file the manifest forgot fails CI rather than
+getting signed. Adding a file there means adding its manifest entry.
+
 ## Non-goals
 
 Gopher+, CGI/executable selectors, serving binaries or images, custodial key

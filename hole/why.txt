@@ -1,0 +1,85 @@
+Why gopher on Nostr
+===================
+
+Holes die
+---------
+
+The hobby box behind your favourite phlog loses power. A domain
+lapses. A university closes an alumni account. Fifteen years of
+writing stop existing, all at once, with no forwarding address.
+
+This is structural, not careless. In RFC 1436 a hole is a host. The
+protocol has no notion of an author, so nothing survives the
+hostname, and nothing in the wire format can prove who wrote a
+document even while the host is up. Copy a phlog to another server
+and it is just somebody's file: identical bytes, no provenance.
+
+The web solved neither problem. It made the first worse by adding a
+registrar and a certificate authority to the list of things that can
+end your writing, and it never addressed the second at all.
+
+What gopher got right
+---------------------
+
+Gopher divorces interface from information. Every hole is menus and
+text, navigated identically, rendered by anything with a TCP stack.
+No layout to fight, no fonts to load, no cookie banner, no consent
+dialog, no infinite scroll, no analytics. A site stands on what it
+says.
+
+That is a rare property, and it is why a protocol from 1991 still
+has readers. The format never rotted because there was almost
+nothing in it to rot.
+
+What Nostr got right, and wrong
+-------------------------------
+
+Identity is a keypair. Documents are signed events. An author places
+copies on any number of relays and no relay is privileged. That is
+exactly the shape of what gopher lacks.
+
+What Nostr does badly is reading. Its clients are timelines built
+for the scroll. Structure is someone else's problem, and the
+interface competes with the content for attention as hard as the web
+does.
+
+The trade
+---------
+
+Gopher gets documents that outlive one machine, provable authorship,
+editing that keeps its address, and a new population: every npub is
+already a hole, so gopherspace grows by the whole Nostr userbase.
+
+Nostr gets a reading room. Structure is mandatory, nothing on the
+page is bidding for your attention, and a document stays where you
+left it. It also gets clients it never had: lynx, VF-1, Lagrange, a
+terminal on a machine that will never run a modern browser.
+
+Cameron Kaiser argued that gopher and the web should coexist. Add
+Nostr and all three read the same documents, while the writing
+outlives the box it was typed on.
+
+  Why is gopher still relevant? (Kaiser, in gopherspace)
+      gopher://gopher.floodgap.com/0/gopher/relevance.txt
+
+The honest limits
+-----------------
+
+Relays are not archives. Moving off one host removes a single point
+of failure. It does not promise that any relay keeps an event
+forever. Publish to relays you trust, keep an export, and re-check
+with `gopherkind inspect`.
+
+Deletion is a request. NIP-09 asks relays to forget and some will
+not. NIP-40 expiration is enforced by well-behaved bridges but is
+not a tombstone for a path with older revisions.
+
+A bridge is still a host. It is simply no longer the host.
+
+Kind 31436 is proposed, not accepted. The submission to the NIPs
+repository is pull request 2429, unmerged at the time of writing.
+
+Gopher is plaintext and unauthenticated over the network, so it is
+read-only here, deliberately and permanently. Writing happens in the
+terminal, over HTTP or over Gemini, always through a signer you
+control. 1991 gets to read; 2026 gets to write.

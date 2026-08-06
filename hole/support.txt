@@ -1,0 +1,62 @@
+Keeping it alive
+================
+
+gopherkind is MIT licensed and unfunded. No company, no token, no
+ads, no telemetry, no custody of anybody's key, and nothing to sell
+you. It is paid for in evenings and a small monthly hosting bill.
+
+Funding buys evenings, and evenings are the only thing this project
+is made of.
+
+Where to send it
+----------------
+
+  Zap
+      npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2
+  Lightning
+      profusemeat89@walletofsatoshi.com
+  Ko-fi
+      https://ko-fi.com/brays
+  Geyser
+      https://geyser.fund/project/forgesworn
+
+Any amount is useful. A recurring few a month is the thing that
+actually changes what gets built, because it buys consecutive
+evenings rather than single ones.
+
+What it pays for
+----------------
+
+The public bridge, which speaks gopher, Gemini and HTTPS and costs
+real money every month whether or not anyone visits. And the
+evenings: everything in the changelog was written after work.
+
+What funding unlocks next
+-------------------------
+
+  1. Getting kind 31436 through NIP review. A ratified kind is what
+     makes other clients implement it.
+  2. Packaging, so running a bridge is a fifteen-minute job for
+     somebody else. More bridges is the entire point.
+  3. A second implementation, checked against the published
+     conformance fixture.
+  4. Archival tooling: scheduled retrievability checks and alerts
+     when relay copies thin out. Retention is the honest weak point.
+  5. Reader polish: paging, search, ANSI handling, accessibility.
+
+What it will never pay for
+--------------------------
+
+No token. No premium tier. No custodial key handling, ever. No
+analytics on any frontend. No advertising in a menu.
+
+Ways to help that cost nothing
+------------------------------
+
+Publish a hole, so there is more to read. Run a bridge. Review the
+NIP proposal, which is worth more than a donation. Report what
+broke, especially in odd clients. Tell one person: the failure mode
+of a project like this is silence, not criticism.
+
+  The longer version
+      https://github.com/forgesworn/gopherkind/blob/main/docs/support.md

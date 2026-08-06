@@ -1,0 +1,117 @@
+Getting started
+===============
+
+Ten minutes from nothing to a signed hole that outlives the machine
+you published it from. Reading takes none of them.
+
+Requires Node 24 or newer. No build step, no database.
+
+1. Install
+----------
+
+  npm install --global github:forgesworn/gopherkind
+  gopherkind why
+
+(The npm registry name is still being bootstrapped, so the install
+comes from GitHub for now.)
+
+2. Read something first
+-----------------------
+
+No account, no key, no configuration:
+
+  gopherkind                       interactive browser
+  gopherkind read npub1...         anyone's hole, authored or not
+  gopherkind read npub1.../notes   their phlog
+  gopherkind read someone@example.org
+  gopherkind read gopher://gopher.floodgap.com/1/
+
+In the browser, type a number to follow a link; `back`, `up` and
+`reload` move; `mark` bookmarks; `why` prints the argument; `help`
+lists the rest.
+
+3. Connect a signer
+-------------------
+
+gopherkind never accepts an nsec and never makes a key for you.
+Writing goes through a NIP-46 signer you already control: Amber,
+nsec.app, nsecBunker, Signet, a Heartwood ESP32.
+
+  gopherkind pair 'bunker://...'
+  gopherkind whoami
+
+4. Write a hole
+---------------
+
+A hole is a directory. Text files become type 0 documents.
+index.map (or a classic gophermap) becomes the menu for its
+directory; any other *.map file becomes a menu at its own path.
+
+  my-hole/
+    index.map
+    about.txt
+    phlog/
+      index.map
+      2026-08-06-first.txt
+
+index.map is a kindmap: a gophermap with the host and port columns
+removed, because your documents have no host. Plain lines are info
+text. Linked lines are <type><display>, a TAB, then the link.
+
+  Welcome to my hole
+
+  0About this hole      /about.txt
+  1Phlog                /phlog
+  7Search this hole     /
+  1A friend's hole      npub1friend...
+  1Floodgap             gopher://gopher.floodgap.com/1/
+  hMy website           https://example.com
+
+(The gaps above are single tab characters. Spaces will not do.)
+
+One trap, inherited from gophermap: a line with no tab is
+information text, and one leading "i" is stripped from it, because
+that is how a gophermap marks an information record. Prose starting
+with the letter loses it. Double the "i", or reword the line.
+
+Then:
+
+  gopherkind publish ./my-hole --dry-run
+  gopherkind publish ./my-hole
+
+Publishing discovers your NIP-65 write relays, uses their union with
+the configured relays, and reads every document back from every
+destination, because a relay's OK is not proof that a later reader
+can retrieve it.
+
+Editing is republishing. The path is the event's d tag, so changing
+a file and publishing again replaces that document everywhere. No
+dead links, no cache busting.
+
+5. Check it is really there
+---------------------------
+
+  gopherkind inspect npub1...
+  gopherkind inspect npub1... --json
+  gopherkind export npub1... ./my-hole-backup
+
+The inspection reports current, stale and missing documents per
+relay. It is a snapshot of retrievability now, not a guarantee of
+retention. Nothing in Nostr is.
+
+6. Serve it
+-----------
+
+  gopherkind serve
+  lynx http://localhost:8070/
+  lynx gopher://127.0.0.1:7070/1/me
+
+Gopher on 7070, Gemini on 1965, HTTP on 8070, loopback by default.
+Requests from loopback are treated as you, using the signer you
+paired, which is also why the /me menu is never served remotely.
+
+You do not need to run a bridge to have a hole. Your documents live
+on relays; any bridge can serve them.
+
+  The full guides
+      https://github.com/forgesworn/gopherkind/blob/main/docs/index.md

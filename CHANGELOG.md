@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- carry the project's own hole in `hole/`, published with
+  `gopherkind publish hole`: what it is, why gopher on Nostr, getting started,
+  questions, the protocol in brief, funding, and a phlog. `test/hole.test.ts`
+  fails the build on a dead same-hole link, an unsignably large document or a
+  file the manifest forgot
+- document the kindmap trap that a line with no tab loses one leading `i`,
+  because that is how a gophermap marks an information record. Found by
+  publishing prose which began with the word "it"
+
 ## 0.13.0 (2026-08-06)
 
 ### The case, served in its own medium

@@ -1,0 +1,60 @@
+{
+  "format": "gopherkind-hole-export",
+  "version": 1,
+  "documents": [
+    {
+      "file": "index.map",
+      "path": "/",
+      "type": "1",
+      "title": "gopherkind"
+    },
+    {
+      "file": "about.txt",
+      "path": "/about.txt",
+      "type": "0",
+      "title": "What this is"
+    },
+    {
+      "file": "why.txt",
+      "path": "/why.txt",
+      "type": "0",
+      "title": "Why gopher on Nostr"
+    },
+    {
+      "file": "start.txt",
+      "path": "/start.txt",
+      "type": "0",
+      "title": "Getting started"
+    },
+    {
+      "file": "faq.txt",
+      "path": "/faq.txt",
+      "type": "0",
+      "title": "Questions"
+    },
+    {
+      "file": "protocol.txt",
+      "path": "/protocol.txt",
+      "type": "0",
+      "title": "The protocol, briefly"
+    },
+    {
+      "file": "support.txt",
+      "path": "/support.txt",
+      "type": "0",
+      "title": "Keeping it alive"
+    },
+    {
+      "file": "phlog/index.map",
+      "path": "/phlog",
+      "type": "1",
+      "title": "Phlog"
+    },
+    {
+      "file": "phlog/2026-08-06-gopherkind-0-13-0.txt",
+      "path": "/phlog/2026-08-06-gopherkind-0-13-0.txt",
+      "type": "0",
+      "title": "gopherkind 0.13.0: the bridge explains itself"
+    }
+  ]
+}
