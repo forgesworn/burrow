@@ -10,6 +10,7 @@ export const ABOUT_PATH = '/about'
 export const PROJECT_REPO = 'https://github.com/forgesworn/gopherkind'
 export const PROJECT_SPEC = 'https://github.com/forgesworn/gopherkind/blob/main/SPEC.md'
 const PROJECT_SITE = 'https://gopherkind.com/'
+const PROJECT_OPERATIONS = 'https://github.com/forgesworn/gopherkind/blob/main/docs/operations.md'
 const SUPPORT_KOFI = 'https://ko-fi.com/brays'
 const SUPPORT_GEYSER = 'https://geyser.fund/project/forgesworn'
 const AUTHOR_NPUB = 'npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2'
@@ -44,6 +45,12 @@ const PITCH = [
   '',
   '  Editing is replacement, not a new address. The path is the',
   "  event's d tag, so revising a page keeps every link alive.",
+  '',
+  '  No bridge is load-bearing, including this one. The command line',
+  '  client reads relays directly, so a hole is readable with no bridge',
+  '  at all, and standing one up is a single command if you want a door',
+  '  on the web. Every bridge announces itself to Nostr clients on its',
+  "  own key, so no operator's list is the list.",
   '',
   '  Every npub is already a hole. Profile, notes, long-form articles,',
   '  follows and followers render as menus and text with nothing',
@@ -97,10 +104,19 @@ export function aboutItems(surface: AboutSurface): MenuItem[] {
     display: 'The kind 31436 spec',
     target: { scheme: 'web', url: PROJECT_SPEC },
   })
+  // "a", not "the". A bridge is interchangeable by design: the documents are
+  // on relays, and this one holds nothing another cannot fetch. Naming the
+  // project's own bridge as the bridge would quietly undo the argument above,
+  // so the way to run your own sits right beside it.
   items.push({
     type: 'h',
-    display: 'gopherkind.com, the public bridge on the web',
+    display: 'gopherkind.com, a public bridge on the web',
     target: { scheme: 'web', url: PROJECT_SITE },
+  })
+  items.push({
+    type: 'h',
+    display: 'Run your own bridge, and announce it to Nostr clients',
+    target: { scheme: 'web', url: PROJECT_OPERATIONS },
   })
   items.push(info(''))
   items.push(info('Keeping it alive'))
