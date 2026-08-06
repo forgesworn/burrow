@@ -8,6 +8,7 @@ import { respond } from '../src/server.ts'
 import { respondGemini } from '../src/gemini.ts'
 import { createHttpServer } from '../src/http.ts'
 import { PairingStore } from '../src/identity.ts'
+import * as nip19 from 'nostr-tools/nip19'
 import { makeStore, npub, testSigner } from './helpers.ts'
 
 // A bridge may lead with one hole instead of a generic greeting, so its front
@@ -15,7 +16,10 @@ import { makeStore, npub, testSigner } from './helpers.ts'
 // managing your own pages, both stay reachable from the same page.
 
 const bridge = { host: 'bridge.test', port: 7070 }
-const unreachable = 'npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7ye8p3'
+// A well-formed npub whose hole is empty, which is the case that matters in
+// production: relays are reachable and simply have nothing for this author.
+// It has to decode, or this only re-tests the malformed path below.
+const unreachable = nip19.npubEncode(`${'00'.repeat(31)}01`)
 
 test('gopher serves the home hole in place of the welcome menu', async () => {
   const store = makeStore()
@@ -30,15 +34,19 @@ test('gopher serves the home hole in place of the welcome menu', async () => {
   assert.ok(out.endsWith('.\r\n'))
 })
 
-test('an unreachable home hole falls back to the generic welcome', async () => {
+test('a home npub with nothing published still renders as its virtual hole', async () => {
+  // Not the generic welcome: every npub is a hole, so a well-formed one always
+  // resolves to something. The fallback below is for input that cannot be an
+  // npub at all. Asserted with a decodable npub on purpose, because an npub
+  // with a bad checksum takes the malformed path and hides this entirely.
   const store = makeStore()
   const out = await respond(
     '',
     { relays: ['wss://stub.invalid'], bridge, pins: [], home: unreachable },
     store,
   )
-  assert.match(out, /igopherkind\t/)
-  assert.match(out, /iBrowse a hole by selector/)
+  assert.match(out, /ia virtual hole generated from Nostr events/)
+  assert.doesNotMatch(out, /iBrowse a hole by selector/)
 })
 
 test('a malformed home npub does not break the welcome menu', async () => {

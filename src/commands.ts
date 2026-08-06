@@ -8,7 +8,13 @@ import { renderForTerminal } from './cliview.ts'
 import { browseGopher } from './gopherclient.ts'
 import { resolveClientTarget } from './target.ts'
 import { findSecret } from './secretguard.ts'
-import { resolveSigner, pairCli, CLI_PAIRING_KEY, type CliSigner } from './signing.ts'
+import {
+  resolveSigner,
+  requireSignerIdentity,
+  pairCli,
+  CLI_PAIRING_KEY,
+  type CliSigner,
+} from './signing.ts'
 import { parseProfile, displayName } from './virtual.ts'
 import { NOTE_KIND, DELETE_KIND, DOC_KIND, firstLine, isoDate } from './protocol.ts'
 import { handlerTemplate, HANDLER_KIND, type AnnounceOptions } from './announce.ts'
@@ -282,12 +288,13 @@ export async function cmdAnnounce(
   relays: string[],
   pairings: PairingStore,
   dryRun: boolean,
+  as?: string,
 ): Promise<string> {
   const template = handlerTemplate(opts, Math.floor(Date.now() / 1000))
   if (dryRun) {
     return `${JSON.stringify(template, null, 2)}\nnot signed or published (dry run)\n`
   }
-  const signer = await resolveSigner(pairings)
+  const signer = await requireSignerIdentity(await resolveSigner(pairings), as)
   const signed = await signer.sign(template)
   const store = new HoleStore(relays)
   try {

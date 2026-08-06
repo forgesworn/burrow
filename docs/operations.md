@@ -30,9 +30,17 @@ The bridge serves the project's own hole as its front page, and pins it:
 
 `--home` replaces the generic welcome with that hole's root menu on gopher,
 Gemini and HTTP. The hole is authored content, so what the front page says is
-changed by publishing rather than by redeploying the bridge. If its relays are
-unreachable the bridge falls back to the generic welcome, which is why the
-project relay belongs in the bridge's own `--relay` set.
+changed by publishing rather than by redeploying the bridge.
+
+There is no fallback to the generic welcome when the documents cannot be
+fetched. Every npub is a hole, so a well-formed one always resolves to
+something: with the authored root missing, the front page becomes that npub's
+virtual hole, which on a relay outage means an almost empty page rather than an
+obvious error. The generic welcome only returns if `--home` is not an npub at
+all. That is the real reason the project relay belongs in the bridge's own
+`--relay` set: it is the front page's only source, and nothing else covers for
+it. `relay.damus.io` rejects kind 31436 outright, so the popular relays are not
+a safety net here.
 
 Its NIP-05 name is served statically by the proxy rather than by the bridge.
 A bridge is a window onto relays, and who owns a name at a hostname is the
