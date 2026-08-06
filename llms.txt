@@ -151,5 +151,5 @@ from GitHub with `npm install --global github:forgesworn/gopherkind`
 - Troubleshooting: https://github.com/forgesworn/gopherkind/blob/main/docs/troubleshooting.md
 - Why gopher on Nostr: https://github.com/forgesworn/gopherkind/blob/main/docs/why-gopher-on-nostr.md
 - Operations: https://github.com/forgesworn/gopherkind/blob/main/docs/operations.md
-- Home page: https://forgesworn.github.io/gopherkind/
-- Live reference bridge: https://gopherkind.com/ (also gopher:// and gemini://)
+- Home page and live reference bridge: https://gopherkind.com/ (also
+  gopher://gopherkind.com/ and gemini://gopherkind.com/)
