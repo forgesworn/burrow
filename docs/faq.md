@@ -94,6 +94,11 @@ time of writing. [SPEC.md](../SPEC.md) is the source of truth for the format
 and [the conformance guide](conformance.md) has a language-neutral fixture, so
 another implementation can be checked against the same bytes.
 
+That is not theoretical: an independent Python implementation, written from the
+draft and the fixture rather than from the TypeScript parser, already passes
+every section of it. A format only two people can read is not a format, so the
+second implementation was the gate for submitting at all.
+
 ## Is it production ready?
 
 It is pre-1.0 software that runs a public bridge on three protocols, with a
