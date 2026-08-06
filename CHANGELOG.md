@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.13.0 (2026-08-04)
+## 0.13.0 (2026-08-06)
 
 ### The case, served in its own medium
 
