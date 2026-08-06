@@ -81,8 +81,7 @@ just publishing.
 Needs Node 24 or newer.
 
 ```sh
-# Until the one-time npm bootstrap is complete, install from GitHub.
-npm install --global github:forgesworn/gopherkind
+npm install --global gopherkind
 
 # The case for all this, in your terminal
 gopherkind why

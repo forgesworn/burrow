@@ -73,9 +73,9 @@
 ## CLI
 
 The CLI is a complete client; the Gemini frontend is for visitors who
-have no shell on the bridge host. Until the first npm publication, install
-from GitHub with `npm install --global github:forgesworn/gopherkind`
-(Node >= 24).
+have no shell on the bridge host. Install with
+`npm install --global gopherkind` (Node >= 24), or run it without
+installing via `npx gopherkind`.
 
 - interactive browser: `gopherkind` (bare, on a TTY) or
   `gopherkind browse [target]`. Numbered links, `back`/`up`/`reload`,
