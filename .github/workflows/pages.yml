@@ -19,12 +19,14 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Build and deploy are separate jobs on purpose. GitHub's Pages deployment can
+# stall in `deployment_queued` and time out on their side; re-running a single
+# combined job then uploads a second `github-pages` artifact into the same run
+# and deploy-pages refuses with "Multiple artifacts named github-pages". Split,
+# a re-run of the failed deploy job reuses the artifact that already exists.
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       # SHA-pinned for the same reason as ci.yml: strict-action-pins refuses a
       # floating tag. Dependabot keeps these current.
@@ -33,5 +35,13 @@ jobs:
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
