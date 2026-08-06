@@ -43,12 +43,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Do not add a `timeout` input hoping to ride out a slow queue: the
+      # action clamps it with Math.min against a MAX_TIMEOUT of 600000, so ten
+      # minutes is a hard ceiling and a larger value is silently ignored. When
+      # GitHub's Pages queue stalls (the deployment is accepted and then sits
+      # in `deployment_queued` while their status page reads operational),
+      # there is nothing to configure. Re-run the deploy job later; the split
+      # above makes that safe, because it reuses the existing artifact instead
+      # of uploading a second one.
       - id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
-        with:
-          # The action's own default is ten minutes, which this repository has
-          # now exceeded twice while GitHub reported Pages as operational: the
-          # deployment is accepted and then sits in `deployment_queued`. There
-          # is nothing to fix on our side and nothing gained by aborting a
-          # deployment that is merely slow, so wait half an hour before failing.
-          timeout: 1800000
