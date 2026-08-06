@@ -204,7 +204,76 @@ test('http frontend', async (t) => {
     assert.match(body, new RegExp(`<link rel="canonical" href="https://bridge\\.example/${npub}">`))
     assert.match(body, /<meta property="og:title"/)
     assert.match(body, /<meta property="og:description"/)
+    assert.match(body, /<meta name="twitter:card" content="summary_large_image">/)
+  })
+
+  await t.test('the bridge serves its own icons and share image', async (t2) => {
+    const base = await start(t2, { publicUrl: 'https://bridge.example' })
+    for (const [path, bytes] of [
+      ['/favicon.png', 290],
+      ['/favicon.ico', 290],
+      ['/apple-touch-icon.png', 1751],
+      ['/og.png', 16416],
+    ] as const) {
+      const res = await fetch(`${base}${path}`)
+      assert.equal(res.status, 200, path)
+      assert.equal(res.headers.get('content-type'), 'image/png', path)
+      const body = Buffer.from(await res.arrayBuffer())
+      assert.equal(body.length, bytes, path)
+      // a real PNG, not an HTML error page with the wrong content type
+      assert.equal(body.subarray(1, 4).toString(), 'PNG', path)
+    }
+  })
+
+  await t.test('a public page points at the share image absolutely', async (t2) => {
+    const base = await start(t2, { publicUrl: 'https://bridge.example' })
+    const body = await (await fetch(`${base}/${npub}`)).text()
+    assert.match(body, /<meta property="og:image" content="https:\/\/bridge\.example\/og\.png">/)
+    assert.match(body, /<meta name="twitter:card" content="summary_large_image">/)
+    assert.match(body, /<link rel="icon" href="\/favicon\.png" type="image\/png">/)
+  })
+
+  await t.test('a bridge that does not know its public URL claims no image', async (t2) => {
+    // A relative og:image is worse than none: a scraper cannot resolve it.
+    const base = await start(t2)
+    const body = await (await fetch(`${base}/${npub}`)).text()
+    assert.doesNotMatch(body, /og:image/)
     assert.match(body, /<meta name="twitter:card" content="summary">/)
+    // the icons are still served and linked, since those are relative by nature
+    assert.match(body, /<link rel="icon"/)
+  })
+
+  await t.test('an ASCII art banner never becomes the link preview', async (t2) => {
+    // A hole that opens with a banner, as gopherspace holes tend to. The
+    // description is what search results and every shared link render, so it
+    // has to skip the art and find the prose underneath it.
+    const banner = finalizeEvent(
+      docToTemplate(
+        {
+          path: '/',
+          type: '1',
+          title: 'Bannered hole',
+          content: [
+            ' ,------------------------,',
+            ' |   ###   ##########     |',
+            " `------------------------'",
+            '',
+            'Signed documents that outlive the host they were served from.',
+          ].join('\n'),
+        },
+        1_754_000_020,
+      ),
+      sk,
+    )
+    const store = makeStore()
+    store.doc = async (pk: string, documentPath: string) =>
+      pk === pubkey && documentPath === '/' ? banner : null
+    const base = await start(t2, { store, publicUrl: 'https://bridge.example' })
+    const body = await (await fetch(`${base}/${npub}`)).text()
+    const description = body.match(/<meta name="description" content="([^"]*)">/)?.[1]
+    assert.ok(description !== undefined)
+    assert.match(description, /^Signed documents that outlive/)
+    assert.doesNotMatch(description, /#|-{4}/)
   })
 
   await t.test('unknown hole path is a 404 page', async (t2) => {
@@ -886,6 +955,9 @@ test('http frontend', async (t) => {
     assert.match(csp, /script-src 'self'/)
     assert.match(csp, /connect-src 'self'/)
     assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/)
+    // the bridge's own icons, and no remote image under any circumstances
+    assert.match(csp, /img-src 'self'/)
+    assert.doesNotMatch(csp, /img-src[^;]*\*/)
   })
 
   await t.test('feed renders follows', async (t2) => {

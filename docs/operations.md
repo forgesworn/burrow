@@ -47,6 +47,20 @@ curl -fsS 'https://gopherkind.com/.well-known/nostr.json?name=_'
 gopherkind read gopherkind@gopherkind.com
 ```
 
+The proxy also serves the project page at `https://gopherkind.com/project/`,
+straight from `site/` in the deployed checkout, so it needs no publish step of
+its own and cannot drift from the release that is running. The root belongs to
+the bridge, which serves gopherkind's own hole: the project's front door is the
+software doing its job, and the prose about it lives one path down. The GitHub
+Pages copy is the same bytes and declares `gopherkind.com/project/` canonical,
+so old links keep working without the project having two homes. Verify after
+any proxy change:
+
+```sh
+curl -fsS -o /dev/null -w '%{http_code}\n' https://gopherkind.com/project/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://gopherkind.com/project/logo.png
+```
+
 The live HTTPS route uses [the checked-in Caddyfile](../deploy/reference.Caddyfile)
 as a fragment of the host's shared, system-managed Caddy configuration. Caddy
 owns ports 80 and 443, obtains and renews the public certificate, and replaces

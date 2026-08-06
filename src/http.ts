@@ -6,7 +6,7 @@ import * as nip19 from 'nostr-tools/nip19'
 import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { robotsTxt } from './robots.ts'
 import { resolveRoute, type Content } from './router.ts'
-import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
+import { page, renderMenuHtml, renderContentHtml, esc, type PageMeta } from './html.ts'
 import { parseProxyPath, proxyPath, browseGopher, gopherUrl } from './gopherclient.ts'
 import { resolvePublicHost } from './netguard.ts'
 import type { MenuItem } from './resolve.ts'
@@ -32,6 +32,7 @@ import {
 } from './protocol.ts'
 import { holeRef } from './gemtext.ts'
 import { aboutContent, ABOUT_PATH } from './about.ts'
+import { FAVICON_PNG, APPLE_TOUCH_ICON_PNG, SHARE_IMAGE_PNG } from './assets.ts'
 import { resolveClientTarget, type ClientTarget } from './target.ts'
 import {
   docToTemplate,
@@ -109,19 +110,70 @@ function canonical(opts: HttpOptions, ref: string): string | undefined {
   return new URL(ref, `${opts.publicUrl.replace(/\/$/, '')}/`).toString()
 }
 
+// Share metadata for a public page. A scraper cannot resolve a relative image
+// URL, so the image rides on the same knowledge of the public URL that the
+// canonical link needs, and is absent together with it.
+function shareMeta(opts: HttpOptions, ref: string, description: string): PageMeta {
+  return {
+    canonical: canonical(opts, ref),
+    description,
+    image: canonical(opts, SHARE_IMAGE_PATH),
+  }
+}
+
+// The description is the part of a page its author never looks at and everyone
+// else sees first: search results and link previews render it instead of the
+// page. Banners, rules and ASCII art are ordinary info lines, and gopherspace
+// is fond of all three, so the first line of a hole is as likely to be
+// box-drawing as prose. A preview made of punctuation is worse than no preview,
+// so keep only lines that read like sentences.
+const DESCRIPTION_MAX = 180
+
+function proseLine(line: string): boolean {
+  const text = line.trim()
+  if (text.length < 12) return false
+  const letters = text.match(/[\p{L}\p{N}]/gu)?.length ?? 0
+  if (letters < text.length * 0.65) return false
+  return (text.match(/\p{L}{2,}/gu)?.length ?? 0) >= 3
+}
+
+// Prose arrives pre-wrapped, so rejoin each paragraph before deciding where to
+// cut. A blank line ends a paragraph, and a paragraph that does not close
+// itself gets a full stop, or the tagline runs headlong into the first
+// sentence. Cut on a word boundary: a preview ending mid-word reads as broken.
+function summarise(lines: string[], fallback: string): string {
+  const paragraphs: string[] = []
+  let current: string[] = []
+  const close = () => {
+    if (current.length > 0) paragraphs.push(current.join(' '))
+    current = []
+  }
+  for (const line of lines) {
+    if (line.trim() === '') close()
+    else if (proseLine(line)) current.push(line.trim())
+  }
+  close()
+  const text = paragraphs
+    .map((paragraph) => (/[.!?]$/.test(paragraph) ? paragraph : `${paragraph}.`))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text === '') return fallback
+  if (text.length <= DESCRIPTION_MAX) return text
+  const cut = text.slice(0, DESCRIPTION_MAX - 3)
+  const boundary = cut.lastIndexOf(' ')
+  const kept = boundary > DESCRIPTION_MAX / 2 ? cut.slice(0, boundary) : cut
+  return `${kept.replace(/[,;:.]$/, '')}...`
+}
+
 function contentDescription(content: Content): string {
-  if (content.kind === 'text') return firstLine(content.body, 180) || content.title
+  if (content.kind === 'text') return summarise(content.body.split(/\r?\n/), content.title)
   if (content.kind === 'menu') {
-    return (
-      firstLine(
-        plainTerminalText(
-          content.items
-            .filter((item) => item.target.scheme === 'none')
-            .map((item) => item.display)
-            .join(' '),
-        ),
-        180,
-      ) || content.title
+    return summarise(
+      content.items
+        .filter((item) => item.target.scheme === 'none')
+        .map((item) => plainTerminalText(item.display)),
+      content.title,
     )
   }
   return content.message
@@ -181,8 +233,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'x-frame-options': 'DENY',
+  // img-src is 'self' for the bridge's own icons and nothing else: rendered
+  // hole content is escaped text, so no document can introduce an image, and a
+  // remote one could not be fetched even if it did.
   'content-security-policy':
-    "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'",
   'cache-control': 'no-store',
 }
 
@@ -391,7 +446,21 @@ export function createHttpServer(opts: HttpOptions): http.Server {
 interface Reply {
   status: number
   headers: Record<string, string>
-  body: string
+  body: string | Buffer
+}
+
+export const SHARE_IMAGE_PATH = '/og.png'
+
+const BRIDGE_ASSETS: Record<string, Buffer> = {
+  '/favicon.png': FAVICON_PNG,
+  '/favicon.ico': FAVICON_PNG,
+  '/apple-touch-icon.png': APPLE_TOUCH_ICON_PNG,
+  [SHARE_IMAGE_PATH]: SHARE_IMAGE_PNG,
+}
+
+const IMAGE_HEADERS = {
+  'content-type': 'image/png',
+  'cache-control': 'public, max-age=86400',
 }
 
 const html = (status: number, body: string, headers: Record<string, string> = {}): Reply => ({
@@ -454,17 +523,29 @@ async function handle(
   if (path === '/browser.js') {
     return html(200, HTTP_BROWSER_SCRIPT, { 'content-type': 'text/javascript; charset=utf-8' })
   }
+  // The bridge's own chrome: a tab icon and the image a shared link previews
+  // with. Hole content is still text and menus only, on every surface; these
+  // are fixed bytes belonging to the software, not to anything it serves.
+  const asset = BRIDGE_ASSETS[path]
+  if (asset !== undefined) {
+    return { status: 200, headers: { ...IMAGE_HEADERS }, body: asset }
+  }
   if (path === '/nip07/connect') return nip07ConnectPage(req, opts)
   if (path === '/') return html(200, await welcome(opts, store, signedIn))
   if (path === ABOUT_PATH) {
     const rendered = renderContentHtml(aboutContent('the web'))
     return html(
       200,
-      page(rendered.title, rendered.body, signedIn, {
-        canonical: canonical(opts, ABOUT_PATH),
-        description:
+      page(
+        rendered.title,
+        rendered.body,
+        signedIn,
+        shareMeta(
+          opts,
+          ABOUT_PATH,
           'Why gopherholes belong on Nostr: signed documents that outlive the host they were served from.',
-      }),
+        ),
+      ),
     )
   }
   if (path === '/robots.txt') {
@@ -645,10 +726,12 @@ async function handle(
   }
   return html(
     content.kind === 'error' ? 404 : 200,
-    page(rendered.title, rendered.body + extra, signedIn, {
-      canonical: canonical(opts, holeRef(route.npub, route.path)),
-      description: contentDescription(content),
-    }),
+    page(
+      rendered.title,
+      rendered.body + extra,
+      signedIn,
+      shareMeta(opts, holeRef(route.npub, route.path), contentDescription(content)),
+    ),
   )
 }
 
@@ -697,10 +780,7 @@ async function homePage(
     '<hr>',
     rendered.body,
   ].join('\n')
-  return page(rendered.title, body, signedIn, {
-    canonical: canonical(opts, '/'),
-    description: contentDescription(content),
-  })
+  return page(rendered.title, body, signedIn, shareMeta(opts, '/', contentDescription(content)))
 }
 
 async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): Promise<string> {
@@ -743,11 +823,16 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
       body.push(`<p><a href="/${esc(npub)}">${esc(name)}</a></p>`)
     }
   }
-  return page('gopherkind', body.join('\n'), signedIn, {
-    canonical: canonical(opts, '/'),
-    description:
+  return page(
+    'gopherkind',
+    body.join('\n'),
+    signedIn,
+    shareMeta(
+      opts,
+      '/',
       'Signed, navigable Nostr reading rooms served over Gopher, Gemini, HTTP and the terminal.',
-  })
+    ),
+  )
 }
 
 async function accountPage(

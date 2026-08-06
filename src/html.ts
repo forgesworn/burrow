@@ -284,6 +284,9 @@ export function renderTerminalHtml(value: string, linkify = false): string {
 export interface PageMeta {
   canonical?: string
   description?: string
+  // Absolute URL of the share image. Only set when the bridge knows its own
+  // public URL, because a scraper cannot resolve a relative one.
+  image?: string
 }
 
 const STYLE = `*{box-sizing:border-box}
@@ -339,7 +342,12 @@ export function page(title: string, body: string, signedIn: boolean, meta: PageM
     meta.description ? `<meta property="og:description" content="${esc(meta.description)}">` : '',
     meta.canonical ? `<meta property="og:url" content="${esc(meta.canonical)}">` : '',
     '<meta property="og:type" content="website">',
-    '<meta name="twitter:card" content="summary">',
+    meta.image ? `<meta property="og:image" content="${esc(meta.image)}">` : '',
+    meta.image ? '<meta property="og:image:width" content="1200">' : '',
+    meta.image ? '<meta property="og:image:height" content="630">' : '',
+    `<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">`,
+    '<link rel="icon" href="/favicon.png" type="image/png">',
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
   ]
     .filter((line) => line !== '')
     .join('\n')

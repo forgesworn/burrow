@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.16.0 (2026-08-06)
+
+- stop building a page description out of ASCII art. Banners, rules and
+  boxes are ordinary info lines, and gopherspace is fond of all three, so the
+  first line of a hole is as likely to be box-drawing as prose. The bridge now
+  takes the first lines that read like sentences, rejoins wrapped paragraphs
+  and cuts on a word boundary. This is what search results and every shared
+  link render, and the project's own front page was previewing as a wall of
+  punctuation
+- serve the bridge's own icons and a share image, so a link to a hole previews
+  as something recognisable and a tab has an icon. They are inlined into the
+  build rather than read from disk, so a self-hosted bridge is complete on its
+  own without static files configured beside it
+- allow `img-src 'self'` in the content security policy, which the icons need.
+  Rendered hole content is escaped text, so no document can introduce an image,
+  and a remote one could not be fetched even if it did
+- serve the project page from `gopherkind.com/project/` in the reference
+  deployment, with the GitHub Pages copy kept as a mirror pointing at it. The
+  project had two front doors competing for its own name
+
 ## 0.15.3 (2026-08-06)
 
 - say what the hole opener actually accepts. It has always resolved a
