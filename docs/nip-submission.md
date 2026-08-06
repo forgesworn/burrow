@@ -63,8 +63,11 @@ Body:
 >
 > The kind carries its text inline rather than referencing blobs, which is the
 > whole survivability claim, and adds gopher item-type semantics with menus as
-> first-class documents. Rationale for not reusing nsite or kind 30023 is in
-> the spec.
+> first-class documents. NIP-5A is the closest existing work; the spec's
+> rationale sets out the three differences (inline text rather than Blossom
+> blob hashes, one event per document rather than a path manifest, and gopher
+> item types for clients with no HTML parser), along with why kind 30023 does
+> not fit.
 >
 > Reference implementation, executable test vectors, and its gopher, Gemini,
 > HTTP and CLI frontends: https://github.com/forgesworn/gopherkind

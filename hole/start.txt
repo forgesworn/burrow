@@ -9,11 +9,12 @@ Requires Node 24 or newer. No build step, no database.
 1. Install
 ----------
 
-  npm install --global github:forgesworn/gopherkind
+  npm install --global gopherkind
   gopherkind why
 
-(The npm registry name is still being bootstrapped, so the install
-comes from GitHub for now.)
+Or read something without installing anything:
+
+  npx gopherkind read gopherkind@gopherkind.com
 
 2. Read something first
 -----------------------

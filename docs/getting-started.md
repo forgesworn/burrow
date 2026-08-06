@@ -9,8 +9,7 @@ Requires Node 24 or newer. Nothing else, no database, no build step.
 ## 1. Install
 
 ```sh
-# Until the one-time npm registry bootstrap is complete, install from GitHub.
-npm install --global github:forgesworn/gopherkind
+npm install --global gopherkind
 gopherkind why          # the argument, in your terminal
 ```
 
