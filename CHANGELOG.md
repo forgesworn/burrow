@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 (2026-08-06)
+
+- put the hole opener above the home hole rather than below it. A visitor who
+  did not come to read that particular hole wants their own, or someone
+  else's, and should not have to scroll a whole front page to find the way
+
 ## 0.15.0 (2026-08-06)
 
 - link addresses written inside a type 0 document on the HTTP frontend. RFC

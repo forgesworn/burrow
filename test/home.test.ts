@@ -83,6 +83,9 @@ test('http serves the home hole with the opener and account links', async (t) =>
   assert.ok(body.includes(`href="/${npub}/about.txt"`))
   // ...and every way out of it.
   assert.match(body, /Open any hole/)
+  // The opener comes first: someone who did not come for this hole should not
+  // have to scroll the whole front page to reach their own.
+  assert.ok(body.indexOf('action="/go"') < body.indexOf(`href="/${npub}/about.txt"`))
   assert.ok(body.includes('action="/go"'))
   assert.ok(body.includes('href="/about"'))
   assert.ok(body.includes('href="/account"'))

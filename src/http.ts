@@ -666,16 +666,18 @@ async function homePage(
   const content = await resolveRoute(route, store, { virtual: opts.virtual })
   if (content.kind !== 'menu') return null
   const rendered = renderContentHtml(content)
+  // The opener goes above the hole, not below it. A visitor who did not come
+  // to read this particular hole wants their own, or someone else's, and
+  // should not have to scroll a whole front page to find the way there.
   const body = [
-    rendered.body,
-    '<hr>',
-    '<h2>Read anyone</h2>',
-    '<p>Any npub is a hole here, published or not: profiles, notes and long-form',
-    'articles are served as a virtual hole.</p>',
     OPEN_FORM,
-    '<p><a href="/about">Why gopher on Nostr</a> · ',
+    '<p>Any npub is a hole here, published or not: profiles, notes and long-form',
+    'articles are served as a virtual hole. ',
+    '<a href="/about">Why gopher on Nostr</a> · ',
     signedIn ? '<a href="/me">Manage my pages</a>' : '<a href="/account">Sign in to publish</a>',
     ' · <a href="/gopher/gopher.floodgap.com/1/">Traditional gopherspace</a></p>',
+    '<hr>',
+    rendered.body,
   ].join('\n')
   return page(rendered.title, body, signedIn, {
     canonical: canonical(opts, '/'),
