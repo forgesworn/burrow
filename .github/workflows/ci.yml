@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Re-run without inventing a commit. During the GitHub Actions outage of
+  # 2026-08-06 runs were cancelled at the queue timeout with no steps executed,
+  # and the only way to retry a green-worthy commit was to push another one.
+  workflow_dispatch:
   schedule:
     # A dropped release event leaves no failing run anywhere, so the only thing
     # that notices is something which runs on its own schedule.
