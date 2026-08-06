@@ -41,6 +41,18 @@ test('the about page carries the argument and safe links only', () => {
   assert.ok(content.items.some((i) => i.target.scheme === 'hole'))
 })
 
+test('the project bridge is offered as one option, not the option', () => {
+  // The argument on this page is that a hole outlives any one host. Calling
+  // the project's own bridge "the" bridge would quietly contradict it, and
+  // that is an easy thing to reintroduce while editing copy, so pin it: the
+  // reader is always told they can run their own instead.
+  const text = renderForTerminal(aboutContent('the web'))
+  assert.match(text, /gopherkind\.com, a public bridge/)
+  assert.doesNotMatch(text, /the public bridge/)
+  assert.match(text, /Run your own bridge/)
+  assert.match(text, /No bridge is load-bearing/)
+})
+
 test('each frontend names the surface it was read on', () => {
   const said = (surface: Parameters<typeof aboutContent>[0]): string =>
     renderForTerminal(aboutContent(surface))
