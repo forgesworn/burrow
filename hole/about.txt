@@ -1,0 +1,37 @@
+What this is
+============
+
+You are reading a gopherhole that has no host.
+
+Every document here is a signed Nostr event of kind 31436, named for
+RFC 1436, the gopher protocol. The path you asked for is the event's
+`d` tag. The signature is mine. The copies live on relays I chose,
+and any bridge that can retrieve one can serve it to you, whether or
+not the machine I published from is switched on.
+
+That is the whole idea. Gopherspace has one endemic disease: holes
+die with their hostname, and nothing in the protocol can prove who
+wrote what. Nostr has identity as a keypair and documents as signed
+events, but its clients are timelines that bury long writing an hour
+after it is posted. Each one has what the other lacks.
+
+gopherkind is the bridge between them. It is:
+
+  a publisher      a directory of text files becomes signed events
+  a bridge daemon  gopher, Gemini and HTTP from those same events
+  a client         terminal browsing of gopherspace and Nostr alike
+
+It is not custodial. It never holds a secret key, never generates
+one, and never accepts an nsec. Writing goes through a NIP-46 remote
+signer or a NIP-07 browser extension that stays yours.
+
+Every npub is already a hole, published or not: profile, notes,
+replies, threads, long-form articles, follows and followers are
+generated from ordinary Nostr events. Authored documents like this
+one simply shadow the generated paths. Taking over your own hole is
+just publishing.
+
+MIT licensed. No token, no ads, no telemetry, nothing to sell you.
+
+  Source and documentation
+      https://github.com/forgesworn/gopherkind

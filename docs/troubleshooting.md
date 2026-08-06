@@ -88,6 +88,11 @@ instead of a tab are the usual culprit.
 `/`. A kindmap does not publish the documents it links to; publish those files
 too.
 
+**A line in a menu lost its first letter.** It began with `i`, and a kindmap
+strips one leading `i` from a line with no tab, because that is how a gophermap
+marks an information record. Write `ii...` or reword the line. The published
+event keeps what you signed, so republish the corrected menu.
+
 **`export takes a hole root, not an individual path`** and
 **`no current documents found to export`.** Export operates on a whole hole and
 needs at least one current document; check with `gopherkind inspect` first.

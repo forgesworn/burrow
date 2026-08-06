@@ -91,6 +91,18 @@ same-hole absolute paths, Nostr entities (`npub`, `nprofile`, or `naddr`
 pointing at a kind 31436 document or a kind 30023 article), a `gopher://` URL
 which keeps its real host, or a web URL served as an `h` item.
 
+One trap, inherited from gophermap: a line with no tab is information text, and
+a single leading `i` is removed from it, because that is how a gophermap marks
+an information record. So a prose line beginning with the letter loses it:
+
+```
+it is fine to write prose here      ->  t is fine to write prose here
+iit is fine to write prose here     ->  it is fine to write prose here
+```
+
+Either double the `i`, or reword the line. A signed document keeps whatever you
+published, so it is worth reading your menu back after the first publish.
+
 Look before you leap, then publish:
 
 ```sh

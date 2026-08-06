@@ -1,0 +1,72 @@
+Questions
+=========
+
+Is this just a website with extra steps?
+
+  No. A website is served by a host you must keep paying for, and
+  nothing about the page proves who wrote it. A gopherkind document
+  is a signed event: any bridge that can retrieve a copy can serve
+  it, and the signature travels with it.
+
+Do I have to publish anything to have a hole?
+
+  No. Every npub is already a hole. Profile, notes, replies,
+  mentions, threads, articles, follows, followers and an Atom feed
+  are generated from ordinary events. Authored documents shadow
+  those paths when you want them to.
+
+Will my writing be there forever?
+
+  Nobody can promise that. Relays choose what to keep. What changes
+  is that your documents are no longer tied to one machine. Publish
+  to relays you trust, keep an export, re-check with `inspect`.
+
+What if the bridge you are reading this on disappears?
+
+  This hole does not. Run `gopherkind serve` yourself, or use
+  anyone else's bridge, and the same signed documents render at the
+  same paths.
+
+Can I delete something?
+
+  `unpublish` and `delete` send NIP-09 requests. Relays may ignore
+  them and clients keep caches, so treat deletion as a request, not
+  a recall. If it contained a secret, rotate the secret. For
+  anything deliberately temporary, publish it with --expire.
+
+Does the bridge ever hold my key?
+
+  Never. No nsec input, no key generation, no custody. Signing
+  happens in your NIP-46 signer or your NIP-07 extension. A browser
+  session can never borrow the bridge's signer.
+
+Is there a token or a fee?
+
+  No. Nothing to buy, nothing to stake, no premium tier.
+
+Does any of it need JavaScript?
+
+  No. The HTTP frontend is plain HTML with real forms, aimed at
+  lynx first. Reading, search, pairing, posting and publishing all
+  work with JavaScript switched off.
+
+Can I use my own relays?
+
+  Yes. Every command takes --relay, repeatable. Reads also follow
+  an author's NIP-65 list, so a hole published to someone's own
+  relays is found even when your bridge does not carry them.
+
+Images? Binaries?
+
+  Deliberately not. Item types 9, g and I are non-goals, along with
+  Gopher+ and CGI selectors. Text and menus only.
+
+Is kind 31436 a real NIP?
+
+  It is a proposal: pull request 2429 on the NIPs repository,
+  unmerged at the time of writing. The specification and a
+  language-neutral conformance fixture are in the repository, so a
+  second implementation can be checked against the same bytes.
+
+  More answers
+      https://github.com/forgesworn/gopherkind/blob/main/docs/faq.md

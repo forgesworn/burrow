@@ -1,0 +1,33 @@
+gopherkind
+gopherholes served from Nostr relays
+
+This hole is itself a set of signed kind 31436 events. No host owns
+this hole, and any bridge that can fetch a copy can serve it to you,
+even a bridge you run yourself.
+
+0What this is	/about.txt
+0Why gopher on Nostr	/why.txt
+0Getting started	/start.txt
+0Questions	/faq.txt
+0The protocol, briefly	/protocol.txt
+0Keeping it alive	/support.txt
+
+1Phlog	/phlog
+7Search this hole	/
+
+The rest of this identity, generated from ordinary Nostr events
+rather than published here:
+
+0Profile	/profile.txt
+1Notes	/notes
+1Articles (long-form)	/articles
+1Follows	/follows
+1Followers	/followers
+
+Elsewhere:
+
+hSource, docs and issues	https://github.com/forgesworn/gopherkind
+hHome page	https://forgesworn.github.io/gopherkind/
+hThe kind 31436 proposal	https://github.com/nostr-protocol/nips/pull/2429
+1Floodgap, the heart of gopherspace	gopher://gopher.floodgap.com/1/
+

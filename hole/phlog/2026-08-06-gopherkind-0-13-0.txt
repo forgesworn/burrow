@@ -1,0 +1,40 @@
+gopherkind 0.13.0: the bridge explains itself
+=============================================
+2026-08-06
+
+Every release so far has made the bridge do more. This one makes it
+say what it is for, on every surface it speaks.
+
+There is now a single /about document. It is built from one value in
+the source and rendered by all four frontends, so the same words
+arrive as a gopher menu, as gemtext, as plain HTML in lynx, and in
+your terminal from `gopherkind why`. Every welcome page links to it,
+and it never asks for identity. A reader who has never heard of
+Nostr is exactly the reader it is for, and demanding an account
+before explaining yourself is a poor way to argue that accounts
+should not be necessary.
+
+That is the small joke in it: a page arguing that documents should
+be readable by a client written in 1991 would be embarrassing if it
+needed a modern browser to read. It does not. Neither does the new
+home page, which has no JavaScript and makes no third-party
+requests.
+
+Also in this release: `gopherkind version` and `gopherkind help`,
+which sounds trivial until you are three deployments deep and
+unsure which commit is answering; and a documentation set that
+finally has a front door, a getting-started path, an FAQ, a
+troubleshooting guide with real error messages in it, and an honest
+page about money.
+
+The honest limits have not moved. Relays still choose what to keep.
+Deletion is still a request. Kind 31436 is still a proposal rather
+than a ratified NIP, and pull request 2429 is still the place that
+decision gets made. What has changed is that it now takes about
+thirty seconds to find all of that out, instead of a careful read of
+a long README.
+
+  The release
+      https://github.com/forgesworn/gopherkind/releases/tag/v0.13.0
+  Everything that changed
+      https://github.com/forgesworn/gopherkind/blob/main/CHANGELOG.md

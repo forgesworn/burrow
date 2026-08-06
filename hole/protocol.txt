@@ -1,0 +1,67 @@
+The protocol, briefly
+=====================
+
+Kind 31436 is an addressable Nostr event holding one gopher
+document. The number is chosen for RFC 1436.
+
+Tags
+----
+
+  d           exactly one. The document's absolute path. The root
+              menu is "/". Paths are byte-exact identifiers: never
+              trimmed, case-folded, Unicode-normalised, nor are
+              slashes collapsed. "/a b" and "/a%20b" are different
+              documents.
+
+  type        exactly one, "0" (text) or "1" (menu). Missing,
+              duplicated or unrecognised required tags make the
+              event invalid.
+
+  title       zero or one.
+
+  expiration  optional NIP-40. Validation happens after NIP-01
+              replacement selection: an expired or malformed winner
+              makes the path absent, and an older revision is never
+              selected in its place.
+
+Menu content: the kindmap
+-------------------------
+
+A kindmap is a gophermap with the host and port columns removed,
+because a signed document has no host. One line per record:
+
+  <itemtype><display>	<link>
+
+A line with no tab is information text. Links may be:
+
+  /path                   another document in the same hole
+  npub1... / nprofile1... that person's hole root
+  naddr1...               a kind 31436 document, or a kind 30023
+                          article served at /articles/<naddr>
+  gopher://host/T/sel     traditional gopherspace, on its real host
+  https://...             an external URL, rendered as an h item
+
+Pasting an old gophermap mostly just works; the extra columns are
+ignored.
+
+Why this shape
+--------------
+
+Addressable replacement means editing keeps the address: publish
+the same d again and every link stays alive. The signature makes
+authorship independent of who is serving the bytes. Relay choice
+makes availability independent of one machine.
+
+Everything else, including virtual holes, pagination, search and
+the frontend routes, is bridge behaviour rather than protocol, and
+lives in a separate profile document so another implementation can
+disagree without breaking the format.
+
+  The specification
+      https://github.com/forgesworn/gopherkind/blob/main/SPEC.md
+  Bridge profile
+      https://github.com/forgesworn/gopherkind/blob/main/docs/bridge-profile.md
+  Conformance fixture
+      https://github.com/forgesworn/gopherkind/blob/main/docs/conformance.md
+  The proposal
+      https://github.com/nostr-protocol/nips/pull/2429
