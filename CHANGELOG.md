@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 (2026-08-06)
 
 - add `--home <npub>`: serve that hole's own root menu in place of the welcome
   page on gopher, Gemini and HTTP, so a bridge's front door is content. Reading
