@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.2 (2026-08-06)
+
+- tell a reader when a page came from gopherspace through the proxy, and give
+  them the original address to open with a gopher client. The proxy exists
+  because browsers stopped speaking gopher, not because the bridge wants to sit
+  in the middle, so leaving it should be one copy and paste
+- share one address builder between the proxied page heading and that note, so
+  the two cannot drift apart and offer different addresses
+
 ## 0.15.1 (2026-08-06)
 
 - put the hole opener above the home hole rather than below it. A visitor who

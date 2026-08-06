@@ -119,6 +119,16 @@ export function parseGopherMenu(body: string): MenuItem[] {
   return items
 }
 
+// The address this target names in gopherspace. Shared by the page heading and
+// the proxy's "read it directly" note so the two cannot drift apart.
+export function gopherUrl(target: GopherTarget): string {
+  const sel =
+    target.selector === '' || target.selector.startsWith('/')
+      ? target.selector
+      : `/${target.selector}`
+  return `gopher://${target.host}${target.port === 70 ? '' : `:${target.port}`}/${target.type}${sel}`
+}
+
 export async function browseGopher(
   target: GopherTarget,
   query?: string,
@@ -130,11 +140,7 @@ export async function browseGopher(
   } catch (err) {
     return { kind: 'error', message: err instanceof Error ? err.message : 'gopher fetch failed' }
   }
-  const sel =
-    target.selector === '' || target.selector.startsWith('/')
-      ? target.selector
-      : `/${target.selector}`
-  const title = `gopher://${target.host}${target.port === 70 ? '' : `:${target.port}`}/${target.type}${sel}`
+  const title = gopherUrl(target)
   if (target.type === '1' || target.type === '7') {
     return { kind: 'menu', title, items: parseGopherMenu(body) }
   }

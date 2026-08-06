@@ -7,7 +7,7 @@ import { parseSelector, SelectorError, type Route } from './selector.ts'
 import { robotsTxt } from './robots.ts'
 import { resolveRoute, type Content } from './router.ts'
 import { page, renderMenuHtml, renderContentHtml, esc } from './html.ts'
-import { parseProxyPath, proxyPath, browseGopher } from './gopherclient.ts'
+import { parseProxyPath, proxyPath, browseGopher, gopherUrl } from './gopherclient.ts'
 import { resolvePublicHost } from './netguard.ts'
 import type { MenuItem } from './resolve.ts'
 import { HoleStore } from './fetch.ts'
@@ -533,7 +533,20 @@ async function handle(
     }
     const content = await browseGopher(target, q === null ? undefined : q, connectHost)
     const rendered = renderContentHtml(content)
-    return html(content.kind === 'error' ? 502 : 200, page(rendered.title, rendered.body, signedIn))
+    // This page is somebody else's, fetched on the reader's behalf because
+    // browsers stopped speaking gopher. Say so, and offer the original address:
+    // a reader with a gopher client should be able to leave the proxy
+    // deliberately rather than having to reconstruct the URL from the heading.
+    const origin = gopherUrl(target)
+    const note =
+      content.kind === 'error'
+        ? ''
+        : `<p>Proxied from gopherspace. Read it directly at <code>${esc(origin)}</code> ` +
+          'with a gopher client, or in lynx, which still speaks gopher itself.</p>\n<hr>\n'
+    return html(
+      content.kind === 'error' ? 502 : 200,
+      page(rendered.title, note + rendered.body, signedIn),
+    )
   }
 
   if (path.startsWith(SEARCH_PREFIX)) {

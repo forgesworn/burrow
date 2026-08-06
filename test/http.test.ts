@@ -898,3 +898,18 @@ test('http frontend', async (t) => {
     })
   })
 })
+
+test('a failed proxy fetch carries no "read it directly" note', async (t) => {
+  // The proxy exists because browsers stopped speaking gopher. The page must
+  // still tell the reader whose it is and how to reach it without us.
+  const base = await start(t, {
+    resolveTarget: async () => {
+      throw new Error('unused')
+    },
+  })
+  const res = await fetch(`${base}/gopher/example.invalid/0/thing.txt`)
+  const body = await res.text()
+  // The fetch fails (no such host), so the note must not appear on an error.
+  assert.equal(res.status, 502)
+  assert.doesNotMatch(body, /Proxied from gopherspace/)
+})

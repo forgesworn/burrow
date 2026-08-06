@@ -1,7 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
-import { parseProxyPath, proxyPath, parseGopherMenu, browseGopher } from '../src/gopherclient.ts'
+import {
+  parseProxyPath,
+  proxyPath,
+  parseGopherMenu,
+  browseGopher,
+  gopherUrl,
+} from '../src/gopherclient.ts'
 
 test('proxy paths round-trip', () => {
   assert.deepEqual(parseProxyPath('/gopher/example.org/1/foo/bar'), {
@@ -126,4 +132,28 @@ test('browses a local gopher server end to end', async (t) => {
 test('unreachable host is an error content, not a throw', async () => {
   const res = await browseGopher({ host: '127.0.0.1', port: 1, type: '1', selector: '' })
   assert.equal(res.kind, 'error')
+})
+
+test('gopherUrl rebuilds the address a target names in gopherspace', () => {
+  // The page heading and the proxy's "read it directly" note both use this, so
+  // they cannot drift apart and offer the reader two different addresses.
+  assert.equal(
+    gopherUrl({
+      host: 'gopher.floodgap.com',
+      port: 70,
+      type: '0',
+      selector: '/gopher/relevance.txt',
+    }),
+    'gopher://gopher.floodgap.com/0/gopher/relevance.txt',
+  )
+  // A non-default port is kept; the default is omitted.
+  assert.equal(
+    gopherUrl({ host: 'example.org', port: 7070, type: '1', selector: '' }),
+    'gopher://example.org:7070/1',
+  )
+  // A selector without a leading slash gains one, matching the wire form.
+  assert.equal(
+    gopherUrl({ host: 'example.org', port: 70, type: '1', selector: 'world' }),
+    'gopher://example.org/1/world',
+  )
 })
