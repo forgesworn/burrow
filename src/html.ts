@@ -174,8 +174,78 @@ function cleanTerminalText(value: string): string {
     .join('')
 }
 
-function styledText(value: string, style: TerminalStyle): string {
-  const text = esc(cleanTerminalText(value))
+// A type 0 document has no link structure: RFC 1436 gives text files no way to
+// carry one, so an address written in prose is just prose. Gopher and Gemini
+// must live with that, but a browser reader reasonably expects to follow it, so
+// the HTML frontend turns recognised addresses in a text body into real links.
+// Only in text bodies: a menu display is already inside its own anchor.
+const URL_IN_TEXT = /\b(?:https?|gopher|gemini):\/\/[^\s<>"'`]+/g
+
+// Sentence punctuation is not part of the address. Brackets only count as
+// trailing when unbalanced, so a URL that legitimately ends in ")" survives.
+function trimTrailingPunctuation(url: string): { url: string; tail: string } {
+  let end = url.length
+  for (;;) {
+    const ch = url[end - 1]
+    if (ch === undefined) break
+    if ('.,;:!?'.includes(ch)) {
+      end--
+      continue
+    }
+    if (ch === ')' || ch === ']') {
+      const open = ch === ')' ? '(' : '['
+      const slice = url.slice(0, end)
+      const opens = slice.split(open).length - 1
+      const closes = slice.split(ch).length - 1
+      if (closes > opens) {
+        end--
+        continue
+      }
+    }
+    break
+  }
+  return { url: url.slice(0, end), tail: url.slice(end) }
+}
+
+function textHref(url: string): string | null {
+  // Defence in depth: the allowlist first, then a parse. Anything that does not
+  // survive both stays inert text rather than becoming a live href.
+  if (!isSafeWebUrl(url)) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'gopher:') {
+      const port = parsed.port === '' ? 70 : Number(parsed.port)
+      const type = parsed.pathname.length > 1 ? (parsed.pathname[1] ?? '1') : '1'
+      const selector =
+        parsed.pathname.length > 2 ? decodeURIComponent(parsed.pathname.slice(2)) : ''
+      return proxyPath({ host: parsed.hostname, port, type, selector })
+    }
+    if (['http:', 'https:', 'gemini:'].includes(parsed.protocol)) return url
+    return null
+  } catch {
+    return null
+  }
+}
+
+function escapeAndLink(raw: string): string {
+  let out = ''
+  let last = 0
+  for (const match of raw.matchAll(URL_IN_TEXT)) {
+    const start = match.index ?? 0
+    const matched = match[0]
+    const { url, tail } = trimTrailingPunctuation(matched)
+    out += esc(raw.slice(last, start))
+    const href = textHref(url)
+    out += href === null ? esc(url) : `<a href="${esc(href)}">${esc(url)}</a>`
+    out += esc(tail)
+    last = start + matched.length
+  }
+  return out + esc(raw.slice(last))
+}
+
+function styledText(value: string, style: TerminalStyle, linkify = false): string {
+  const cleaned = cleanTerminalText(value)
+  const text = linkify ? escapeAndLink(cleaned) : esc(cleaned)
   if (text === '') return ''
   const css: string[] = []
   const foreground = style.inverse ? (style.background ?? 'var(--terminal-bg)') : style.foreground
@@ -196,18 +266,18 @@ function styledText(value: string, style: TerminalStyle): string {
 // Interpret only Select Graphic Rendition sequences. Other terminal controls
 // are stripped, so cursor motion, OSC hyperlinks and clipboard commands can
 // never become active browser behaviour.
-export function renderTerminalHtml(value: string): string {
+export function renderTerminalHtml(value: string, linkify = false): string {
   const style = terminalStyle()
   const out: string[] = []
   const pattern = new RegExp(`${String.fromCharCode(27)}\\[([0-9;:]*)m`, 'g')
   let offset = 0
   for (const match of value.matchAll(pattern)) {
     const index = match.index ?? offset
-    out.push(styledText(value.slice(offset, index), style))
+    out.push(styledText(value.slice(offset, index), style, linkify))
     applySgr(style, match[1] ?? '')
     offset = index + match[0].length
   }
-  out.push(styledText(value.slice(offset), style))
+  out.push(styledText(value.slice(offset), style, linkify))
   return out.join('')
 }
 
@@ -331,7 +401,7 @@ export function renderContentHtml(content: Content): { title: string; body: stri
     case 'text':
       return {
         title: content.title,
-        body: `<h1>${esc(content.title)}</h1>\n<pre>${renderTerminalHtml(content.body)}</pre>`,
+        body: `<h1>${esc(content.title)}</h1>\n<pre>${renderTerminalHtml(content.body, true)}</pre>`,
       }
     case 'error':
       return { title: 'Not found', body: `<h1>Not found</h1>\n<p>${esc(content.message)}</p>` }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { page, renderMenuHtml, renderTerminalHtml } from '../src/html.ts'
+import { page, renderMenuHtml, renderTerminalHtml, renderContentHtml } from '../src/html.ts'
 import { renderGemtextMenu } from '../src/gemtext.ts'
 import { info } from '../src/resolve.ts'
 import { parseKindmap } from '../src/linemap.ts'
@@ -104,4 +104,50 @@ test('gemtext fences art but leaves prose alone', () => {
   assert.match(art, /```\n\*{23}/)
   const prose = renderGemtextMenu('T', [info('just a normal sentence here')])
   assert.doesNotMatch(prose, /```/)
+})
+
+test('addresses written in a text body become links, safely', () => {
+  const body = [
+    'see https://example.com/docs/faq.md for more',
+    'gopher://gopher.floodgap.com/0/gopher/relevance.txt',
+    'a sentence ending in a link https://example.com.',
+    'parenthesised (https://example.com/a) and balanced https://example.com/x(y)',
+    'javascript:alert(1) and data:text/html,<script>alert(1)</script>',
+    'not a scheme: ftp://example.com/file',
+  ].join('\n')
+  const { body: html } = renderContentHtml({ kind: 'text', title: 'T', body })
+
+  // ordinary web addresses link
+  assert.ok(
+    html.includes('<a href="https://example.com/docs/faq.md">https://example.com/docs/faq.md</a>'),
+  )
+  // gopher addresses route through the proxy so a browser can follow them
+  assert.ok(
+    html.includes(
+      '<a href="/gopher/gopher.floodgap.com/0/gopher/relevance.txt">' +
+        'gopher://gopher.floodgap.com/0/gopher/relevance.txt</a>',
+    ),
+  )
+  // sentence punctuation is not swallowed
+  assert.ok(html.includes('<a href="https://example.com">https://example.com</a>.'))
+  // an unbalanced closing bracket ends the address; a balanced one does not
+  assert.ok(html.includes('<a href="https://example.com/a">https://example.com/a</a>)'))
+  assert.ok(html.includes('>https://example.com/x(y)</a>'))
+  // nothing else becomes a live href
+  assert.doesNotMatch(html, /href="javascript:/)
+  assert.doesNotMatch(html, /href="data:/)
+  assert.doesNotMatch(html, /href="ftp:/)
+  assert.ok(!html.includes('<script>'))
+})
+
+test('menu displays are not linkified inside their own anchor', () => {
+  const items = [
+    {
+      type: '0',
+      display: 'see https://example.com',
+      target: { scheme: 'hole' as const, npub: 'npub1x', path: '/a' },
+    },
+  ]
+  const html = renderMenuHtml('T', items)
+  assert.doesNotMatch(html, /<a href="https:\/\/example\.com">/)
 })

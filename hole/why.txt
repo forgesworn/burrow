@@ -62,6 +62,11 @@ outlives the box it was typed on.
   Why is gopher still relevant? (Kaiser, in gopherspace)
       gopher://gopher.floodgap.com/0/gopher/relevance.txt
 
+  That address is not a link: this is a type 0 document, and RFC 1436
+  text files carry no link structure. In gopher, links live in menus.
+  The root menu of this hole has it as a followable item, and any
+  gopherkind bridge will fetch it for you from Floodgap itself.
+
 The honest limits
 -----------------
 

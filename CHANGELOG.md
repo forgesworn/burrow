@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.0 (2026-08-06)
+
+- link addresses written inside a type 0 document on the HTTP frontend. RFC
+  1436 gives text files no link structure, so an address in prose is just
+  prose; a browser reader reasonably expects to follow it. `gopher://`
+  addresses route through the built-in proxy so they work in a browser, only
+  http, https, gopher and gemini are ever emitted as an href, and sentence
+  punctuation is not swallowed into the address
+- add the relevance essay to the project hole as a real menu item, because in
+  gopher a link belongs in a menu
+
 ## 0.14.0 (2026-08-06)
 
 - add `--home <npub>`: serve that hole's own root menu in place of the welcome
