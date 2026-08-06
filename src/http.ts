@@ -655,9 +655,12 @@ async function handle(
 // The opener that lets a visitor go somewhere else. It sits under the home
 // hole when there is one, so "read this project" and "read anyone" are both on
 // the front page rather than one replacing the other.
+// The field is still named "npub" so existing links carrying ?npub= keep
+// working, but it accepts anything resolveClientTarget understands: an npub or
+// nostr: entity, a NIP-05 name, a gopher:// URL, or a bare gopher host.
 const OPEN_FORM = [
-  '<form method="get" action="/go"><p>Open any hole: ',
-  '<input type="text" name="npub" size="40" placeholder="npub1... or name@example.org"> ',
+  '<form method="get" action="/go"><p>Open a hole or a gopher site: ',
+  '<input type="text" name="npub" size="40" placeholder="npub1..., name@example.org, baud.baby"> ',
   '<input type="submit" value="Go"></p></form>',
 ].join('\n')
 
@@ -685,7 +688,9 @@ async function homePage(
   const body = [
     OPEN_FORM,
     '<p>Any npub is a hole here, published or not: profiles, notes and long-form',
-    'articles are served as a virtual hole. ',
+    'articles are served as a virtual hole. Traditional gopherspace works in the',
+    'same box: a <code>gopher://</code> URL, or a bare host like',
+    '<code>baud.baby</code>. ',
     '<a href="/about">Why gopher on Nostr</a> · ',
     signedIn ? '<a href="/me">Manage my pages</a>' : '<a href="/account">Sign in to publish</a>',
     ' · <a href="/gopher/gopher.floodgap.com/1/">Traditional gopherspace</a></p>',
@@ -707,9 +712,9 @@ async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): 
     'signed Nostr events. Any bridge that can retrieve a relay copy can serve it.</p>',
     '<p>Any npub works, published or not: profiles, notes and long-form',
     'articles are served as a virtual hole.</p>',
-    '<form method="get" action="/go"><p>Open a hole: ',
-    '<input type="text" name="npub" size="40" placeholder="npub1..."> ',
-    '<input type="submit" value="Go"></p></form>',
+    OPEN_FORM,
+    '<p>Traditional gopherspace works in the same box: a <code>gopher://</code> URL,',
+    'or a bare host like <code>baud.baby</code>.</p>',
     '<p><a href="/about">Why gopher on Nostr</a></p>',
     '<h2>Traditional gopherspace</h2>',
     '<p>gopherkind is also a gopher client, so old-school holes render here too.</p>',

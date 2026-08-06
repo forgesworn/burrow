@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.3 (2026-08-06)
+
+- say what the hole opener actually accepts. It has always resolved a
+  `gopher://` URL or a bare gopher host as well as an npub or NIP-05 name, but
+  the label and placeholder only mentioned npubs, so nobody would guess that
+  typing `baud.baby` works
+
 ## 0.15.2 (2026-08-06)
 
 - tell a reader when a page came from gopherspace through the proxy, and give

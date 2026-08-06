@@ -82,7 +82,7 @@ test('http serves the home hole with the opener and account links', async (t) =>
   // The hole itself, not a greeting about holes.
   assert.ok(body.includes(`href="/${npub}/about.txt"`))
   // ...and every way out of it.
-  assert.match(body, /Open any hole/)
+  assert.match(body, /Open a hole or a gopher site/)
   // The opener comes first: someone who did not come for this hole should not
   // have to scroll the whole front page to reach their own.
   assert.ok(body.indexOf('action="/go"') < body.indexOf(`href="/${npub}/about.txt"`))
@@ -111,4 +111,37 @@ test('http without a home hole keeps the generic welcome', async (t) => {
   const body = await (await fetch(base)).text()
   assert.match(body, /<h1>gopherkind<\/h1>/)
   assert.ok(body.includes('action="/go"'))
+})
+
+test('the opener says it takes gopher addresses, because it does', async (t) => {
+  // resolveClientTarget accepts a bare gopher host, so the form accepts one
+  // whether or not it admits to it. The label and the behaviour must agree.
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-opener-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const server = createHttpServer({
+    relays: ['wss://stub.invalid'],
+    pins: [],
+    virtual: true,
+    identity: false,
+    home: npub,
+    pairings: new PairingStore(path.join(dir, 'pairings.json')),
+    store: makeStore(),
+    localTrust: false,
+    resolveTarget: async (input: string) => {
+      assert.equal(input, 'baud.baby')
+      return { kind: 'gopher', host: 'baud.baby', port: 70, type: '1', selector: '' }
+    },
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`
+
+  const body = await (await fetch(base)).text()
+  assert.match(body, /Open a hole or a gopher site/)
+  assert.match(body, /baud\.baby/)
+
+  // and it really does resolve one
+  const res = await fetch(`${base}/go?npub=baud.baby`, { redirect: 'manual' })
+  assert.equal(res.status, 303)
+  assert.equal(res.headers.get('location'), '/gopher/baud.baby/1')
 })
