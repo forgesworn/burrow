@@ -117,6 +117,20 @@ Every bridge explains itself at `/about` on all three, built from the same
 document the terminal prints for `gopherkind why`. A reader who has never heard
 of Nostr needs no account to get the point.
 
+gopherkind has an identity of its own rather than borrowing the maintainer's,
+because a hole belongs to a key. Its pages live in this repository's `hole/`
+directory and are published from there, so the documentation is readable
+through the thing it documents:
+
+```sh
+gopherkind read npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s
+gopherkind read gopherkind@gopherkind.com    # the same hole, by NIP-05 name
+```
+
+Until the first publication reaches relays, that npub renders as an ordinary
+empty virtual hole, which is itself the point: the address exists before the
+content does.
+
 The web endpoint terminates TLS on the bridge host, so remote visitors can
 connect a NIP-07 browser extension or pair a NIP-46 signer. Port 8070 is not
 publicly reachable. The bridge is one route to relay-held events, not a
