@@ -110,6 +110,13 @@ gopherkind publish ./my-hole --dry-run    # signed events, nothing sent
 gopherkind publish ./my-hole
 ```
 
+`--dry-run` withholds the relay traffic, not the signatures: it signs every
+document and prints the finished events, which is what makes it useful for
+inspection. On a signer with physical confirmation that means one approval per
+document, twice over if you dry-run and then publish. With a hardware signer and
+a hole of any size, dry-run once while you are still changing the shape of it,
+then publish without.
+
 Publishing discovers your current NIP-65 write relays, uses their union with
 the configured relays, spreads your signed relay list alongside the documents,
 and reads every document back from every destination. Acceptance and read-back
