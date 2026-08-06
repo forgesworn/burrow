@@ -9,7 +9,7 @@ export const ABOUT_PATH = '/about'
 
 export const PROJECT_REPO = 'https://github.com/forgesworn/gopherkind'
 export const PROJECT_SPEC = 'https://github.com/forgesworn/gopherkind/blob/main/SPEC.md'
-const PROJECT_SITE = 'https://forgesworn.github.io/gopherkind/'
+const PROJECT_SITE = 'https://gopherkind.com/'
 const SUPPORT_KOFI = 'https://ko-fi.com/brays'
 const SUPPORT_GEYSER = 'https://geyser.fund/project/forgesworn'
 const AUTHOR_NPUB = 'npub1mgvlrnf5hm9yf0n5mf9nqmvarhvxkc6remu5ec3vf8r0txqkuk7su0e7q2'
@@ -99,7 +99,7 @@ export function aboutItems(surface: AboutSurface): MenuItem[] {
   })
   items.push({
     type: 'h',
-    display: 'Project home page',
+    display: 'gopherkind.com, the public bridge on the web',
     target: { scheme: 'web', url: PROJECT_SITE },
   })
   items.push(info(''))

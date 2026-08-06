@@ -12,7 +12,10 @@
 <meta property="og:description" content="Gopherholes served from Nostr relays. Signed documents that outlive the box they were served from.">
 <meta property="og:url" content="https://forgesworn.github.io/gopherkind/">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🕳️</text></svg>">
+<meta property="og:image" content="https://forgesworn.github.io/gopherkind/logo.png">
+<meta name="twitter:image" content="https://forgesworn.github.io/gopherkind/logo.png">
+<link rel="icon" href="favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 :root{
   color-scheme:dark light;
@@ -52,8 +55,9 @@ section:first-of-type{border-top:0}
 /* header */
 header{padding:1.25rem 0; border-bottom:1px solid var(--rule)}
 .bar{display:flex; flex-wrap:wrap; gap:.5rem 1.25rem; align-items:baseline; justify-content:space-between}
-.brand{font-family:ui-monospace,monospace; font-size:1.1rem; font-weight:600; color:var(--fg); text-decoration:none}
-.brand::before{content:"› "; color:var(--accent)}
+.brand{font-family:ui-monospace,monospace; font-size:1.1rem; font-weight:600; color:var(--fg);
+  text-decoration:none; display:inline-flex; align-items:center; gap:.5rem}
+.brand img{display:block; border-radius:.25rem}
 nav{display:flex; flex-wrap:wrap; gap:.5rem 1.1rem; font-size:.93rem}
 
 /* hero */
@@ -132,7 +136,7 @@ footer nav{margin-bottom:1rem}
 
 <header>
   <div class="wrap bar">
-    <a class="brand" href="#top">gopherkind</a>
+    <a class="brand" href="#top"><img src="logo.png" alt="" width="28" height="28">gopherkind</a>
     <nav>
       <a href="#why">Why</a>
       <a href="#how">How it works</a>

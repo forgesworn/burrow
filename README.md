@@ -10,8 +10,7 @@ Gopherholes served from Nostr relays.
 **[Getting started](docs/getting-started.md)** ·
 **[Docs](docs/index.md)** ·
 **[FAQ](docs/faq.md)** ·
-**[Home page](https://forgesworn.github.io/gopherkind/)** ·
-**[Live bridge](https://gopherkind.com/)** ·
+**[gopherkind.com](https://gopherkind.com/)** ·
 **[Support](docs/support.md)**
 
 Gopherspace has one endemic disease: holes die. The hobby box behind

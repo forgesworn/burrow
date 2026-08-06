@@ -243,7 +243,10 @@ test('a malformed winning document does not reveal an older valid revision', asy
 })
 
 test('a cached document disappears at its expiration time', async () => {
-  const expiration = Math.floor(Date.now() / 1000) + 1
+  // Three seconds, not one: the two assertions below run before the wait, and
+  // under coverage instrumentation they can take long enough that a one second
+  // window has already closed, failing the "still here" assertion at random.
+  const expiration = Math.floor(Date.now() / 1000) + 3
   const temporary = ev({
     kind: DOC_KIND,
     tags: [
