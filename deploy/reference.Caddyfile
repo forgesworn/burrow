@@ -11,6 +11,18 @@ gopherkind.com {
 		respond `{"names":{"_":"392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53","gopherkind":"392ad2a348960f3d32c0681ee0def41097a14fa55ff2465dc273f510b0740d53"}}` 200
 	}
 
+	# The project page, served straight from the deployed checkout so it needs
+	# no separate publish step. It lives under a path rather than at the root
+	# because the root belongs to the bridge, which serves gopherkind's own
+	# hole: the project's front door is the software doing its job. The
+	# trailing slash is enforced so the page's relative asset links resolve
+	# inside /project/ instead of hitting the bridge.
+	redir /project /project/ permanent
+	handle_path /project/* {
+		root * /opt/gopherkind/repo/site
+		file_server
+	}
+
 	handle {
 		reverse_proxy 127.0.0.1:8070 {
 			header_up Host {host}
