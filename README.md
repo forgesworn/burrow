@@ -288,11 +288,18 @@ for the HTTPS origin and rate-limits visitors separately. NIP-05 names work in
 the HTTP opener and as direct paths, but redirect to an npub URL so links are
 portable between bridges.
 
-Default relays are Damus, nos.lol and Primal; `--relay` (repeatable)
+Default relays are Damus, nos.lol, Primal and relay.trotters.cc, the
+project's own. That last one is there because a general-purpose relay may
+refuse an unfamiliar kind: Damus rejects every kind 31436 document, so a hole
+published only to the popular set can be unreadable through them. `--relay` (repeatable)
 replaces them. `--hostname` and `--public-port` control the address
 written into gopher menus, which matters behind NAT or a port
 redirect. `--pin` puts holes on the welcome menu under their profile
-names.
+names. `--home <npub>` goes further and serves that hole's own root menu in
+place of the welcome page on every frontend, so a bridge's front door is
+content rather than an explanation of what a front door is. Reading anyone
+else and managing your own pages stay one line below it, and an unreachable
+home falls back to the generic menu rather than an error.
 
 Gemini needs TLS, so the bridge generates a self-signed cert with
 openssl into `--state-dir` (default `~/.gopherkind`) on first run.

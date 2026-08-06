@@ -21,11 +21,18 @@ caller. The bridge runs with `--http-behind-proxy`,
 `--no-local-trust` and the HTTPS URL above, so NIP-07 and NIP-46 identity are
 available without granting proxy traffic local-operator authority.
 
-The bridge pins the project's own hole on its welcome menu:
+The bridge serves the project's own hole as its front page, and pins it:
 
 ```sh
---pin npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s
+--home npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s \
+--pin  npub18y4d9g6gjc8n6vkqdq0wphh5zzt6zna9tleyvhwzw063pvr5p4fsv05p0s
 ```
+
+`--home` replaces the generic welcome with that hole's root menu on gopher,
+Gemini and HTTP. The hole is authored content, so what the front page says is
+changed by publishing rather than by redeploying the bridge. If its relays are
+unreachable the bridge falls back to the generic welcome, which is why the
+project relay belongs in the bridge's own `--relay` set.
 
 Its NIP-05 name is served statically by the proxy rather than by the bridge.
 A bridge is a window onto relays, and who owns a name at a hostname is the

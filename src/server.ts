@@ -23,6 +23,8 @@ export interface ServeOptions {
   bridge: BridgeAddr
   // npubs listed on the welcome menu.
   pins: string[]
+  // An npub whose hole root replaces the generic welcome menu.
+  home?: string
   // Serve virtual holes (profile/notes/articles) for npubs without
   // authored documents. Defaults to on.
   virtual?: boolean
@@ -131,12 +133,48 @@ function toGopher(content: Content, bridge: BridgeAddr, banner: boolean): string
   }
 }
 
+// A bridge with a home hole leads with that hole's own root menu rather than a
+// generic greeting, so the front door is content instead of an explanation of
+// what a front door is. The ways out stay one line below it, and an
+// unreachable home falls back to the generic menu rather than an error page:
+// the bridge is still useful when one author's relays are down.
+async function homeMenu(opts: ServeOptions, store: HoleStore): Promise<string | null> {
+  if (opts.home === undefined) return null
+  let route: Route
+  try {
+    route = parseSelector(`/${opts.home}`)
+  } catch {
+    return null
+  }
+  if (route.kind !== 'doc') return null
+  const content = await resolveRoute(route, store, { virtual: opts.virtual !== false })
+  if (content.kind !== 'menu') return null
+  const { host, port } = opts.bridge
+  let out = renderMenuItems(content.items, opts.bridge).replace(/\.\r\n$/, '')
+  out += infoLine('')
+  out += infoLine('--')
+  out += gopherLine('1', 'Why gopher on Nostr', ABOUT_PATH, host, port)
+  out += infoLine('')
+  out += infoLine('Any npub is a hole on this bridge. Browse one by selector:')
+  out += infoLine('  /<npub>')
+  return out
+}
+
 async function welcome(
   opts: ServeOptions,
   store: HoleStore,
   personalAllowed = false,
 ): Promise<string> {
   const { host, port } = opts.bridge
+  const home = await homeMenu(opts, store)
+  if (home !== null) {
+    let out = home
+    if (personalAllowed) {
+      out += infoLine('')
+      out += gopherLine('1', 'You: feed, follows, post, delete', PERSONAL_ROOT, host, port)
+    }
+    return `${out}.\r\n`
+  }
   let out = ''
   out += infoLine('gopherkind')
   out += infoLine('gopherholes served from Nostr relays')

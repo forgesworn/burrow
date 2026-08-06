@@ -58,6 +58,8 @@ export interface HttpOptions {
   virtual: boolean
   pairings: PairingStore
   identity: boolean
+  // An npub whose hole root replaces the generic welcome page.
+  home?: string
   store?: HoleStore
   limiter?: RateLimiter
   // Injectable for tests and embedders. The CLI itself supplies only the
@@ -637,7 +639,53 @@ async function handle(
   )
 }
 
+// The opener that lets a visitor go somewhere else. It sits under the home
+// hole when there is one, so "read this project" and "read anyone" are both on
+// the front page rather than one replacing the other.
+const OPEN_FORM = [
+  '<form method="get" action="/go"><p>Open any hole: ',
+  '<input type="text" name="npub" size="40" placeholder="npub1... or name@example.org"> ',
+  '<input type="submit" value="Go"></p></form>',
+].join('\n')
+
+// See the gopher frontend: a home hole leads with its own root menu, and an
+// unreachable one falls back to the generic page rather than failing.
+async function homePage(
+  opts: HttpOptions,
+  store: HoleStore,
+  signedIn: boolean,
+): Promise<string | null> {
+  if (opts.home === undefined) return null
+  let route: Route
+  try {
+    route = parseSelector(`/${opts.home}`)
+  } catch {
+    return null
+  }
+  if (route.kind !== 'doc') return null
+  const content = await resolveRoute(route, store, { virtual: opts.virtual })
+  if (content.kind !== 'menu') return null
+  const rendered = renderContentHtml(content)
+  const body = [
+    rendered.body,
+    '<hr>',
+    '<h2>Read anyone</h2>',
+    '<p>Any npub is a hole here, published or not: profiles, notes and long-form',
+    'articles are served as a virtual hole.</p>',
+    OPEN_FORM,
+    '<p><a href="/about">Why gopher on Nostr</a> · ',
+    signedIn ? '<a href="/me">Manage my pages</a>' : '<a href="/account">Sign in to publish</a>',
+    ' · <a href="/gopher/gopher.floodgap.com/1/">Traditional gopherspace</a></p>',
+  ].join('\n')
+  return page(rendered.title, body, signedIn, {
+    canonical: canonical(opts, '/'),
+    description: contentDescription(content),
+  })
+}
+
 async function welcome(opts: HttpOptions, store: HoleStore, signedIn: boolean): Promise<string> {
+  const home = await homePage(opts, store, signedIn)
+  if (home !== null) return home
   const body = [
     '<h1>gopherkind</h1>',
     '<p>Gopherholes served from Nostr relays. Every hole is a set of',

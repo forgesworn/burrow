@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- add `--home <npub>`: serve that hole's own root menu in place of the welcome
+  page on gopher, Gemini and HTTP, so a bridge's front door is content. Reading
+  anyone else and managing your own pages stay on the same page, and an
+  unreachable or malformed home falls back to the generic welcome
+- add relay.trotters.cc to the default relay set. A general-purpose relay may
+  refuse an unfamiliar kind: relay.damus.io rejects every kind 31436 document,
+  so a hole published only to the popular set can be unreadable through them
+- give the project hole ASCII art derived from the logo
+
 - carry the project's own hole in `hole/`, published with
   `gopherkind publish hole`: what it is, why gopher on Nostr, getting started,
   questions, the protocol in brief, funding, and a phlog. `test/hole.test.ts`

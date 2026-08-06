@@ -56,6 +56,8 @@ export interface GeminiContext {
   relays: string[]
   pins: string[]
   virtual: boolean
+  // An npub whose hole root replaces the generic welcome page.
+  home?: string
   identity?: IdentityService
 }
 
@@ -431,7 +433,35 @@ function toGemini(content: Content): string {
   }
 }
 
+// See the gopher frontend: a home hole leads with its own root menu, and an
+// unreachable one falls back to the generic page rather than failing.
+async function homePage(ctx: GeminiContext, store: HoleStore): Promise<string | null> {
+  if (ctx.home === undefined) return null
+  let route: Route
+  try {
+    route = parseSelector(`/${ctx.home}`)
+  } catch {
+    return null
+  }
+  if (route.kind !== 'doc') return null
+  const content = await resolveRoute(route, store, { virtual: ctx.virtual })
+  if (content.kind !== 'menu') return null
+  const body = renderGemtextMenu(content.title, content.items)
+  const tail = [
+    '',
+    '## This bridge',
+    '',
+    '=> /about Why gopher on Nostr',
+    '',
+    'Any npub is a hole here: browse one at /<npub>.',
+    ctx.identity ? '=> /account Sign in (client certificate + your Nostr signer)' : '',
+  ].filter((line, index, all) => !(line === '' && all[index - 1] === ''))
+  return `20 text/gemini; charset=utf-8\r\n${body}${tail.join('\n')}\n`
+}
+
 async function welcomePage(ctx: GeminiContext, store: HoleStore): Promise<string> {
+  const home = await homePage(ctx, store)
+  if (home !== null) return home
   const lines = [
     '# gopherkind',
     '',

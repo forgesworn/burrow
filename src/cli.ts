@@ -4,6 +4,7 @@ import process from 'node:process'
 import os from 'node:os'
 import path from 'node:path'
 import type { Server as NetServer } from 'node:net'
+import * as nip19 from 'nostr-tools/nip19'
 import { createGopherServer } from './server.ts'
 import { createGeminiServer } from './gemini.ts'
 import { HoleStore } from './fetch.ts'
@@ -33,7 +34,16 @@ import { BookmarkStore } from './bookmarks.ts'
 import { aboutContent } from './about.ts'
 import { renderForTerminal } from './cliview.ts'
 
-const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
+// relay.trotters.cc is the project's own relay. It is in the defaults because
+// a general-purpose relay may refuse an unfamiliar kind: relay.damus.io rejects
+// every kind 31436 document, so a hole published only to the popular set can be
+// unreadable through them. `--relay` replaces this list entirely.
+const DEFAULT_RELAYS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.primal.net',
+  'wss://relay.trotters.cc',
+]
 
 const USAGE = `usage:
   read and browse (no identity needed):
@@ -64,7 +74,8 @@ const USAGE = `usage:
                      [--http-url https://bridge.example] [--http-behind-proxy]
                      [--no-local-trust] [--trust-loopback-anyway]
                      [--cert f --key f] [--state-dir d]
-                     [--pin npub1...]... [--no-virtual] [--no-identity]
+                     [--pin npub1...]... [--home npub1...]
+                     [--no-virtual] [--no-identity]
       the http frontend is the one to point lynx at for the full client.
     gopherkind announce --hostname bridge.example [--http-url https://bridge.example]
                         [--gopher-port 70] [--gemini-port 1965] [--no-gemini]
@@ -119,6 +130,7 @@ if (command === 'serve') {
       'state-dir': { type: 'string' },
       relay: { type: 'string', multiple: true },
       pin: { type: 'string', multiple: true },
+      home: { type: 'string' },
       'no-virtual': { type: 'boolean', default: false },
       'no-identity': { type: 'boolean', default: false },
       'http-port': { type: 'string', default: '8070' },
@@ -132,6 +144,18 @@ if (command === 'serve') {
   const port = Number(values.port)
   const relays = values.relay ?? DEFAULT_RELAYS
   const pins = values.pin ?? []
+  // Validate here rather than per frontend: a mistyped --home would otherwise
+  // fall back to the generic welcome on every surface and look like nothing
+  // happened, which is a slow way to find a typo.
+  const home = values.home
+  if (home !== undefined) {
+    try {
+      const decoded = nip19.decode(home)
+      if (decoded.type !== 'npub') throw new Error('not an npub')
+    } catch {
+      fail(`--home must be an npub: ${home}`)
+    }
+  }
   const virtualEnabled = !values['no-virtual']
   const wildcardBind = values.host === '0.0.0.0' || values.host === '::'
   if (wildcardBind && values.hostname === undefined) {
@@ -223,6 +247,7 @@ if (command === 'serve') {
     relays,
     bridge: { host: advertisedHost, port: advertisedPort },
     pins,
+    home,
     virtual: virtualEnabled,
     localTrust,
     signerFactory,
@@ -257,6 +282,7 @@ if (command === 'serve') {
       const gemini = createGeminiServer({
         relays,
         pins,
+        home,
         virtual: virtualEnabled,
         identity,
         certFile: certs.cert,
@@ -281,6 +307,7 @@ if (command === 'serve') {
     const http = createHttpServer({
       relays,
       pins,
+      home,
       virtual: virtualEnabled,
       identity: httpIdentity,
       pairings: servePairings,

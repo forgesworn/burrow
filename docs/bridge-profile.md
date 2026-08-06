@@ -28,7 +28,7 @@ response alone does not prove that a later reader can retrieve the event.
 
 | Selector | Result |
 |---|---|
-| empty | Bridge welcome menu |
+| empty | Bridge welcome menu, or a configured home hole |
 | `/about` | Bridge-owned explanation of what a gopherkind hole is |
 | `/<npub>` | Root document, `d` = `/` |
 | `/<npub><path>` | The exact kind `31436` path |
@@ -135,6 +135,13 @@ A Gemini or HTTP frontend maps `/<npub><path>` to the same document as the
 gopher selector. Each UTF-8 path segment is percent-encoded once in generated
 links and decoded once on input. A literal percent sign is therefore encoded
 as `%25` and is not confused with an existing escape.
+
+A bridge MAY serve one hole's root menu in place of its welcome page. That
+hole is ordinary authored content, so the operator changes the front page by
+publishing rather than by reconfiguring. A bridge which does this MUST keep an
+entry point for reading any other npub, and MUST fall back to its generic
+welcome when the home hole cannot be retrieved, because one author's relay
+outage must not take the bridge's front door with it.
 
 A bridge SHOULD explain itself in its own medium. The reference bridge serves
 one `/about` document, built from the same `Content` value on every frontend,

@@ -1,0 +1,111 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import type net from 'node:net'
+import path from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { respond } from '../src/server.ts'
+import { respondGemini } from '../src/gemini.ts'
+import { createHttpServer } from '../src/http.ts'
+import { PairingStore } from '../src/identity.ts'
+import { makeStore, npub, testSigner } from './helpers.ts'
+
+// A bridge may lead with one hole instead of a generic greeting, so its front
+// door is content. The ways out must survive that: reading anyone else, and
+// managing your own pages, both stay reachable from the same page.
+
+const bridge = { host: 'bridge.test', port: 7070 }
+const unreachable = 'npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7ye8p3'
+
+test('gopher serves the home hole in place of the welcome menu', async () => {
+  const store = makeStore()
+  const out = await respond(
+    '',
+    { relays: ['wss://stub.invalid'], bridge, pins: [], home: npub },
+    store,
+  )
+  assert.ok(out.includes(`0About this hole\t/${npub}/about.txt\tbridge.test\t7070\r\n`))
+  assert.match(out, /iAny npub is a hole on this bridge/)
+  assert.ok(out.includes(`1Why gopher on Nostr\t/about\tbridge.test\t7070\r\n`))
+  assert.ok(out.endsWith('.\r\n'))
+})
+
+test('an unreachable home hole falls back to the generic welcome', async () => {
+  const store = makeStore()
+  const out = await respond(
+    '',
+    { relays: ['wss://stub.invalid'], bridge, pins: [], home: unreachable },
+    store,
+  )
+  assert.match(out, /igopherkind\t/)
+  assert.match(out, /iBrowse a hole by selector/)
+})
+
+test('a malformed home npub does not break the welcome menu', async () => {
+  const store = makeStore()
+  const out = await respond(
+    '',
+    { relays: ['wss://stub.invalid'], bridge, pins: [], home: 'not-an-npub' },
+    store,
+  )
+  assert.match(out, /igopherkind\t/)
+})
+
+test('gemini serves the home hole and keeps the ways out', async () => {
+  const ctx = { relays: ['wss://stub.invalid'], pins: [], virtual: true, home: npub }
+  const out = await respondGemini('gemini://localhost/', ctx, makeStore())
+  assert.match(out, /^20 text\/gemini/)
+  assert.ok(out.includes(`=> /${npub}/about.txt About this hole`))
+  assert.ok(out.includes('=> /about Why gopher on Nostr'))
+  assert.match(out, /Any npub is a hole here/)
+})
+
+test('http serves the home hole with the opener and account links', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-home-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const server = createHttpServer({
+    relays: ['wss://stub.invalid'],
+    pins: [],
+    virtual: true,
+    identity: true,
+    home: npub,
+    pairings: new PairingStore(path.join(dir, 'pairings.json')),
+    operatorSigner: testSigner,
+    store: makeStore(),
+    localTrust: false,
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`
+
+  const body = await (await fetch(base)).text()
+  // The hole itself, not a greeting about holes.
+  assert.ok(body.includes(`href="/${npub}/about.txt"`))
+  // ...and every way out of it.
+  assert.match(body, /Open any hole/)
+  assert.ok(body.includes('action="/go"'))
+  assert.ok(body.includes('href="/about"'))
+  assert.ok(body.includes('href="/account"'))
+  assert.ok(body.includes('/gopher/gopher.floodgap.com/1/'))
+})
+
+test('http without a home hole keeps the generic welcome', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'gopherkind-home-none-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const server = createHttpServer({
+    relays: ['wss://stub.invalid'],
+    pins: [npub],
+    virtual: true,
+    identity: true,
+    pairings: new PairingStore(path.join(dir, 'pairings.json')),
+    operatorSigner: testSigner,
+    store: makeStore(),
+    localTrust: false,
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`
+  const body = await (await fetch(base)).text()
+  assert.match(body, /<h1>gopherkind<\/h1>/)
+  assert.ok(body.includes('action="/go"'))
+})
