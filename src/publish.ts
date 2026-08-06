@@ -593,7 +593,13 @@ async function settle(
     )
   }
   console.log(`Hole root selector: /${npub}`)
-  console.log(`Try it: lynx gopher://127.0.0.1:7070/1/${npub}`)
+  // Suggest the client that is already installed, not a bridge that probably
+  // is not running. The old hint pointed at gopher://127.0.0.1:7070 and failed
+  // for anyone who had just published without also starting `serve`, which is
+  // most people, immediately after their first publish. Reading needs no
+  // bridge at all, so say that instead.
+  console.log(`Read it back: gopherkind read ${npub}`)
+  console.log(`Serving it yourself: gopherkind serve, then lynx http://localhost:8070/${npub}`)
   if (failed > 0) throw new Error(`${failed} document(s) were rejected by every relay`)
   if (verified !== null && verified < events.length) {
     throw new Error(`${events.length - verified} document(s) were accepted but not readable`)
