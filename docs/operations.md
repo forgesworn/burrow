@@ -93,6 +93,38 @@ ambiguous chain. `--http-behind-proxy` refuses to start without an HTTPS
 `--http-url` and `--no-local-trust`. Omit that option and add `--no-identity`
 for a direct, read-only plaintext HTTP deployment.
 
+## After deploying a new version
+
+Run through this before calling a deployment done. It is short because most of
+it is checking that the thing a release changed is actually reachable.
+
+```sh
+curl -fsS https://bridge.example/healthz
+curl -fsS https://bridge.example/about | head -20            # http
+printf '/about\r\n' | nc bridge.example 70 | head -5         # gopher
+gopherkind read gopher://bridge.example/1/                   # the welcome menu
+```
+
+Then read one known hole through each enabled frontend, because `/healthz` only
+proves the listener is up, not that relays are answering.
+
+A bridge which is new, or whose advertised address has changed, should tell
+Nostr clients it exists:
+
+```sh
+gopherkind announce --hostname bridge.example \
+  --http-url https://bridge.example --dry-run
+```
+
+That builds a NIP-89 handler announcement (kind 31990) saying this bridge opens
+kind 31436. Drop `--dry-run` to sign and publish it. It needs the same remote
+signer as any other write, and it is worth re-running after a hostname or port
+change, since the announcement carries the addresses clients will use.
+
+Finally, record what is actually deployed: the release tag and commit at the top
+of this document are the only durable statement of what the public bridge is
+running, and a stale one is worse than none.
+
 ## State, backup and recovery
 
 The state directory contains the generated Gemini TLS key and certificate,
