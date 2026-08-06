@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.16.1 (2026-08-06)
+
+- stop calling this the public bridge. The about page argues that a hole
+  outlives any one host, then linked gopherkind.com as "the public bridge on
+  the web"; the definite article quietly contradicts the argument, on all four
+  surfaces. It is "a" public bridge now, with running your own beside it, and
+  the pitch states the strongest true version outright: no bridge is
+  load-bearing, the command line client reads relays directly, so a hole is
+  readable with no bridge at all, and every bridge announces itself on its own
+  key, so no operator's list is the list
+
 ## 0.16.0 (2026-08-06)
 
 - stop building a page description out of ASCII art. Banners, rules and
