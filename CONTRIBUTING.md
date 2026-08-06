@@ -86,9 +86,15 @@ maintainer's:
 gopherkind pair 'bunker://...' --state-dir ~/.gopherkind-project
 gopherkind whoami --state-dir ~/.gopherkind-project   # expect npub18y4d9g6...
 
-gopherkind publish hole --dry-run --state-dir ~/.gopherkind-project
 gopherkind publish hole --state-dir ~/.gopherkind-project
 ```
+
+That is one signature per document, and `--dry-run` costs the same again
+because it signs everything and only withholds the relay traffic. The hole is
+nine documents, so on a signer with a physical confirmation button that is nine
+presses, or eighteen if you dry-run first. `test/hole.test.ts` already checks
+what a dry run would show you, so the dry run is for when you have changed the
+shape of the hole rather than routine.
 
 Note what is *not* in those steps: exporting an nsec. gopherkind refuses raw
 secret keys, including its own project key. The leaf goes into a signer, and
