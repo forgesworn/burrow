@@ -37,8 +37,12 @@ gopherkind never accepts an nsec and never makes a key for you.
 Writing goes through a NIP-46 signer you already control: Amber,
 nsec.app, nsecBunker, Signet, a Heartwood ESP32.
 
-  gopherkind pair 'bunker://...'
+  gopherkind pair '<the connection URI from your signer>'
   gopherkind whoami
+
+(The published copy of this page cannot show that URI literally:
+gopherkind refuses to sign content shaped like a credential, and it
+cannot tell your real one from an example. That guard is the point.)
 
 4. Write a hole
 ---------------
