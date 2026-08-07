@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- relay connections can be routed through a SOCKS5 proxy with `--proxy
+  socks5h://host:port` or `GOPHERKIND_PROXY`, so a reader or bridge no longer
+  hands its network location to every relay it queries. socks5h is enforced
+  so DNS, and any `.onion` relay name, resolves at the proxy. Trusted local
+  development relays are still dialled directly. When a proxy is active the
+  connection-time DNS guard cannot run, so untrusted relay URLs keep only
+  the hostname-level internal-address check. docs/privacy.md states the whole
+  threat model: what is public by design, what relays and bridges can
+  observe, and what this tool does not claim to be
+
 - the project page reads on a phone. Two things broke below about 372px: the
   card grid asked for a 22rem minimum track, which is wider than a phone, so
   the floor could not shrink and the whole page scrolled sideways with the

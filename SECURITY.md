@@ -38,6 +38,15 @@ is given in the changelog unless you prefer otherwise.
 
 ## Deployment notes that are security-relevant
 
+- Relay connections can be routed through a SOCKS5 proxy (`--proxy
+  socks5h://host:port` or `GOPHERKIND_PROXY`) so relays do not learn the
+  reader's or bridge's network location, and so `.onion` relay URLs are
+  reachable. When a proxy is active the connection-time DNS guard cannot run
+  (the proxy resolves and dials), so untrusted relay URLs get only the
+  hostname-level internal-address check. A trusted relay on a local address
+  is still dialled directly. See [docs/privacy.md](docs/privacy.md) for the
+  full threat model.
+
 - The HTTP frontend trusts loopback as the operator. Behind a reverse proxy
   every request originates on loopback, so operator trust is disabled unless
   the bridge is bound to a loopback address (or you pass

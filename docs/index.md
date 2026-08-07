@@ -15,6 +15,7 @@ prints it in the terminal.
 |---|---|
 | [Why gopher on Nostr](why-gopher-on-nostr.md) | The case, and the honest limits of it |
 | [Getting started](getting-started.md) | Install, read, pair a signer, publish a hole, verify it |
+| [Privacy](privacy.md) | The threat model: what is public, what relays see, Tor and onion options |
 | [FAQ](faq.md) | Retention, deletion, keys, tokens, what this is not |
 | [Troubleshooting](troubleshooting.md) | Error messages and what to do about them |
 | [Support](support.md) | What funding buys, and why it is worth yours |

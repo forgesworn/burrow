@@ -1,7 +1,9 @@
 import { isIP, type LookupFunction } from 'node:net'
 import { lookup as dnsLookup } from 'node:dns'
 import { lookup } from 'node:dns/promises'
+import process from 'node:process'
 import WebSocket from 'ws'
+import { SocksProxyAgent } from 'socks-proxy-agent'
 import { useWebSocketImplementation } from 'nostr-tools/pool'
 
 // SSRF guard for the internet-exposed gopher proxy. A remote visitor names
@@ -13,6 +15,39 @@ import { useWebSocketImplementation } from 'nostr-tools/pool'
 export class BlockedHostError extends Error {}
 
 const trustedRelayOrigins = new Set<string>()
+
+// Optional SOCKS5 proxy (typically Tor's 127.0.0.1:9050) for all relay
+// connections. Readers who do not want a relay to learn their network
+// location set GOPHERKIND_PROXY=socks5h://127.0.0.1:9050 or pass --proxy.
+// socks5h resolves DNS at the proxy, which is also what makes .onion relay
+// URLs reachable. When a proxy is active the socket-time lookup guard below
+// cannot run (the proxy, not us, resolves and dials), so untrusted URLs get
+// only the hostname-level internal-address check.
+let proxyAgent: SocksProxyAgent | null = null
+
+export function configureProxy(raw: string | undefined | null): void {
+  if (raw === undefined || raw === null || raw === '') {
+    proxyAgent = null
+    return
+  }
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    throw new Error(`invalid proxy URL: ${raw}`)
+  }
+  if (url.protocol !== 'socks5:' && url.protocol !== 'socks5h:') {
+    throw new Error('only socks5:// or socks5h:// proxies are supported (use socks5h for Tor)')
+  }
+  // Normalise to socks5h so DNS always resolves at the proxy. With socks5 the
+  // client resolves first, which leaks the query locally and cannot resolve
+  // .onion at all.
+  proxyAgent = new SocksProxyAgent(`socks5h://${url.host}`)
+}
+
+export function proxyActive(): boolean {
+  return proxyAgent !== null
+}
 
 function originOf(raw: string): string | null {
   try {
@@ -204,7 +239,15 @@ export async function publicRelayUrls(urls: readonly string[]): Promise<string[]
     let url: URL
     try {
       url = new URL(raw)
-      await resolvePublicHost(url.hostname)
+      if (url.hostname.toLowerCase().endsWith('.onion')) {
+        // Onion services are only reachable through a proxy that resolves
+        // remotely; without one the URL is useless and dropped.
+        if (proxyActive()) out.push(raw)
+        continue
+      }
+      // With a proxy the remote side resolves and dials, so a local
+      // resolution check adds nothing.
+      if (!proxyActive()) await resolvePublicHost(url.hostname)
     } catch {
       continue
     }
@@ -258,8 +301,23 @@ export const publicLookup: LookupFunction = (hostname, options, callback) => {
 
 class GuardedWebSocket extends WebSocket {
   constructor(address: string | URL, protocols?: string | string[]) {
-    const origin = originOf(String(address))
-    if (origin !== null && trustedRelayOrigins.has(origin)) {
+    const raw = String(address)
+    const origin = originOf(raw)
+    const trusted = origin !== null && trustedRelayOrigins.has(origin)
+    if (proxyAgent !== null) {
+      // A trusted relay that is also a local address is a development relay;
+      // dial it directly, Tor cannot reach it. Everything else goes through
+      // the proxy. Untrusted URLs still get the hostname-level internal
+      // check, since the socket-time lookup guard cannot run through a proxy.
+      if (trusted && urlHostBlocked(raw)) {
+        super(address, protocols ?? [])
+        return
+      }
+      if (urlHostBlocked(raw)) throw new BlockedHostError(`refusing ${raw}`)
+      super(address, protocols ?? [], { agent: proxyAgent })
+      return
+    }
+    if (trusted) {
       super(address, protocols ?? [])
       return
     }
@@ -271,3 +329,7 @@ class GuardedWebSocket extends WebSocket {
 // guarded implementation once so HoleStore, publishers and NIP-46 all use the
 // same connection-time network boundary.
 useWebSocketImplementation(GuardedWebSocket)
+
+// Env-var configuration applies to every flow (readers, publishers, NIP-46,
+// the bridge) without each call site threading the option through.
+configureProxy(process.env['GOPHERKIND_PROXY'])
