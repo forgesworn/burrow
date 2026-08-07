@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.16.3 (2026-08-07)
+
+Includes everything tagged as 0.16.2, which never reached the registry: its
+release event was dropped, so the publish never ran. Install 0.16.3 to get both.
 
 - keep terminal control characters out of menu records. A record whose display
   held only SGR colour was being treated as valid and keeping its link, with
@@ -21,6 +24,10 @@
   dark rectangle onto a light theme
 - give the spec a motivation section and the filter examples a client needs:
   one REQ for a whole hole, one narrowed by `#d` for a single document
+- fail the build when a release tag never reached the registry. This is what
+  0.16.2 needed and did not have: the check cannot live in the release workflow,
+  because a workflow that does not fire cannot fail, so it runs in ci and on a
+  daily schedule and compares the tags against what npm actually serves
 
 ## 0.16.2 (2026-08-06)
 
