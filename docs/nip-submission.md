@@ -7,7 +7,7 @@ It has not been announced as a kind 30817 draft; review now happens on the PR.
 `SPEC.md` is the submission text: it already opens with the `draft` `optional`
 line the nips repo expects, uses RFC 2119 throughout and carries test vectors.
 A portable superset of the vectors lives in
-`test/fixtures/kind31436-v1.json`.
+`test/fixtures/kind31436-v2.json`.
 That fixture is also included in the package contents for a second client to
 consume without copying this implementation. Its portable field definitions
 and the evidence expected from that client are in `docs/conformance.md`.
@@ -28,17 +28,28 @@ Bridge behaviour is intentionally excluded and documented in
 Independent-client evidence:
 
 - implementation: `forgesworn/gopherkind-protocol-py` at
-  `00c67e27f0de167cac1a2f7fb538baf31ffa633a`;
+  `35e7d3440f01cb750ecfb11c312f97806cb72e02`;
 - Python 3.14.2 locally, with CI on Python 3.11 and 3.14. It was implemented
   from `SPEC.md` and the fixture without importing, copying or mechanically
   translating this repository's TypeScript parser;
-- fixture version 1, vendored unchanged with SHA-256
-  `0f44989ec9d3ed4979d53ccc45dedfad75fe84adb8b3d710f172fa1f5a7bb421`;
+- fixture version 2, vendored unchanged with SHA-256
+  `2a1dd98ee5cf1885c54d05568540487d366a014fbd64d6530a11a8fd18beb635`;
 - command: `python3 -m unittest discover -s tests -v`;
-- complete result: all five fixture sections passed, `Ran 5 tests in 0.003s`,
+- complete result: all five fixture sections passed, `Ran 5 tests in 0.001s`,
   `OK`;
-- public CI run `30810991147` passed on both Python 3.11 and 3.14;
 - no disagreement with the fixture or specification was found.
+
+Version 2 exists because version 1 could not see the one place the two
+implementations actually disagreed. On 2026-08-04, a day after this PR was
+opened, the reference implementation carved SGR colour out of its
+control-character rule, so a menu record carrying an escape stayed valid and
+kept its link while the specification said it became information text with the
+controls replaced by spaces and no link. The Python client, written from the
+text, had been doing the latter the whole time. Nothing caught it for three
+days: the fixture had no escape case, so the gate designed to find exactly this
+class of divergence was blind to it. Version 2 adds four such vectors, both
+implementations agree on them, and the reference implementation was corrected
+rather than the specification.
 
 ## The kind table row
 
