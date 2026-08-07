@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `post` takes `--as npub1...` and refuses to sign as anyone else. The signer
+  that answers is whichever bunker happens to be running, so announcing from
+  the wrong identity was silent and easy: publish one thing as a project key,
+  leave the bunker up, post a note, and the note goes out under the project
+  rather than under you. `publish` and `unpublish` have refused a mismatch
+  since 0.16.2 and there was never a reason for `post` not to
+
 ## 0.16.6 (2026-08-07)
 
 - permit SGR colour in menu display text, and forbid every other control there.
