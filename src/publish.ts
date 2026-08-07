@@ -511,6 +511,7 @@ export async function publishHole(
     }
     if (pending.length === 0) {
       console.log(`Nothing to publish. Hole root selector: /${npub}`)
+      console.log(`Read it back: gopherkind read ${npub}`)
       return
     }
 
