@@ -1,4 +1,4 @@
-import { cleanTerminalDisplay, hasControlCharacters, hasNonSgrControls } from './protocol.ts'
+import { hasControlCharacters, replaceControlCharacters } from './protocol.ts'
 
 // Kindmap: the host-agnostic menu source stored in kind 31436 events.
 // One item per line: `<type><display>` or `<type><display>\t<link>`.
@@ -14,8 +14,13 @@ export interface MapLine {
 
 const ITEM_TYPE = /^[\x21-\x7e]$/
 
+// A menu record is protocol, not presentation. SPEC.md allows no control
+// character in display text, and RFC 1436 asks that the display field hold
+// only printable characters "since many different clients will be using it".
+// A frontend that wants to style traditional ANSI content does it to a type 0
+// body, on a surface it controls; see docs/bridge-profile.md.
 function cleanInfo(value: string): string {
-  return cleanTerminalDisplay(value)
+  return replaceControlCharacters(value)
 }
 
 export function parseKindmap(content: string): MapLine[] {
@@ -37,9 +42,14 @@ export function parseKindmap(content: string): MapLine[] {
       const fallback = head.startsWith('i') ? head.slice(1) : head
       return { type: 'i', display: cleanInfo(fallback) }
     }
-    if (type === 'i' || link === '' || hasNonSgrControls(display) || hasControlCharacters(link)) {
+    if (
+      type === 'i' ||
+      link === '' ||
+      hasControlCharacters(display) ||
+      hasControlCharacters(link)
+    ) {
       return { type: 'i', display: cleanInfo(display) }
     }
-    return { type, display: cleanTerminalDisplay(display), link }
+    return { type, display: replaceControlCharacters(display), link }
   })
 }

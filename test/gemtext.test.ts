@@ -17,10 +17,11 @@ test('menu renders heading, info text and links', () => {
   assert.equal(out, `# Test\n\nWelcome\n=> /${npub}/about.txt About\n`)
 })
 
-test('gemtext removes complete terminal style sequences', () => {
+// Gemini puts styling "under the exclusive control of the rendering user
+// agent", so an author's escape has nothing to say here under any reading.
+test('gemtext carries no terminal control characters', () => {
   const out = render('\x1b[38;5;214mDonkey\x1b[0m')
-  assert.match(out, /\nDonkey\n/)
-  assert.doesNotMatch(out, /\[38;/)
+  assert.match(out, /Donkey/)
   assert.ok(!out.includes(String.fromCharCode(27)))
 })
 

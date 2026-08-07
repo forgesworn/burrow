@@ -73,12 +73,17 @@ test('info lines use the standard dummy fields', () => {
   assert.equal(out, 'ijust some text\t-\terror.host\t1\r\n.\r\n')
 })
 
-test('gopher wire output retains only inert SGR styling', () => {
+// RFC 1436 asks that the display field hold only printable characters, "since
+// many different clients will be using it". A menu line is the one place a
+// bridge must not gamble on what the far end does with an escape.
+test('gopher wire output carries no terminal control characters', () => {
   const styled = '\x1b[38;5;214mDonkey\x1b[0m'
+  const out = renderMenu(parseKindmap(`${styled}\n\x1b[2Jcursor`), owner, bridge)
   assert.equal(
-    renderMenu(parseKindmap(`${styled}\n\x1b[2Jcursor`), owner, bridge),
-    `i${styled}\t-\terror.host\t1\r\nicursor\t-\terror.host\t1\r\n.\r\n`,
+    out,
+    'i [38;5;214mDonkey [0m\t-\terror.host\t1\r\ni [2Jcursor\t-\terror.host\t1\r\n.\r\n',
   )
+  assert.ok(!out.includes(String.fromCharCode(27)))
 })
 
 test('text is CRLF, dot-stuffed, dot-terminated', () => {
