@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "nostr-tools": "2.23.9",
+    "socks-proxy-agent": "^8.0.5",
     "ws": "8.21.1"
   },
   "devDependencies": {

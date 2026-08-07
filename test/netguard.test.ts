@@ -7,6 +7,8 @@ import {
   urlHostBlocked,
   publicLookup,
   publicRelayUrls,
+  configureProxy,
+  proxyActive,
 } from '../src/netguard.ts'
 import { fetchGopher } from '../src/gopherclient.ts'
 
@@ -86,4 +88,31 @@ test('fetchGopher refuses a selector carrying CR or LF', async () => {
     fetchGopher({ host: '10.0.0.1', port: 6379, type: '1', selector: 'x' }, '\r\nINFO\r\nQUIT'),
     /bad selector/,
   )
+})
+
+test('configureProxy accepts socks5 and socks5h, rejects everything else', () => {
+  try {
+    configureProxy('socks5h://127.0.0.1:9050')
+    assert.equal(proxyActive(), true)
+    configureProxy('socks5://127.0.0.1:9050')
+    assert.equal(proxyActive(), true)
+    assert.throws(() => configureProxy('http://127.0.0.1:8080'), /socks5/)
+    assert.throws(() => configureProxy('not a url'), /invalid proxy URL/)
+  } finally {
+    configureProxy(undefined)
+  }
+  assert.equal(proxyActive(), false)
+})
+
+test('onion relay URLs pass only when a proxy is active', async () => {
+  const onion = 'wss://relayexamplebbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.onion'
+  assert.deepEqual(await publicRelayUrls([onion]), [])
+  try {
+    configureProxy('socks5h://127.0.0.1:9050')
+    assert.deepEqual(await publicRelayUrls([onion]), [onion])
+    // hostname-level internal-address checks still apply through a proxy
+    assert.deepEqual(await publicRelayUrls(['ws://127.0.0.1:4869']), [])
+  } finally {
+    configureProxy(undefined)
+  }
 })

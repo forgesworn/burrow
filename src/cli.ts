@@ -29,6 +29,7 @@ import {
 } from './commands.ts'
 import { createHttpServer } from './http.ts'
 import { resolveSigner, requireSignerIdentity } from './signing.ts'
+import { configureProxy } from './netguard.ts'
 import { runBrowse } from './browse.ts'
 import { BookmarkStore } from './bookmarks.ts'
 import { aboutContent } from './about.ts'
@@ -88,7 +89,10 @@ const USAGE = `usage:
 
   gopherkind version | help
 
-  every command takes [--relay wss://...]... and [--state-dir d].
+  every command takes [--relay wss://...]..., [--proxy socks5h://host:port]
+  and [--state-dir d]. --proxy routes relay connections through a SOCKS5
+  proxy (use socks5h so DNS, and any .onion names, resolve at the proxy;
+  Tor's default is socks5h://127.0.0.1:9050). GOPHERKIND_PROXY does the same.
 
   signer resolution: GOPHERKIND_BUNKER (one-off bunker URI), else whatever
   \`gopherkind pair\` stored. User secret keys are never accepted.`
@@ -97,8 +101,18 @@ const [command, ...rest] = process.argv.slice(2)
 
 const COMMON = {
   relay: { type: 'string', multiple: true },
+  proxy: { type: 'string' },
   'state-dir': { type: 'string' },
 } as const
+
+// --proxy is pre-scanned rather than threaded through every parseArgs call
+// below. Each command still declares the option so strict parsing accepts it.
+{
+  const inline = rest.find((a) => a.startsWith('--proxy='))
+  const separate = rest.indexOf('--proxy')
+  if (inline !== undefined) configureProxy(inline.slice('--proxy='.length))
+  else if (separate !== -1 && rest[separate + 1] !== undefined) configureProxy(rest[separate + 1])
+}
 
 function stateDirOf(v: { 'state-dir'?: string }): string {
   return v['state-dir'] ?? path.join(os.homedir(), '.gopherkind')
@@ -143,6 +157,7 @@ if (command === 'serve') {
       'http-behind-proxy': { type: 'boolean', default: false },
       'no-local-trust': { type: 'boolean', default: false },
       'trust-loopback-anyway': { type: 'boolean', default: false },
+      proxy: { type: 'string' },
     },
   })
   const port = Number(values.port)
