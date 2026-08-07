@@ -5,8 +5,10 @@ to `127.0.0.1`. Exposing a bridge is an explicit operator decision.
 
 ## Public reference bridge
 
-The reference deployment runs release `v0.16.6` at commit
-`1a603a33d3d3af4a91995437d03dfa930cc8e76f`:
+The reference deployment runs release `v0.16.7` at commit
+`116798bc44db356a6d279ba046fb931b8f763e27`. That commit is the `v0.16.7` tag
+plus one change to `site/`, so the image is `v0.16.7` in everything the bridge
+executes and the project page it serves is one commit newer:
 
 - `gopher://gopherkind.com/`
 - `gemini://gopherkind.com/`
