@@ -41,8 +41,10 @@ virtual hole, which on a relay outage means an almost empty page rather than an
 obvious error. The generic welcome only returns if `--home` is not an npub at
 all. That is the real reason the project relay belongs in the bridge's own
 `--relay` set: it is the front page's only source, and nothing else covers for
-it. `relay.damus.io` rejects kind 31436 outright, so the popular relays are not
-a safety net here.
+it. The popular relays are not a safety net here: relay.damus.io rejected
+kind 31436 outright when the bridge was first deployed (it accepted a probe
+document on 2026-08-07), and any of them can change kind policy or retention
+without notice.
 
 Its NIP-05 name is served statically by the proxy rather than by the bridge.
 A bridge is a window onto relays, and who owns a name at a hostname is the

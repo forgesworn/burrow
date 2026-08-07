@@ -35,10 +35,13 @@ import { BookmarkStore } from './bookmarks.ts'
 import { aboutContent } from './about.ts'
 import { renderForTerminal } from './cliview.ts'
 
-// relay.trotters.cc is the project's own relay. It is in the defaults because
-// a general-purpose relay may refuse an unfamiliar kind: relay.damus.io rejects
-// every kind 31436 document, so a hole published only to the popular set can be
-// unreadable through them. `--relay` replaces this list entirely.
+// relay.trotters.cc is the project's own relay. It is in the defaults as the
+// reliability anchor: a general-purpose relay may refuse an unfamiliar kind or
+// drop it on retention, and the popular set changed without notice before
+// (relay.damus.io rejected every kind 31436 document when this list was
+// written; it accepted one in testing on 2026-08-07). A hole published only
+// to relays you do not run is readable exactly as long as they feel like
+// keeping it. `--relay` replaces this list entirely.
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
