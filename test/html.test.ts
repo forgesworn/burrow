@@ -67,15 +67,17 @@ test('terminal controls cannot become active HTML', () => {
   assert.match(out, /<span style="color:#0a141e">colour<\/span>/)
 })
 
-// A menu record loses its escapes at the parser, so by the time HTML sees a
-// display there is nothing left to style and nothing left to link. Terminal
-// colour in a type 0 body still becomes inert styling; that is covered by
-// 'terminal SGR styling becomes inert HTML styling' above.
-test('gopher menu artwork is plain by the time HTML renders it', () => {
+// SGR reaches HTML intact and becomes inert inline styling. The escape itself
+// must never reach the page, only the style it asked for.
+test('gopher menu artwork and links keep their colour in HTML', () => {
   const map = '\x1b[38;2;27;75;105m⢀\x1b[0m\n0\x1b[32mA coloured link\x1b[0m\t/x'
   const out = renderMenuHtml('T', resolveMapLines(parseKindmap(map), 'npub1x'))
-  assert.doesNotMatch(out, /<span style="color:/)
-  assert.doesNotMatch(out, /<a href="\/npub1x\/x">/)
+  assert.match(out, /<pre><span style="color:#1b4b69">⢀<\/span><\/pre>/)
+  assert.match(
+    out,
+    /<a href="\/npub1x\/x"><span style="color:#00aa00">A coloured link<\/span><\/a>/,
+  )
+  assert.doesNotMatch(out, /\[38;/)
   assert.ok(!out.includes('\x1b'))
 })
 

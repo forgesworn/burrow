@@ -61,6 +61,37 @@ export function replaceControlCharacters(value: string, replacement = ' '): stri
     .join('')
 }
 
+// SGR is `ESC [ <params> m`: colour and style, nothing addressable. Gopherspace
+// has used it for menu art for years (baud.baby's root menu is built from it),
+// so a bridge that stripped it would mangle real holes.
+const SGR_PATTERN_SOURCE = `${String.fromCharCode(27)}\\[[0-9;:]*m`
+
+/** True when a value holds controls other than inert SGR styling. */
+export function hasNonSgrControls(value: string): boolean {
+  return hasControlCharacters(value.replace(new RegExp(SGR_PATTERN_SOURCE, 'g'), ''))
+}
+
+/**
+ * Keep SGR colour and style, replace every other control character with a
+ * space. Deliberately not `stripVTControlCharacters`: removing a whole
+ * sequence and replacing each control character with a space give different
+ * strings, and the specification says spaces. A second implementation reading
+ * SPEC.md writes the simple version, so this has to be the simple version too.
+ */
+export function cleanTerminalDisplay(value: string): string {
+  const out: string[] = []
+  const pattern = new RegExp(SGR_PATTERN_SOURCE, 'g')
+  let offset = 0
+  for (const match of value.matchAll(pattern)) {
+    const index = match.index ?? offset
+    out.push(replaceControlCharacters(value.slice(offset, index)))
+    out.push(match[0])
+    offset = index + match[0].length
+  }
+  out.push(replaceControlCharacters(value.slice(offset)))
+  return out.join('')
+}
+
 /** Remove complete terminal sequences for plain-text protocols and metadata. */
 export function plainTerminalText(value: string): string {
   return replaceControlCharacters(stripVTControlCharacters(value))

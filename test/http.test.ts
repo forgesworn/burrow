@@ -172,10 +172,9 @@ test('http frontend', async (t) => {
     assert.match(text, /<pre>[\s\S]*kind 31436/)
   })
 
-  // A signed menu record may not carry an escape, so a hole that publishes one
-  // gets it neutralised rather than styled. The colour path over HTTP is still
-  // exercised by the type 0 body tests in html.test.ts.
-  await t.test('a signed kindmap cannot style or link through an escape', async (t2) => {
+  // SGR in a signed menu record becomes inert HTML styling; the escape itself
+  // never reaches the page.
+  await t.test('a signed kindmap renders its colour without leaking escapes', async (t2) => {
     const styledRoot = finalizeEvent(
       docToTemplate(
         {
@@ -193,9 +192,9 @@ test('http frontend', async (t) => {
       pk === pubkey && documentPath === '/' ? styledRoot : null
     const base = await start(t2, { store, publicUrl: 'https://bridge.example' })
     const body = await (await fetch(`${base}/${npub}`)).text()
-    assert.match(body, /Donkey/)
-    assert.doesNotMatch(body, /<span style="color:/)
-    assert.doesNotMatch(body, /href="[^"]*\/about\.txt"/)
+    assert.match(body, /<span style="color:#ffaf00">Donkey<\/span>/)
+    assert.match(body, /href="[^"]*\/about\.txt"/)
+    assert.doesNotMatch(body, /\[38;5;214m/)
     assert.ok(!body.includes(String.fromCharCode(27)))
   })
 

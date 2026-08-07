@@ -42,6 +42,7 @@
     "docs",
     "test/fixtures/kind31436-v1.json",
     "test/fixtures/kind31436-v2.json",
+    "test/fixtures/kind31436-v3.json",
     "llms.txt"
   ],
   "publishConfig": {

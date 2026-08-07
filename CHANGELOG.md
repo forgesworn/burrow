@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- permit SGR colour in menu display text, and forbid every other control there.
+  0.16.3 removed a colour carve-out on the grounds that RFC 1436 asks the
+  display field to hold only printable characters. Gopherspace disagrees:
+  `gopher://baud.baby/1/` builds its root menu out of truecolour SGR info
+  lines, and a bridge on the strict rule rendered them as literal escape text,
+  so proxying a real hole mangled it. A link still carries no control character
+  of any kind, because a link is parsed and acted upon while a display is only
+  shown. Conformance fixture v3 pins both halves and the independent Python
+  client agrees
+- colour the hole banner again, foreground only. The version before 0.16.3 set
+  a background on every cell and so painted a near-black slab across a light
+  terminal; this one colours the glyphs and leaves the background alone, which
+  is how baud.baby's art sits happily on any theme. `tools/halfblock.mjs`
+  gained `--ink=R,G,B`
+
 ## 0.16.5 (2026-08-07)
 
 - make the published entry point executable. `tsc` writes `dist/cli.js` at

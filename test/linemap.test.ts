@@ -21,22 +21,22 @@ test('explicit i prefix is stripped', () => {
   assert.deepEqual(line, { type: 'i', display: 'hello' })
 })
 
-// SPEC.md: display text carries no control character, and a record whose
-// display holds one is information text with those characters replaced by
-// spaces and no link. Colour belongs to a type 0 body, not to a menu record;
-// see docs/bridge-profile.md.
-test('terminal control sequences never survive in a menu record', () => {
+// SPEC.md: a display may carry SGR and nothing else addressable, a link carries
+// no control character at all. baud.baby builds its root menu out of SGR info
+// lines, so a parser that stripped them would mangle real gopherspace.
+test('SGR survives in a display, every other control does not', () => {
   const styled = '\x1b[38;5;214mDonkey\x1b[0m'
-  assert.deepEqual(parseKindmap(styled)[0], { type: 'i', display: ' [38;5;214mDonkey [0m' })
-  // The escape costs the record its link, exactly as an invalid record must.
+  assert.deepEqual(parseKindmap(styled)[0], { type: 'i', display: styled })
   assert.deepEqual(parseKindmap(`0${styled}\t/about.txt`)[0], {
-    type: 'i',
-    display: ' [38;5;214mDonkey [0m',
+    type: '0',
+    display: styled,
+    link: '/about.txt',
   })
+  // Not SGR: each control becomes a space, and the record loses its link.
   assert.equal(parseKindmap('\x1b[2Jcursor moved')[0]?.display, ' [2Jcursor moved')
-  for (const line of parseKindmap(`${styled}\n0${styled}\t/about.txt`)) {
-    assert.ok(!line.display.includes(String.fromCharCode(27)))
-  }
+  assert.deepEqual(parseKindmap('1\x1b[2JHome\t/')[0], { type: 'i', display: ' [2JHome' })
+  // Anything at all in the link costs the link, SGR included.
+  assert.deepEqual(parseKindmap('0About\t/about\x1b[0m.txt')[0], { type: 'i', display: 'About' })
 })
 
 test('extra tab fields from pasted gophermaps are ignored', () => {

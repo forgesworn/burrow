@@ -73,17 +73,12 @@ test('info lines use the standard dummy fields', () => {
   assert.equal(out, 'ijust some text\t-\terror.host\t1\r\n.\r\n')
 })
 
-// RFC 1436 asks that the display field hold only printable characters, "since
-// many different clients will be using it". A menu line is the one place a
-// bridge must not gamble on what the far end does with an escape.
-test('gopher wire output carries no terminal control characters', () => {
+// A proxied gophermap reaches this path too, and baud.baby's root menu is
+// built from SGR info lines, so stripping colour here would mangle a real hole.
+test('gopher wire output keeps SGR and neutralises everything else', () => {
   const styled = '\x1b[38;5;214mDonkey\x1b[0m'
   const out = renderMenu(parseKindmap(`${styled}\n\x1b[2Jcursor`), owner, bridge)
-  assert.equal(
-    out,
-    'i [38;5;214mDonkey [0m\t-\terror.host\t1\r\ni [2Jcursor\t-\terror.host\t1\r\n.\r\n',
-  )
-  assert.ok(!out.includes(String.fromCharCode(27)))
+  assert.equal(out, `i${styled}\t-\terror.host\t1\r\ni [2Jcursor\t-\terror.host\t1\r\n.\r\n`)
 })
 
 test('text is CRLF, dot-stuffed, dot-terminated', () => {

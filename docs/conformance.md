@@ -1,6 +1,6 @@
 # Gopherkind conformance fixture
 
-`test/fixtures/kind31436-v2.json` is the language-neutral fixture for the
+`test/fixtures/kind31436-v3.json` is the language-neutral fixture for the
 proposed kind `31436` grammar. It is included in the package contents as well
 as kept in the source repository.
 
@@ -20,9 +20,10 @@ The top-level fields mean:
 - `kindmap`: complete input bodies and their ordered parsed records. Missing
   `link` means information text rather than a link with an empty target. A
   display or link holding a control character makes the record information
-  text with those characters replaced by spaces, which is where version 2
-  added vectors: version 1 had no escape case, so it could not see a
-  consumer that treated one as styling and kept the link.
+  text with those characters replaced by spaces. SGR sequences are the
+  exception and survive in a display, so version 3 pins both halves: what is
+  kept and what is spaced out. Version 1 had no escape case at all, which is
+  how a divergence here went unnoticed for three days.
 - `replacement`: all events are revisions of one coordinate. `winner` is the
   NIP-01 replacement winner before gopherkind validation and NIP-40 are
   applied; `visible` is the event left afterwards, or `null` when the
@@ -37,4 +38,4 @@ or translating it line for line does not count as independent implementation.
 
 The first independent implementation is
 [`forgesworn/gopherkind-protocol-py`](https://github.com/forgesworn/gopherkind-protocol-py),
-pinned in the submission evidence to the commit that passes fixture version 2.
+pinned in the submission evidence to the commit that passes fixture version 3.
