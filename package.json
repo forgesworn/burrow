@@ -1,6 +1,6 @@
 {
   "name": "gopherkind",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "description": "Signed gopherholes on Nostr relays, with Gopher, Gemini, HTTP and CLI readers.",
   "type": "module",
   "license": "MIT",
@@ -56,7 +56,7 @@
     "format": "biome check --write src test",
     "typecheck": "tsc --noEmit",
     "assets:build": "node scripts/build-assets.mjs",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
     "prepare": "npm run build",
     "prepublishOnly": "npm run lint && npm run typecheck && npm run coverage",
     "serve": "node src/cli.ts serve"

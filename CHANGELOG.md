@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.5 (2026-08-07)
+
+- make the published entry point executable. `tsc` writes `dist/cli.js` at
+  0644, so the tarball carried it that way and `npx gopherkind` died with
+  "Permission denied". A global install worked, which is what hid it: `npm
+  install` chmods a bin target on the way in and npx does not. The build now
+  sets the bit, so the mode is right in the tarball itself rather than
+  depending on which installer a reader happened to use
+
 ## 0.16.4 (2026-08-07)
 
 - only sign the documents that actually changed. `publish` asked the signer for
