@@ -10,6 +10,20 @@ particular bridge or frontend.
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as defined in
 RFC 2119.
 
+## Motivation
+
+A gopherhole is a directory on a host. It lasts as long as that host does, at a
+name its author does not own, and once the host is gone a reader who wants the
+documents has nobody left to ask. Nothing about the documents themselves
+requires that arrangement: they are small, they are text, and they are already
+addressed by path.
+
+This kind puts each document in a signed event instead. A hole becomes a set of
+addressable events under one pubkey, readable from any relay that carries a
+copy and servable by any bridge that can fetch one, with authorship settled by
+the signature rather than by whoever currently answers on port 70. The text is
+inline, so nothing else has to be alive at read time either.
+
 ## Event format
 
 ```json
@@ -67,6 +81,19 @@ and decodes each received segment once.
 An RFC 1436 selector is commonly limited to 255 bytes. When the selector also
 contains an `npub`, publishers SHOULD keep the path at or below 190 UTF-8
 bytes so it remains usable through a gopher bridge.
+
+## Fetching documents
+
+Because the path is the `d` tag, an entire hole is one filter and one document
+is that filter narrowed by path:
+
+```json
+{"kinds": [31436], "authors": ["<pubkey>"]}
+{"kinds": [31436], "authors": ["<pubkey>"], "#d": ["/about.txt"]}
+```
+
+The root document is the one whose `d` is `/`. There is no index event and none
+is needed: a hole's shape is whatever its type `1` documents link to.
 
 ## Replacement, expiry and deletion
 

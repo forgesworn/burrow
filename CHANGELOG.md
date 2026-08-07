@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- keep terminal control characters out of menu records. A record whose display
+  held only SGR colour was being treated as valid and keeping its link, with
+  the escapes going straight onto the gopher wire. SPEC.md says a display
+  carries no control character and that such a record becomes information text
+  with the controls replaced by spaces and no link, so the reference
+  implementation was contradicting the kind it proposes. RFC 1436 asks for the
+  same thing, recommending the display field hold only printable characters
+  "since many different clients will be using it", and Gemini puts styling
+  "under the exclusive control of the rendering user agent". Colour in a type 0
+  body is untouched and still becomes inert styling over HTTP, which is where
+  `docs/bridge-profile.md` always said it belonged
+- render the hole banner as monochrome half-block art. `█`, `▀`, `▄` and a
+  space are a complete two-pixels-per-cell alphabet for a 1-bit source, so the
+  doubled vertical resolution that made the face work survives without an
+  escape anywhere. The banner drops from 4117 bytes to 1960, and a background
+  left as a space takes the reader's own terminal colour rather than painting a
+  dark rectangle onto a light theme
+- give the spec a motivation section and the filter examples a client needs:
+  one REQ for a whole hole, one narrowed by `#d` for a single document
+
 ## 0.16.2 (2026-08-06)
 
 - install from the registry. gopherkind is on npm as of 0.16.1, so
