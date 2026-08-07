@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.7 (2026-08-07)
 
 - `post` takes `--as npub1...` and refuses to sign as anyone else. The signer
   that answers is whichever bunker happens to be running, so announcing from
