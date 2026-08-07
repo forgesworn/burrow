@@ -109,12 +109,21 @@ gopherkind publish ./my-hole --dry-run    # signed events, nothing sent
 gopherkind publish ./my-hole
 ```
 
-`--dry-run` withholds the relay traffic, not the signatures: it signs every
-document and prints the finished events, which is what makes it useful for
-inspection. On a signer with physical confirmation that means one approval per
-document, twice over if you dry-run and then publish. With a hardware signer and
-a hole of any size, dry-run once while you are still changing the shape of it,
-then publish without.
+Publishing asks the relays what they already carry and signs only the documents
+whose content, type or title differ, so editing one page of a nine-page hole
+costs one signature rather than nine. `--force` signs everything anyway.
+
+`--dry-run` withholds the relay traffic, not the signatures: it signs the
+changed documents and prints the finished events, which is what makes it useful
+for inspection. Since it only signs what changed, dry-running and then
+publishing usually costs two approvals for one edited page rather than
+eighteen for a nine-page hole.
+
+Two things are never skipped. A document carrying a NIP-40 `expiration` is
+always republished, because that is how its life is extended, and `--expire`
+republishes the lot for the same reason. And if the relays cannot be asked what
+they hold, everything is republished: not knowing what is published is not the
+same as knowing it is current.
 
 Publishing discovers your current NIP-65 write relays, uses their union with
 the configured relays, spreads your signed relay list alongside the documents,
