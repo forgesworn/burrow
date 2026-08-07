@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.6 (2026-08-07)
 
 - permit SGR colour in menu display text, and forbid every other control there.
   0.16.3 removed a colour carve-out on the grounds that RFC 1436 asks the
