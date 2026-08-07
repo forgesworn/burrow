@@ -55,16 +55,44 @@ if (versions.length === 0) {
 
 const floor = versions.map(parse).sort(compare)[0]
 
-const tags = execFileSync('git', ['tag', '--list', 'v*'], { encoding: 'utf8' })
-  .split('\n')
-  .map((t) => t.trim())
-  .filter((t) => t !== '')
+// A tag is pushed before the release workflow finishes publishing, so for a few
+// minutes a perfectly healthy release is tagged and not yet on npm. Failing
+// then would redden every build started in that window, and a check that cries
+// wolf at every release is one nobody reads. The daily run is what catches a
+// release that stays missing.
+const GRACE_SECONDS = 45 * 60
 
-const missing = tags.filter((tag) => {
+const ages = new Map(
+  execFileSync(
+    'git',
+    ['for-each-ref', '--format=%(refname:short) %(creatordate:unix)', 'refs/tags/v*'],
+    {
+      encoding: 'utf8',
+    },
+  )
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => {
+      const [tag, seconds] = line.trim().split(' ')
+      return [tag, Number(seconds)]
+    }),
+)
+
+const now = Math.floor(Date.now() / 1000)
+const tags = [...ages.keys()]
+
+const absent = tags.filter((tag) => {
   if (ABANDONED.has(tag)) return false
   const version = parse(tag.slice(1))
   return version !== null && compare(version, floor) >= 0 && !versions.includes(tag.slice(1))
 })
+
+const inFlight = absent.filter((tag) => now - (ages.get(tag) ?? 0) < GRACE_SECONDS)
+const missing = absent.filter((tag) => !inFlight.includes(tag))
+
+for (const tag of inFlight) {
+  console.log(`${tag} is not on npm yet, tagged less than 45 minutes ago; treating as in flight`)
+}
 
 if (missing.length > 0) {
   console.error(`tagged but absent from npm: ${missing.join(' ')}`)
