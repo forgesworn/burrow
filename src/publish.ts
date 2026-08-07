@@ -8,6 +8,7 @@ import {
   DOC_KIND,
   DELETE_KIND,
   RELAY_LIST_KIND,
+  currentDocument,
   currentReplacement,
   docPath,
   hasControlCharacters,
@@ -15,6 +16,7 @@ import {
   isValidDocPath,
   isWellFormedUnicode,
   parseDocument,
+  tagValue,
   writeRelays,
 } from './protocol.ts'
 import { findSecret } from './secretguard.ts'
@@ -255,6 +257,8 @@ export interface PublishOptions {
   expireSeconds?: number
   pool?: PublishPool
   verifyReadback?: boolean
+  /** Republish every document, even ones the relays already agree with. */
+  force?: boolean
 }
 
 export interface PublishedDocumentReport {
@@ -300,6 +304,50 @@ async function relayPlan(
   // is an explicit destination choice rather than attacker-controlled input.
   trustRelayUrls(relays)
   return { relays, relayList }
+}
+
+// What the relays currently hold for this author, by path. Selection is the
+// ordinary NIP-01 winner then gopherkind validation then NIP-40, so a document
+// whose winner is malformed or expired reads as absent and will be republished.
+async function publishedDocuments(
+  pubkey: string,
+  relays: string[],
+  pool: PublishPool,
+  nowSeconds: number,
+): Promise<Map<string, Event> | null> {
+  const events = await pool
+    .querySync(relays, { kinds: [DOC_KIND], authors: [pubkey] }, { maxWait: 4000 })
+    .catch(() => null)
+  // Not knowing is not the same as knowing there is nothing there. A failed
+  // query must republish everything rather than silently skip a document.
+  if (events === null) return null
+  const byPath = new Map<string, Event[]>()
+  for (const event of events) {
+    const path = tagValue(event, 'd')
+    if (path === undefined) continue
+    byPath.set(path, [...(byPath.get(path) ?? []), event])
+  }
+  const out = new Map<string, Event>()
+  for (const [path, revisions] of byPath) {
+    const winner = currentDocument(revisions, nowSeconds)
+    if (winner !== null) out.set(path, winner)
+  }
+  return out
+}
+
+// A document is unchanged when the relays already carry this exact text under
+// this exact type and title. Signing it again would spend a button press to
+// replace an event with its own twin.
+function documentUnchanged(doc: PlannedDoc, published: Event | undefined): boolean {
+  if (published === undefined) return false
+  // An expiring document is never left alone: republishing is how its life is
+  // extended, and skipping it would let it lapse.
+  if (published.tags.some((tag) => tag[0] === 'expiration')) return false
+  return (
+    published.content === doc.content &&
+    tagValue(published, 'type') === doc.type &&
+    tagValue(published, 'title') === doc.title
+  )
 }
 
 async function publishOne(pool: PublishPool, relays: string[], event: Event): Promise<string[]> {
@@ -438,68 +486,107 @@ export async function publishHole(
     }
   }
   const createdAt = Math.floor(Date.now() / 1000)
-  const templates = docs.map((doc) => {
-    const template = docToTemplate(doc, createdAt, opts.expireSeconds)
-    assertNip46Signable(template, doc.path)
-    return template
-  })
+  // get_public_key is not a signing operation, so this costs nothing at the
+  // signer and lets the relays be asked what they already hold before a single
+  // signature is requested.
   const pubkey = await signer.pubkey()
-  const events: Event[] = []
-  for (const [index, doc] of docs.entries()) {
-    const event = await signer.sign(templates[index] as EventTemplate)
-    if (event.pubkey !== pubkey) throw new Error(`signer returned the wrong author for ${doc.path}`)
-    events.push(event)
-  }
   const npub = npubEncode(pubkey)
 
-  if (opts.dryRun) {
-    console.log(JSON.stringify(events, null, 2))
-    console.log(`\n${docs.length} document(s), not published (dry run). Hole: /${npub}`)
-    return
-  }
-
   const pool = opts.pool ?? new SimplePool()
-  const plan = await relayPlan(pubkey, relays, pool)
+  try {
+    const plan = await relayPlan(pubkey, relays, pool)
+    // --expire republishes unconditionally: extending a document's life is
+    // exactly what signing it again is for.
+    const published =
+      opts.force === true || opts.expireSeconds !== undefined
+        ? null
+        : await publishedDocuments(pubkey, plan.relays, pool, createdAt)
+    const pending =
+      published === null
+        ? docs
+        : docs.filter((doc) => !documentUnchanged(doc, published.get(doc.path)))
+    const skipped = docs.length - pending.length
+    if (skipped > 0) {
+      console.log(`${skipped}/${docs.length} document(s) already current on the relays, skipped.`)
+    }
+    if (pending.length === 0) {
+      console.log(`Nothing to publish. Hole root selector: /${npub}`)
+      return
+    }
+
+    const templates = pending.map((doc) => {
+      const template = docToTemplate(doc, createdAt, opts.expireSeconds)
+      assertNip46Signable(template, doc.path)
+      return template
+    })
+    console.log(`Signing ${pending.length} document(s):`)
+    for (const doc of pending) console.log(`  ${doc.path}`)
+    const events: Event[] = []
+    for (const [index, doc] of pending.entries()) {
+      const event = await signer.sign(templates[index] as EventTemplate)
+      if (event.pubkey !== pubkey) {
+        throw new Error(`signer returned the wrong author for ${doc.path}`)
+      }
+      events.push(event)
+    }
+
+    if (opts.dryRun) {
+      console.log(JSON.stringify(events, null, 2))
+      console.log(`\n${pending.length} document(s), not published (dry run). Hole: /${npub}`)
+      return
+    }
+
+    await settle(pool, plan, events, pending.length, npub, createdAt, opts)
+  } finally {
+    pool.destroy()
+  }
+}
+
+async function settle(
+  pool: PublishPool,
+  plan: RelayPlan,
+  events: Event[],
+  total: number,
+  npub: string,
+  createdAt: number,
+  opts: PublishOptions,
+): Promise<void> {
   let ok = 0
   let failed = 0
   let verified: number | null = null
   const acceptedByRelay = new Map(plan.relays.map((relay) => [relay, 0]))
-  try {
-    if (plan.relayList !== null) {
-      const accepted = await publishOne(pool, plan.relays, plan.relayList)
-      console.log(`NIP-65 relay list  ->  ${accepted.length}/${plan.relays.length} relays`)
-    }
-    for (const ev of events) {
-      const accepted = await publishOne(pool, plan.relays, ev)
-      for (const relay of accepted) {
-        acceptedByRelay.set(relay, (acceptedByRelay.get(relay) ?? 0) + 1)
-      }
-      if (accepted.length > 0) ok++
-      else failed++
-      console.log(`${docPath(ev)}  ->  ${accepted.length}/${plan.relays.length} relays`)
-    }
-
-    for (const relay of plan.relays) {
-      console.log(
-        `acceptance ${relay}  ->  ${acceptedByRelay.get(relay) ?? 0}/${events.length} documents`,
-      )
-    }
-
-    if (opts.verifyReadback !== false) {
-      const readback = await verifyPublished(pool, plan.relays, events)
-      const verifiedIds = new Set<string>()
-      for (const relay of plan.relays) {
-        const ids = readback.get(relay) ?? new Set<string>()
-        for (const id of ids) verifiedIds.add(id)
-        console.log(`read-back ${relay}  ->  ${ids.size}/${events.length} documents`)
-      }
-      verified = verifiedIds.size
-    }
-  } finally {
-    pool.destroy()
+  if (plan.relayList !== null) {
+    const accepted = await publishOne(pool, plan.relays, plan.relayList)
+    console.log(`NIP-65 relay list  ->  ${accepted.length}/${plan.relays.length} relays`)
   }
-  console.log(`\nAccepted ${ok}/${docs.length} document(s) by at least one relay.`)
-  if (verified !== null) console.log(`Read back ${verified}/${docs.length} document(s).`)
+  for (const ev of events) {
+    const accepted = await publishOne(pool, plan.relays, ev)
+    for (const relay of accepted) {
+      acceptedByRelay.set(relay, (acceptedByRelay.get(relay) ?? 0) + 1)
+    }
+    if (accepted.length > 0) ok++
+    else failed++
+    console.log(`${docPath(ev)}  ->  ${accepted.length}/${plan.relays.length} relays`)
+  }
+
+  for (const relay of plan.relays) {
+    console.log(
+      `acceptance ${relay}  ->  ${acceptedByRelay.get(relay) ?? 0}/${events.length} documents`,
+    )
+  }
+
+  if (opts.verifyReadback !== false) {
+    const readback = await verifyPublished(pool, plan.relays, events)
+    const verifiedIds = new Set<string>()
+    for (const relay of plan.relays) {
+      const ids = readback.get(relay) ?? new Set<string>()
+      for (const id of ids) verifiedIds.add(id)
+      console.log(`read-back ${relay}  ->  ${ids.size}/${events.length} documents`)
+    }
+    verified = verifiedIds.size
+  }
+  console.log(`\nAccepted ${ok}/${total} document(s) by at least one relay.`)
+  if (verified !== null) console.log(`Read back ${verified}/${total} document(s).`)
   if (opts.expireSeconds !== undefined) {
     console.log(
       `Documents expire at ${new Date((createdAt + opts.expireSeconds) * 1000).toISOString()} (NIP-40).`,

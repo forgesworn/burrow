@@ -60,7 +60,9 @@ const USAGE = `usage:
   write (needs a signer, see below):
     gopherkind post <text> [--dry-run]   sign and broadcast a kind 1 note
     gopherkind delete <id|note1|nevent1> [--wide] [--dry-run]
-    gopherkind publish <dir> [--as npub1...] [--expire 30d] [--dry-run]
+    gopherkind publish <dir> [--as npub1...] [--expire 30d] [--dry-run] [--force]
+      only signs documents the relays do not already carry unchanged.
+      --force signs every one of them regardless.
     gopherkind unpublish </path>... | --all [--as npub1...] [--dry-run]
       --as refuses to sign unless the signer is that npub. Worth using
       whenever one signer holds more than one identity.
@@ -367,6 +369,7 @@ if (command === 'serve') {
       expire: { type: 'string' },
       as: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
+      force: { type: 'boolean', default: false },
     },
   })
   const dir = positionals[0]
@@ -376,6 +379,7 @@ if (command === 'serve') {
     .then((signer) =>
       publishHole(dir, values.relay ?? DEFAULT_RELAYS, signer, {
         dryRun: values['dry-run'],
+        force: values.force,
         expireSeconds: values.expire !== undefined ? parseDuration(values.expire) : undefined,
       }),
     )
