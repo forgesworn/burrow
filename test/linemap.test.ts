@@ -21,15 +21,22 @@ test('explicit i prefix is stripped', () => {
   assert.deepEqual(line, { type: 'i', display: 'hello' })
 })
 
-test('safe terminal colours survive while active terminal controls are removed', () => {
+// SPEC.md: display text carries no control character, and a record whose
+// display holds one is information text with those characters replaced by
+// spaces and no link. Colour belongs to a type 0 body, not to a menu record;
+// see docs/bridge-profile.md.
+test('terminal control sequences never survive in a menu record', () => {
   const styled = '\x1b[38;5;214mDonkey\x1b[0m'
-  assert.deepEqual(parseKindmap(styled)[0], { type: 'i', display: styled })
+  assert.deepEqual(parseKindmap(styled)[0], { type: 'i', display: ' [38;5;214mDonkey [0m' })
+  // The escape costs the record its link, exactly as an invalid record must.
   assert.deepEqual(parseKindmap(`0${styled}\t/about.txt`)[0], {
-    type: '0',
-    display: styled,
-    link: '/about.txt',
+    type: 'i',
+    display: ' [38;5;214mDonkey [0m',
   })
-  assert.equal(parseKindmap('\x1b[2Jcursor moved')[0]?.display, 'cursor moved')
+  assert.equal(parseKindmap('\x1b[2Jcursor moved')[0]?.display, ' [2Jcursor moved')
+  for (const line of parseKindmap(`${styled}\n0${styled}\t/about.txt`)) {
+    assert.ok(!line.display.includes(String.fromCharCode(27)))
+  }
 })
 
 test('extra tab fields from pasted gophermaps are ignored', () => {
