@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.4 (2026-08-07)
 
 - only sign the documents that actually changed. `publish` asked the signer for
   every document in the directory every time, so correcting one typo in a
