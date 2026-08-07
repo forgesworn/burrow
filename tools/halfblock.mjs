@@ -72,6 +72,21 @@ if (mono) {
   // Four glyphs cover every pair of 1-bit pixels exactly, so there is nothing
   // to optimise and no state to carry between cells.
   const GLYPH = { '11': '█', '10': '▀', '01': '▄', '00': ' ' }
+
+  // --ink colours the glyphs and never touches the background, which is how
+  // baud.baby's menu art sits happily on any terminal theme. The old coloured
+  // banner set a background on every cell and so painted a near-black slab
+  // across a light terminal. One sequence per line, reset at the end.
+  // `--ink=R,G,B` for the human; SGR wants semicolons, and a comma left in
+  // would produce a sequence no terminal honours and no SGR pattern matches.
+  const inkArg = argv.find((a) => a.startsWith('--ink='))
+  const inkRgb = inkArg === undefined ? '' : inkArg.split('=')[1].replace(/,/g, ';')
+  if (inkArg !== undefined && !/^\d{1,3};\d{1,3};\d{1,3}$/.test(inkRgb)) {
+    throw new Error(`--ink wants R,G,B with values 0-255, got "${inkArg.split('=')[1]}"`)
+  }
+  const inkColour = inkArg === undefined ? '' : `\x1b[38;2;${inkRgb}m`
+  const reset = inkColour === '' ? '' : '\x1b[0m'
+
   const lines = []
   for (let row = 0; row < rows * 2; row += 2) {
     let line = ''
@@ -81,7 +96,8 @@ if (mono) {
       line += GLYPH[top + bottom]
     }
     // Trailing ground is invisible and costs a byte a cell.
-    lines.push(line.replace(/ +$/, ''))
+    const trimmed = line.replace(/ +$/, '')
+    lines.push(trimmed === '' ? '' : `${inkColour}${trimmed}${reset}`)
   }
   const art = `${lines.join('\n')}\n`
 
@@ -92,10 +108,12 @@ if (mono) {
   // keep its place; dropping it would slide every row below it up by one.
   const artLines = art.split('\n')
   artLines.pop()
+  const SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;:]*m`, 'g')
   for (const line of artLines) {
     const top = []
     const bottom = []
-    for (const ch of line) {
+    // Colour is not a cell. Strip the sequences before counting glyphs.
+    for (const ch of line.replace(SGR, '')) {
       top.push(ch === '█' || ch === '▀')
       bottom.push(ch === '█' || ch === '▄')
     }
@@ -111,17 +129,17 @@ if (mono) {
         throw new Error(`decode mismatch at ${x},${y}: the art does not draw the source`)
       }
     }
-  // The point of this mode: what goes into a kind 31436 menu must survive
-  // SPEC.md's rule that display text carries no control character.
-  for (const ch of art.replace(/\n/g, '')) {
+  // What goes into a kind 31436 menu must survive SPEC.md's rule: SGR is
+  // allowed in a display, every other control character is not.
+  for (const ch of art.replace(SGR, '').replace(/\n/g, '')) {
     const code = ch.codePointAt(0)
     if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
-      throw new Error(`monochrome art has a control character U+${code.toString(16)}`)
+      throw new Error(`art has a non-SGR control character U+${code.toString(16)}`)
     }
   }
 
   process.stderr.write(
-    `${cols}x${rows} cells, ${Buffer.byteLength(art)} bytes, monochrome, decode verified\n`,
+    `${cols}x${rows} cells, ${Buffer.byteLength(art)} bytes, ${inkColour === '' ? 'monochrome' : 'coloured ink'}, decode verified\n`,
   )
   process.stdout.write(art)
   process.exit(0)
