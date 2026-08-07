@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- the project page reads on a phone. Two things broke below about 372px: the
+  card grid asked for a 22rem minimum track, which is wider than a phone, so
+  the floor could not shrink and the whole page scrolled sideways with the
+  text cut off at the right edge; and the architecture diagram is 860 units
+  wide, so it scaled to roughly a third and put its labels near 4px. The grid
+  minimums are now `min(22rem,100%)`, and below 48rem a portrait version of
+  the same diagram is swapped in, capped in width so its labels stay near
+  their true size. The landscape diagram is untouched, so nothing about the
+  desktop page changes. The bridge itself already held up: its chrome
+  reflows and its fixed-width gopher content scrolls inside its own `pre`,
+  which is the only correct answer when a profile banner is SGR block art
+  that must not reflow
+
 ## 0.16.7 (2026-08-07)
 
 - `post` takes `--as npub1...` and refuses to sign as anyone else. The signer

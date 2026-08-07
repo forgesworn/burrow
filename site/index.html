@@ -86,6 +86,10 @@ nav{display:flex; flex-wrap:wrap; gap:.5rem 1.1rem; font-size:.93rem}
   border-bottom:1px solid var(--rule); font-size:.78rem; color:var(--muted)}
 .dot{width:.6rem; height:.6rem; border-radius:50%; background:var(--rule)}
 .term pre{margin:0; padding:1rem; overflow-x:auto; font-size:.85rem; line-height:1.55}
+/* A transcript is fixed-width by nature and still scrolls sideways inside its
+   own box on a phone; the smaller step just buys back a dozen columns so the
+   shorter lines land whole. */
+@media (max-width:30rem){ .term pre{font-size:.76rem; padding:.75rem} }
 .term .p{color:var(--accent)}
 .term .c{color:var(--muted)}
 .term .l{color:var(--link)}
@@ -93,9 +97,11 @@ pre{tab-size:4}
 code:not(pre code){background:var(--panel); border:1px solid var(--rule);
   border-radius:.25rem; padding:.05em .35em; font-size:.9em}
 
-/* grids */
-.grid{display:grid; gap:1.25rem; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
-.grid-2{grid-template-columns:repeat(auto-fit,minmax(22rem,1fr))}
+/* grids. The min() guard is load-bearing: a bare minmax(22rem,1fr) sets a
+   floor wider than a phone, so the track overflows the viewport instead of
+   shrinking and the whole page scrolls sideways. */
+.grid{display:grid; gap:1.25rem; grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr))}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(min(22rem,100%),1fr))}
 .card{background:var(--panel); border:1px solid var(--rule); border-radius:.5rem; padding:1.15rem 1.25rem}
 .card p:last-child{margin-bottom:0}
 .card .tag{font-family:ui-monospace,monospace; font-size:.75rem; color:var(--accent);
@@ -115,10 +121,22 @@ figcaption{font-size:.85rem; color:var(--muted); margin-top:.6rem}
 .svg-box{fill:var(--panel); stroke:var(--rule); stroke-width:1.5}
 .svg-label{font-family:ui-monospace,monospace; font-size:12px}
 .svg-small{font-family:ui-monospace,monospace; font-size:10.5px}
+/* The landscape diagram is 860 units wide, so on a phone it scales to about a
+   third and its labels land near 4px. Below 48rem a portrait version of the
+   same diagram is swapped in, capped in width so its own labels stay near
+   their true size rather than ballooning on a tablet. display:none keeps the
+   hidden one out of the accessibility tree, so only one title is announced. */
+.svg-label-n{font-family:ui-monospace,monospace; font-size:15px}
+.svg-small-n{font-family:ui-monospace,monospace; font-size:13px}
+.diagram-narrow{display:none}
+@media (max-width:48rem){
+  .diagram-wide{display:none}
+  .diagram-narrow{display:block; max-width:24rem; margin-inline:auto}
+}
 
 /* support */
 .support{background:var(--panel)}
-.give{display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); margin:1.5rem 0}
+.give{display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(min(13rem,100%),1fr)); margin:1.5rem 0}
 .give a{display:block; padding:.85rem 1rem; border:1px solid var(--rule); border-radius:.45rem;
   text-decoration:none; background:var(--bg)}
 .give a:hover{border-color:var(--link)}
@@ -253,7 +271,7 @@ TheCryptoDonkey
     </div>
 
     <figure>
-      <svg viewBox="0 0 860 250" role="img" aria-labelledby="diagram-title">
+      <svg class="diagram-wide" viewBox="0 0 860 250" role="img" aria-labelledby="diagram-title">
         <title id="diagram-title">Text files are signed into kind 31436 events, stored on
         relays, and served by any bridge to gopher, Gemini, HTTP and terminal clients.</title>
 
@@ -303,6 +321,65 @@ TheCryptoDonkey
         <path class="svg-line" d="M772 118 V158 H778"/>
 
         <text class="svg-small svg-muted" x="8" y="228">Lose the bridge and the documents remain. Any other bridge serves the same signed events.</text>
+      </svg>
+
+      <!-- Same diagram, stacked top to bottom for phones. -->
+      <svg class="diagram-narrow" viewBox="0 0 320 660" role="img" aria-labelledby="diagram-title-narrow">
+        <title id="diagram-title-narrow">Text files are signed into kind 31436 events, stored on
+        relays, and served by any bridge to gopher, Gemini, HTTP and terminal clients.</title>
+
+        <rect class="svg-box" x="85" y="8" width="150" height="72" rx="6"/>
+        <text class="svg-label-n svg-fg" x="160" y="34" text-anchor="middle">my-hole/</text>
+        <text class="svg-small-n svg-muted" x="160" y="54" text-anchor="middle">index.map</text>
+        <text class="svg-small-n svg-muted" x="160" y="71" text-anchor="middle">about.txt</text>
+
+        <path class="svg-line" d="M160 80 V104"/>
+        <polygon class="svg-accent" points="155,104 160,115 165,104"/>
+        <text class="svg-small-n svg-muted" x="172" y="99">sign</text>
+
+        <rect class="svg-box" x="70" y="122" width="180" height="94" rx="6"/>
+        <text class="svg-label-n svg-fg" x="160" y="148" text-anchor="middle">kind 31436</text>
+        <text class="svg-small-n svg-muted" x="160" y="170" text-anchor="middle">d = /about.txt</text>
+        <text class="svg-small-n svg-muted" x="160" y="187" text-anchor="middle">type = 0</text>
+        <text class="svg-small-n svg-accent" x="160" y="204" text-anchor="middle">signed by your npub</text>
+
+        <path class="svg-line" d="M160 216 V240"/>
+        <polygon class="svg-accent" points="155,240 160,251 165,240"/>
+        <text class="svg-small-n svg-muted" x="172" y="235">publish</text>
+
+        <rect class="svg-box" x="12" y="258" width="92" height="32" rx="6"/>
+        <rect class="svg-box" x="114" y="258" width="92" height="32" rx="6"/>
+        <rect class="svg-box" x="216" y="258" width="92" height="32" rx="6"/>
+        <text class="svg-small-n svg-fg" x="58" y="279" text-anchor="middle">relay</text>
+        <text class="svg-small-n svg-fg" x="160" y="279" text-anchor="middle">relay</text>
+        <text class="svg-small-n svg-fg" x="262" y="279" text-anchor="middle">relay</text>
+        <text class="svg-small-n svg-muted" x="160" y="308" text-anchor="middle">your choice, plus NIP-65</text>
+
+        <path class="svg-line" d="M160 318 V342"/>
+        <polygon class="svg-accent" points="155,342 160,353 165,342"/>
+        <text class="svg-small-n svg-muted" x="172" y="337">fetch</text>
+
+        <rect class="svg-box" x="100" y="360" width="120" height="58" rx="6"/>
+        <text class="svg-label-n svg-fg" x="160" y="386" text-anchor="middle">bridge</text>
+        <text class="svg-small-n svg-muted" x="160" y="405" text-anchor="middle">any bridge</text>
+
+        <path class="svg-line" d="M160 418 V432 H40 V573"/>
+        <path class="svg-line" d="M40 459 H72"/>
+        <path class="svg-line" d="M40 497 H72"/>
+        <path class="svg-line" d="M40 535 H72"/>
+        <path class="svg-line" d="M40 573 H72"/>
+        <rect class="svg-box" x="78" y="444" width="180" height="30" rx="6"/>
+        <rect class="svg-box" x="78" y="482" width="180" height="30" rx="6"/>
+        <rect class="svg-box" x="78" y="520" width="180" height="30" rx="6"/>
+        <rect class="svg-box" x="78" y="558" width="180" height="30" rx="6"/>
+        <text class="svg-small-n svg-fg" x="168" y="464" text-anchor="middle">gopher</text>
+        <text class="svg-small-n svg-fg" x="168" y="502" text-anchor="middle">gemini</text>
+        <text class="svg-small-n svg-fg" x="168" y="540" text-anchor="middle">http / lynx</text>
+        <text class="svg-small-n svg-fg" x="168" y="578" text-anchor="middle">terminal</text>
+
+        <text class="svg-small-n svg-muted" x="8" y="618">Lose the bridge and the documents</text>
+        <text class="svg-small-n svg-muted" x="8" y="635">remain. Any other bridge serves</text>
+        <text class="svg-small-n svg-muted" x="8" y="652">the same signed events.</text>
       </svg>
       <figcaption>One router, four frontends. Reading needs no identity anywhere; writing
       always goes through a NIP-46 signer or a NIP-07 extension you control.</figcaption>
