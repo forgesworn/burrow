@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.8 (2026-08-07)
 
 - relay connections can be routed through a SOCKS5 proxy with `--proxy
   socks5h://host:port` or `GOPHERKIND_PROXY`, so a reader or bridge no longer
