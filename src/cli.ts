@@ -58,7 +58,7 @@ const USAGE = `usage:
     targets: npub[/path], nostr: entity, name@domain (NIP-05), gopher:// url
 
   write (needs a signer, see below):
-    gopherkind post <text> [--dry-run]   sign and broadcast a kind 1 note
+    gopherkind post <text> [--as npub1...] [--dry-run]  sign and broadcast a note
     gopherkind delete <id|note1|nevent1> [--wide] [--dry-run]
     gopherkind publish <dir> [--as npub1...] [--expire 30d] [--dry-run] [--force]
       only signs documents the relays do not already carry unchanged.
@@ -467,11 +467,27 @@ if (command === 'serve') {
   const { values, positionals } = parseArgs({
     args: rest,
     allowPositionals: true,
-    options: { ...COMMON, 'dry-run': { type: 'boolean', default: false } },
+    options: {
+      ...COMMON,
+      'dry-run': { type: 'boolean', default: false },
+      as: { type: 'string' },
+    },
   })
   const text = positionals.join(' ')
   if (text.trim() === '') fail('usage: gopherkind post <text>')
-  run(cmdPost(text, relaysOf(values), pairingsOf(values), values['dry-run']))
+  // A note is as much an identity claim as a document is, and the signer that
+  // answers is whichever bunker happens to be running. publish has refused a
+  // mismatch since 0.16.2; there was no reason for post not to.
+  resolveSigner(pairingsOf(values))
+    .then((signer) => requireSignerIdentity(signer, values.as))
+    .then((signer) =>
+      cmdPost(text, relaysOf(values), pairingsOf(values), values['dry-run'], signer),
+    )
+    .then((out) => {
+      process.stdout.write(out)
+      process.exit(0)
+    })
+    .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
 } else if (command === 'delete') {
   const { values, positionals } = parseArgs({
     args: rest,

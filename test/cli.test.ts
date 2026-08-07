@@ -152,3 +152,18 @@ test('public HTTP identity requires an explicit safe proxy contract', () => {
   assert.notEqual(badOrigin.status, 0)
   assert.match(badOrigin.out, /without a path/)
 })
+
+test('post accepts --as, so a note can name the identity it claims', () => {
+  // The signer that answers is whichever bunker happens to be running, and a
+  // note is as much an identity claim as a document is. Without --as,
+  // announcing from the wrong key is silent. publish has refused a mismatch
+  // since 0.16.2; post had no such guard until 0.16.7.
+  //
+  // Reaching the comparison needs a signer, and requireSignerIdentity is
+  // covered directly in the signing tests. What this asserts is that the flag
+  // is wired at all: before it was, this failed with ERR_PARSE_ARGS_UNKNOWN_OPTION.
+  const result = run(srcCli, ['post', 'hello', '--as', 'npub1whatever'])
+  assert.notEqual(result.status, 0)
+  assert.doesNotMatch(result.out, /UNKNOWN_OPTION/)
+  assert.match(result.out, /no signer/)
+})
