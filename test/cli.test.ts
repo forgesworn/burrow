@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 const root = path.join(import.meta.dirname, '..')
@@ -60,6 +60,17 @@ test('the built dist entry runs the same way', { skip: !existsSync(distCli) }, (
   const none = run(distCli, [])
   assert.notEqual(none.status, 0)
   assert.match(none.out, /usage:/)
+})
+
+test('the built dist entry is executable', { skip: !existsSync(distCli) }, () => {
+  // tsc writes 0644. `npm install` chmods a bin target on the way in, so a
+  // global install hid this, but npx executes the file directly and got
+  // "Permission denied". The test above could never catch it, because it runs
+  // dist through `node` rather than executing it the way a bin link does.
+  assert.ok(statSync(distCli).mode & 0o111, 'dist/cli.js needs its executable bit')
+  const direct = spawnSync(distCli, [], { encoding: 'utf8' })
+  assert.equal(direct.error, undefined, `executing dist/cli.js directly failed: ${direct.error}`)
+  assert.match(`${direct.stdout}${direct.stderr}`, /usage:/)
 })
 
 test('serve defaults to loopback and exits cleanly on SIGTERM', async () => {
