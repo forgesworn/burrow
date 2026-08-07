@@ -41,6 +41,7 @@
     "SPEC.md",
     "docs",
     "test/fixtures/kind31436-v1.json",
+    "test/fixtures/kind31436-v2.json",
     "llms.txt"
   ],
   "publishConfig": {

@@ -43,7 +43,7 @@ interface Fixture {
 }
 
 const fixture = JSON.parse(
-  readFileSync(new URL('./fixtures/kind31436-v1.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('./fixtures/kind31436-v2.json', import.meta.url), 'utf8'),
 ) as Fixture
 
 function fixtureEvent(
@@ -61,7 +61,7 @@ function fixtureEvent(
 }
 
 test('published protocol fixtures match the implementation', () => {
-  assert.equal(fixture.version, 1)
+  assert.equal(fixture.version, 2)
   for (const vector of fixture.documents) {
     const parsed = parseDocument(fixtureEvent(vector.event))
     assert.equal(parsed !== null, vector.valid, vector.name)
