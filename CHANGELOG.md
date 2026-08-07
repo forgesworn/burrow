@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- only sign the documents that actually changed. `publish` asked the signer for
+  every document in the directory every time, so correcting one typo in a
+  nine-document hole cost nine signatures, and on a hardware signer that is
+  nine button presses. It now asks the relays what they already hold, compares
+  content, type and title, and signs only what differs. Publishing this
+  project's own hole after the banner change drops from nine signatures to one.
+  Nothing is skipped when the relays cannot be reached, because not knowing
+  what is published is not the same as knowing it is current; `--expire` still
+  signs everything, since republishing is how a document's life is extended;
+  and `--force` is there for when you want the old behaviour
+- `--dry-run` no longer costs a full set of signatures before printing what it
+  would have done. It signs the changed set, which is usually nothing
+
 ## 0.16.3 (2026-08-07)
 
 Includes everything tagged as 0.16.2, which never reached the registry: its

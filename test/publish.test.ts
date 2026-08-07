@@ -396,3 +396,101 @@ test('unpublish discovers documents on the author NIP-65 write relays', async ()
   }
   assert.equal(pool.destroyed, true)
 })
+
+// A hardware signer costs a button press per document. Signing a document the
+// relays already carry unchanged spends one to replace an event with its twin.
+function countingSigner(secret: Uint8Array): CliSigner & { signed: string[] } {
+  const signed: string[] = []
+  return {
+    describe: 'counting signer',
+    signed,
+    pubkey: async () => getPublicKey(secret),
+    sign: async (template: EventTemplate) => {
+      const d = template.tags.find((t) => t[0] === 'd')?.[1]
+      if (template.kind === DOC_KIND && d !== undefined) signed.push(d)
+      return finalizeEvent(template, secret)
+    },
+  }
+}
+
+async function publishedFixture(
+  dir: string,
+  secret: Uint8Array,
+): Promise<{ pool: FakePool; signer: CliSigner & { signed: string[] } }> {
+  const signer = countingSigner(secret)
+  const pool = new FakePool(null)
+  await publishHole(dir, ['wss://configured.example'], signer, { pool })
+  const carried = pool.published.get('wss://configured.example') ?? []
+  const next = new FakePool(null, false, [])
+  next.published.set('wss://configured.example', [...carried])
+  return { pool: next, signer: countingSigner(secret) }
+}
+
+test('a second publish of an unchanged hole asks the signer for nothing', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  try {
+    const { pool, signer } = await publishedFixture(dir, secret)
+    await publishHole(dir, ['wss://configured.example'], signer, { pool })
+    assert.deepEqual(signer.signed, [], 'no document should have been signed')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('only the edited document is signed again', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  try {
+    const { pool, signer } = await publishedFixture(dir, secret)
+    writeFileSync(path.join(dir, 'about.txt'), 'hello, again\n')
+    await publishHole(dir, ['wss://configured.example'], signer, { pool })
+    assert.deepEqual(signer.signed, ['/about.txt'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('--force signs everything, and so does --expire', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  try {
+    const forced = await publishedFixture(dir, secret)
+    await publishHole(dir, ['wss://configured.example'], forced.signer, {
+      pool: forced.pool,
+      force: true,
+    })
+    assert.equal(forced.signer.signed.length, 5)
+
+    // An expiring document is republished to extend its life, so skipping one
+    // because its text is unchanged would quietly let it lapse.
+    const expiring = await publishedFixture(dir, secret)
+    await publishHole(dir, ['wss://configured.example'], expiring.signer, {
+      pool: expiring.pool,
+      expireSeconds: 3600,
+    })
+    assert.equal(expiring.signer.signed.length, 5)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a relay that cannot be asked what it holds gets everything republished', async () => {
+  const dir = fixture()
+  const secret = generateSecretKey()
+  try {
+    const { pool, signer } = await publishedFixture(dir, secret)
+    // Not knowing what is published must never be read as "nothing changed".
+    const blind = Object.create(pool) as FakePool
+    Object.defineProperty(blind, 'querySync', {
+      value: async (relays: string[], filter: Filter) =>
+        filter.kinds?.includes(DOC_KIND) && filter.ids === undefined
+          ? Promise.reject(new Error('relay unreachable'))
+          : FakePool.prototype.querySync.call(pool, relays, filter),
+    })
+    await publishHole(dir, ['wss://configured.example'], signer, { pool: blind })
+    assert.equal(signer.signed.length, 5)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
